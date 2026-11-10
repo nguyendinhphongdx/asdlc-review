@@ -1,4 +1,4 @@
-# MR Dashboard — Kiến trúc
+# ASDLC Review — Kiến trúc
 
 Công cụ review MR/PR tự động cho các repo phát triển theo ASDLC (AI-assisted SDLC):
 nhận trigger, clone repo, nạp **framework chung + harness riêng của repo**, review bằng AI
@@ -32,7 +32,7 @@ cho leaderboard và báo cáo cuối kỳ.
 | Desktop shell | `apps/desktop` | Electron: khởi động server con, mở cửa sổ dashboard, tray |
 | Server | `apps/server` | Fastify API + webhook + BullMQ worker + Prisma/SQLite |
 | Web | `apps/web` | Dashboard React + Vite + Tailwind, gọi REST API |
-| Shared | `packages/shared` | Kiểu dữ liệu + zod schema dùng chung |
+| Contracts | `packages/contracts` | Kiểu dữ liệu + zod schema dùng chung |
 | Framework | `frameworks/<id>/` | Bộ tiêu chí (YAML) + prompt; có thể có nhiều framework |
 
 **Vì sao Electron mà không phải Tauri:** toàn bộ core (BullMQ, Prisma, gọi `claude`/`codex`/`git`)

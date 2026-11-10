@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 330" font-family="Inter,'Segoe UI',system-ui,sans-serif">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#6366f1"/></marker></defs>
+  <rect width="1100" height="330" rx="18" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="32" y="44" font-size="20" font-weight="700" fill="#0f172a">Chấm điểm tất định</text>
+  <g font-size="14" font-weight="600">
+    <rect x="32" y="80" width="230" height="86" rx="12" fill="#fff" stroke="#c7d2fe"/><text x="48" y="108" fill="#0f172a">Finding tĩnh</text><text x="48" y="130" font-size="12" font-weight="400" fill="#64748b">secret, debug, test skip…</text><text x="48" y="150" font-size="12" font-weight="400" fill="#64748b">confidence = 1</text>
+    <rect x="32" y="184" width="230" height="86" rx="12" fill="#fff" stroke="#c7d2fe"/><text x="48" y="212" fill="#0f172a">Finding từ AI</text><text x="48" y="234" font-size="12" font-weight="400" fill="#64748b">bằng chứng · dòng · “tại sao”</text><text x="48" y="254" font-size="12" font-weight="400" fill="#64748b">LLM không tự cho điểm</text>
+  </g>
+  <path d="M262 123h40M262 227h40" stroke="#a5b4fc" stroke-width="2"/><path d="M302 123v104M302 175h36" stroke="#6366f1" stroke-width="2" fill="none" marker-end="url(#a)"/>
+  <rect x="342" y="80" width="400" height="190" rx="14" fill="#fff" stroke="#e2e8f0"/>
+  <text x="360" y="108" font-size="12" fill="#64748b" letter-spacing="1">CÔNG THỨC</text>
+  <g font-family="ui-monospace,Menlo,monospace" font-size="13" fill="#0f172a">
+    <text x="360" y="138">deduction = severity × confidence × sizeFactor</text>
+    <text x="360" y="164">category  = max(0, 100 − Σ deduction)</text>
+    <text x="360" y="190">total     = Σ weight·category / Σ weight</text>
+    <text x="360" y="216">total     = min(total, cap của gate)</text>
+  </g>
+  <text x="360" y="248" font-size="12" fill="#64748b">minor/nit chuẩn hoá theo cỡ MR · question/praise và confidence&lt;0.4 không trừ</text>
+  <path d="M742 175h40" stroke="#6366f1" stroke-width="2.5" marker-end="url(#a)"/>
+  <g font-size="13" font-weight="600">
+    <rect x="786" y="80" width="282" height="86" rx="12" fill="#fef2f2" stroke="#fecaca"/><text x="802" y="106" fill="#991b1b">Cổng chặn (gates)</text><text x="802" y="128" font-size="12" font-weight="400" fill="#7f1d1d">Lộ secret ≤ 30</text><text x="802" y="146" font-size="12" font-weight="400" fill="#7f1d1d">Security critical ≤ 49 · Blocker ≤ 59</text>
+    <rect x="786" y="184" width="282" height="86" rx="12" fill="#ecfdf5" stroke="#6ee7b7"/><text x="802" y="210" fill="#065f46">Điểm 0–100 + Grade</text><text x="802" y="232" font-size="12" font-weight="400" fill="#047857">A ≥ 90 · B ≥ 80 · C ≥ 70 · D ≥ 60 · F</text><text x="802" y="250" font-size="12" font-weight="400" fill="#047857">verdict: approve / comment / request_changes</text>
+  </g>
+  <path d="M927 166v18" stroke="#6366f1" stroke-width="2" marker-end="url(#a)"/>
+</svg>

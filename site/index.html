@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="assets/logo-mark.svg" type="image/svg+xml" />
 <title>ASDLC Review — Review MR bằng AI, chấm điểm minh bạch</title>
 <meta name="description" content="ASDLC Review review merge request GitLab/GitHub theo framework ASDLC và harness riêng của từng repo, chấm điểm 0–100 tất định, kèm thống kê và leaderboard." />
 <style>
@@ -24,11 +25,12 @@ h2{text-align:center;font-size:28px;margin:48px 0 8px}
 pre{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;overflow-x:auto;font-size:14px}
 footer{border-top:1px solid var(--bd);margin-top:56px;padding:24px 0;text-align:center;color:var(--mut);font-size:14px}
 a.t{color:var(--ac)}
+.shot{width:100%;border:1px solid var(--bd);border-radius:12px;background:#fff}@media(max-width:520px){.grid{grid-template-columns:1fr!important}}
 </style>
 </head>
 <body>
 <div class="w">
-<nav><b>ASDLC Review</b><div><a href="#tinh-nang">Tính năng</a><a href="#cai-dat">Cài đặt</a><a id="gh" href="#">GitHub</a><a id="rel" href="#">Releases</a></div></nav>
+<nav><b style="display:flex;align-items:center;gap:10px"><img src="assets/logo-mark.svg" alt="" width="32" height="32"/>ASDLC Review</b><div><a href="#tinh-nang">Tính năng</a><a href="#cai-dat">Cài đặt</a><a id="gh" href="#">GitHub</a><a id="rel" href="#">Releases</a></div></nav>
 
 <header class="hero">
 <h1>Review hàng chục MR,<br/>không bỏ sót một convention nào.</h1>
@@ -49,8 +51,16 @@ a.t{color:var(--ac)}
 <h2>Luồng xử lý</h2>
 <div class="flow"><span>Webhook / Chat / Thủ công</span><span>→ Hàng đợi</span><span>→ Clone & nạp harness</span><span>→ Phân tích tĩnh</span><span>→ AI tìm finding</span><span>→ Chấm điểm</span><span>→ Comment lên MR</span><span>→ Thống kê</span></div>
 
+<h2>Xem thử giao diện</h2>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(420px,1fr))">
+<img class="shot" src="assets/shots/overview.png" alt="Tổng quan"/><img class="shot" src="assets/shots/review-detail.png" alt="Chi tiết review" style="object-fit:cover;object-position:top;max-height:520px"/>
+<img class="shot" src="assets/shots/leaderboard.png" alt="Leaderboard"/><img class="shot" src="assets/shots/reviews.png" alt="Danh sách review" style="object-fit:cover;object-position:top;max-height:420px"/>
+</div>
+<h2>Kiến trúc</h2>
+<img class="shot" src="assets/architecture.svg" alt="Kiến trúc micro-module" style="margin-bottom:16px"/>
+<img class="shot" src="assets/scoring.svg" alt="Chấm điểm"/>
 <h2 id="cai-dat">Cài đặt nhanh</h2>
-<pre>git clone https://github.com/OWNER/asdlc-review.git && cd asdlc-review
+<pre>git clone https://github.com/nguyendinhphongdx/asdlc-review.git && cd asdlc-review
 cp .env.example .env     # điền GITLAB_TOKEN, GITLAB_WEBHOOK_SECRET
 pnpm install
 pnpm db:push

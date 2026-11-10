@@ -17,7 +17,7 @@ export function OverviewPage() {
       <PageHeader title="Tổng quan"><RangePicker /></PageHeader>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Số MR" value={o.totalMrs} hint={`${o.totalRuns} lần review`} />
-        <Stat label="Điểm TB" value={fmtScore(o.avgScore)} hint={o.passRate != null ? `đạt ${Math.round(o.passRate * 100)}%` : undefined} />
+        <Stat label="Điểm TB" value={fmtScore(o.avgScore)} hint={o.passRate != null ? `đạt ${Math.round(o.passRate)}%` : undefined} />
         <Stat label="Lộ secret" value={o.secretLeaks} />
         <Stat label="Lỗi bảo mật" value={o.securityIssues} />
         <Stat label="Sai convention" value={o.conventionViolations} />
@@ -30,14 +30,14 @@ export function OverviewPage() {
           {o.trend.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : (
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={o.trend}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="week" fontSize={11} /><YAxis domain={[0, 100]} fontSize={11} /><Tooltip />
-                <Line type="monotone" dataKey="avgScore" name="Điểm TB" stroke="#4f46e5" strokeWidth={2} /></LineChart>
+                <Line isAnimationActive={false} dot={{ r: 3 }} type="monotone" dataKey="avgScore" name="Điểm TB" stroke="#4f46e5" strokeWidth={2} /></LineChart>
             </ResponsiveContainer>
           )}
         </Card>
         <Card title="Finding theo mức độ">
           {sev.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : (
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={sev}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" fontSize={11} /><YAxis allowDecimals={false} fontSize={11} /><Tooltip /><Bar dataKey="count" fill="#4f46e5" /></BarChart>
+              <BarChart data={sev}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" fontSize={11} /><YAxis allowDecimals={false} fontSize={11} /><Tooltip /><Bar isAnimationActive={false} dataKey="count" fill="#4f46e5" /></BarChart>
             </ResponsiveContainer>
           )}
         </Card>

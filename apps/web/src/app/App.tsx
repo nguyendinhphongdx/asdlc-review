@@ -22,7 +22,7 @@ export function App() {
   return (
     <div className="flex min-h-screen">
       <aside className="w-56 shrink-0 border-r border-slate-200 bg-white p-3">
-        <div className="mb-4 px-2 text-lg font-bold text-indigo-700">ASDLC Review</div>
+        <div className="mb-4 flex items-center gap-2 px-2 text-lg font-bold text-indigo-700"><img src="/favicon.svg" alt="" className="h-7 w-7" />ASDLC Review</div>
         {nav.map((n) => (
           <NavLink key={n.to} to={n.to} end={n.end} className={({ isActive }) => `mb-1 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${isActive ? "bg-indigo-50 font-medium text-indigo-700" : "text-slate-600 hover:bg-slate-100"}`}>
             <n.icon size={16} />{n.label}

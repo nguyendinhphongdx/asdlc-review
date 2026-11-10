@@ -2,11 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { fmtScore } from "../../kernel/format.js";
 import { RangePicker, useRange } from "../../kernel/range.js";
 import { Card, Empty, ErrorBox, Loading, PageHeader, Stat } from "../../kernel/ui.js";
-import { exportUrl, getReport } from "./api.js";
+import { exportUrl, getRepoNames, getReport } from "./api.js";
 
 export function ReportsPage() {
   const { days } = useRange();
   const q = useQuery({ queryKey: ["report", days], queryFn: () => getReport(days) });
+  const names = useQuery({ queryKey: ["repo-names"], queryFn: getRepoNames });
   return (
     <>
       <PageHeader title="Báo cáo cuối kỳ">
@@ -25,7 +26,7 @@ export function ReportsPage() {
             <Card className="mt-4" title="Theo repo">
               {r.byRepo.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : (
                 <table className="w-full text-sm"><tbody>{r.byRepo.map((x) => (
-                  <tr key={x.repoId} className="border-t border-slate-100"><td className="py-1.5 font-mono text-xs">{x.repoId}</td><td>{x.mrCount} MR</td><td>TB {fmtScore(x.avgScore)}</td><td>{x.blockers} blocker</td></tr>
+                  <tr key={x.repoId} className="border-t border-slate-100"><td className="py-1.5 font-mono text-xs">{names.data?.[x.repoId] ?? x.repoId}</td><td>{x.mrCount} MR</td><td>TB {fmtScore(x.avgScore)}</td><td>{x.blockers} blocker</td></tr>
                 ))}</tbody></table>
               )}
             </Card>
