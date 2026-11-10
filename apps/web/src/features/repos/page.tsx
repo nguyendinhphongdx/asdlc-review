@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Button, Card, Empty, ErrorBox, Loading, PageHeader, inputCls } from "../../kernel/ui.js";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { listRepos, patchRepo, registerRepo, removeRepo } from "./api.js";
 
 export function ReposPage() {
@@ -13,26 +18,28 @@ export function ReposPage() {
   const del = useMutation({ mutationFn: removeRepo, onSuccess: inv });
   return (
     <>
-      <PageHeader title="Repository" />
-      <Card className="mb-4">
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); if (url.trim()) add.mutate(); }}>
-          <input className={`${inputCls} flex-1`} placeholder="URL repo, ví dụ https://gitlab.com/group/project" value={url} onChange={(e) => setUrl(e.target.value)} />
+      <PageHeader title="Repository" description="Đăng ký repo để nhận webhook và review tự động." />
+      <Card className="p-4">
+        <form className="flex flex-wrap gap-3" onSubmit={(e) => { e.preventDefault(); if (url.trim()) add.mutate(); }}>
+          <Input aria-label="URL repo" className="flex-[1_1_320px]" placeholder="https://gitlab.example.com/group/project" value={url} onChange={(e) => setUrl(e.target.value)} />
           <Button type="submit" disabled={add.isPending}>Đăng ký</Button>
         </form>
-        {add.error && <div className="mt-2"><ErrorBox error={add.error} /></div>}
-        <p className="mt-2 text-xs text-slate-500">Webhook GitLab: <code>/webhooks/gitlab</code> (Merge request events + Comments, kèm Secret token).</p>
+        {add.error && <div className="mt-3"><ErrorBox error={add.error} /></div>}
+        <p className="mt-3 text-xs text-muted-foreground">Webhook GitLab: <code className="font-mono">/webhooks/gitlab</code> — bật Merge request events và Comments, kèm Secret token.</p>
       </Card>
       {q.isLoading ? <Loading /> : q.error ? <ErrorBox error={q.error} /> : !q.data?.length ? <Empty>Chưa đăng ký repo nào</Empty> : (
-        <Card><table className="w-full text-sm"><thead className="text-left text-xs uppercase text-slate-500"><tr><th>Repo</th><th>Nền tảng</th><th>Auto review</th><th>Bật</th><th /></tr></thead><tbody>
-          {q.data.map((r) => (
-            <tr key={r.id} className="border-t border-slate-100">
-              <td className="py-2"><a className="text-indigo-700 hover:underline" href={r.webUrl} target="_blank" rel="noreferrer">{r.fullPath}</a></td><td>{r.platform}</td>
-              <td><input type="checkbox" checked={r.autoReview} onChange={(e) => patch.mutate({ id: r.id, p: { autoReview: e.target.checked } })} /></td>
-              <td><input type="checkbox" checked={r.enabled} onChange={(e) => patch.mutate({ id: r.id, p: { enabled: e.target.checked } })} /></td>
-              <td className="text-right"><Button variant="ghost" onClick={() => { if (confirm(`Gỡ ${r.fullPath}?`)) del.mutate(r.id); }}>Gỡ</Button></td>
-            </tr>
-          ))}
-        </tbody></table></Card>
+        <Card className="overflow-hidden"><Table>
+          <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Repo</TableHead><TableHead>Nền tảng</TableHead><TableHead>Tự review</TableHead><TableHead>Bật</TableHead><TableHead /></TableRow></TableHeader>
+          <TableBody>{q.data.map((r) => (
+            <TableRow key={r.id}>
+              <TableCell><a className="font-medium hover:underline" href={r.webUrl} target="_blank" rel="noreferrer">{r.fullPath}</a></TableCell>
+              <TableCell><Badge>{r.platform}</Badge></TableCell>
+              <TableCell><input aria-label="Tự review" type="checkbox" className="size-4 accent-[var(--primary)]" checked={r.autoReview} onChange={(e) => patch.mutate({ id: r.id, p: { autoReview: e.target.checked } })} /></TableCell>
+              <TableCell><input aria-label="Bật repo" type="checkbox" className="size-4 accent-[var(--primary)]" checked={r.enabled} onChange={(e) => patch.mutate({ id: r.id, p: { enabled: e.target.checked } })} /></TableCell>
+              <TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => { if (confirm(`Gỡ ${r.fullPath}?`)) del.mutate(r.id); }}>Gỡ</Button></TableCell>
+            </TableRow>
+          ))}</TableBody>
+        </Table></Card>
       )}
     </>
   );

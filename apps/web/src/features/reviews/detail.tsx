@@ -1,61 +1,99 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { CircleAlert, ExternalLink } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { Avatar } from "@/components/ui/avatar";
+import { Badge, GradeBadge, SeverityBadge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { ScoreRing } from "@/components/ui/score-ring";
+import { cn } from "@/lib/utils";
 import { fmtDate, fmtDur } from "../../kernel/format.js";
-import { Badge, Button, Card, Empty, ErrorBox, GradeBadge, Loading, PageHeader, SeverityBadge, Stat } from "../../kernel/ui.js";
+import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { getRun, rerun, setFeedback } from "./api.js";
+
+const VERDICT: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
+  approve: { label: "Có thể merge", variant: "success" }, comment: { label: "Cần góp ý", variant: "warning" }, request_changes: { label: "Yêu cầu sửa", variant: "danger" },
+};
+const FB = { agree: "Đồng ý", disagree: "Không đồng ý", fixed: "Đã sửa" } as const;
 
 export function ReviewDetailPage() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["run", id], queryFn: () => getRun(id), refetchInterval: (s) => (s.state.data && ["queued", "running"].includes(s.state.data.status) ? 3000 : false) });
   const re = useMutation({ mutationFn: (mrId: string) => rerun(mrId), onSuccess: () => qc.invalidateQueries({ queryKey: ["runs"] }) });
-  const fb = useMutation({ mutationFn: (a: { id: string; v: "agree" | "disagree" | "fixed" | null }) => setFeedback(a.id, a.v), onSuccess: () => qc.invalidateQueries({ queryKey: ["run", id] }) });
+  const fb = useMutation({ mutationFn: (a: { id: string; v: keyof typeof FB | null }) => setFeedback(a.id, a.v), onSuccess: () => qc.invalidateQueries({ queryKey: ["run", id] }) });
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
   const r = q.data!;
+  const verdict = r.verdict ? VERDICT[r.verdict] : undefined;
   return (
     <>
       <PageHeader title={`!${r.mr.iid} ${r.mr.title}`}>
-        <a className="text-sm text-indigo-700 hover:underline" href={r.mr.webUrl} target="_blank" rel="noreferrer">Mở MR</a>
-        <Button variant="ghost" disabled={re.isPending} onClick={() => re.mutate(r.mr.id)}>Review lại</Button>
+        <Button variant="outline" disabled={re.isPending} onClick={() => re.mutate(r.mr.id)}>Review lại</Button>
+        <a className={buttonVariants()} href={r.mr.webUrl} target="_blank" rel="noreferrer">Mở MR<ExternalLink /></a>
       </PageHeader>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <Stat label="Điểm" value={<GradeBadge grade={r.grade} score={r.score} />} hint={r.rawScore != null && r.rawScore !== r.score ? `thô ${Math.round(r.rawScore)}` : undefined} />
-        <Stat label="Verdict" value={r.verdict ?? "–"} />
-        <Stat label="File / dòng" value={`${r.filesChanged} / +${r.additions} −${r.deletions}`} />
-        <Stat label="Thời gian" value={fmtDur(r.durationMs)} hint={r.model ?? r.provider ?? undefined} />
-        <Stat label="Vòng" value={r.round} hint={fmtDate(r.createdAt)} />
+      <div className="-mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-muted-foreground">
+        <span className="inline-flex items-center gap-2"><Avatar name={r.mr.authorUsername} className="size-[22px] text-[10px]" /><span className="font-medium text-foreground">{r.mr.authorUsername}</span></span>
+        <span className="font-mono text-xs">{r.mr.sourceBranch} → {r.mr.targetBranch}</span>
+        <span>Vòng {r.round} · {fmtDate(r.createdAt)}</span>
+        <Link to="/reviews" className="hover:underline">← Danh sách</Link>
       </div>
-      {r.error && <div className="mt-3"><ErrorBox error={r.error} /></div>}
-      {r.gates.length > 0 && <Card className="mt-4 border-red-200" title="Cổng chặn điểm">{r.gates.map((g) => <div key={g.id} className="text-sm">⛔ {g.reason} (trần {g.cap})</div>)}</Card>}
-      {r.summary && <Card className="mt-4" title="Tóm tắt">{r.intent && <p className="mb-2 text-sm text-slate-500">Ý định MR: {r.intent}</p>}<p className="text-sm">{r.summary}</p>
-        {r.strengths.length > 0 && <ul className="mt-2 list-disc pl-5 text-sm text-emerald-700">{r.strengths.map((s) => <li key={s}>{s}</li>)}</ul>}</Card>}
-      <Card className="mt-4" title="Điểm theo hạng mục">
-        <table className="w-full text-sm"><tbody>
-          {r.categoryScores.map((c) => (
-            <tr key={c.category} className="border-t border-slate-100"><td className="py-1.5">{c.name}</td><td className="w-1/2"><div className="h-2 rounded bg-slate-100"><div className="h-2 rounded bg-indigo-500" style={{ width: `${c.score}%` }} /></div></td><td className="text-right">{Math.round(c.score)}</td><td className="text-right text-xs text-slate-400">{c.findings} finding</td></tr>
-          ))}
-        </tbody></table>
-      </Card>
-      <Card className="mt-4" title={`Finding (${r.findings.length})`}>
-        {r.findings.length === 0 ? <Empty>Không có finding</Empty> : r.findings.map((f) => (
-          <div key={f.id} className="border-t border-slate-100 py-3 first:border-0">
-            <div className="flex flex-wrap items-center gap-2"><SeverityBadge severity={f.severity} /><Badge className="bg-slate-100 text-slate-600">{f.ruleId ?? f.category}</Badge><Badge className="bg-slate-50 text-slate-500">{f.source}</Badge>
-              <span className="font-medium">{f.title}</span></div>
-            {f.file && <div className="mt-1 font-mono text-xs text-slate-500">{f.file}{f.lineStart ? `:${f.lineStart}` : ""}</div>}
-            <p className="mt-1 text-sm">{f.why}</p>
-            {f.evidence && <pre className="mt-1 overflow-x-auto rounded bg-slate-900 p-2 text-xs text-slate-100">{f.evidence}</pre>}
-            {f.suggestion && <p className="mt-1 text-sm text-emerald-700">Gợi ý: {f.suggestion}</p>}
-            {f.question && <p className="mt-1 text-sm text-indigo-700">Câu hỏi: {f.question}</p>}
-            <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-              <span>tin cậy {Math.round(f.confidence * 100)}% · trừ {f.deduction.toFixed(1)}</span>
-              {(["agree", "disagree", "fixed"] as const).map((v) => (
-                <button key={v} className={`rounded border px-1.5 py-0.5 ${f.feedback === v ? "border-indigo-500 bg-indigo-50" : "border-slate-200"}`} onClick={() => fb.mutate({ id: f.id, v: f.feedback === v ? null : v })}>
-                  {{ agree: "Đồng ý", disagree: "Không đồng ý", fixed: "Đã sửa" }[v]}
-                </button>
-              ))}
-            </div>
+      {r.error && <ErrorBox error={r.error} />}
+
+      {r.score != null && (
+        <Card className="flex flex-wrap items-center gap-8 p-6">
+          <ScoreRing score={r.score} />
+          <div className="flex min-w-0 flex-[1_1_280px] flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2"><GradeBadge grade={r.grade} />{verdict && <Badge variant={verdict.variant}>{verdict.label}</Badge>}{r.rawScore != null && r.rawScore - r.score > 1 && <Badge>Điểm thô {Math.round(r.rawScore)} → bị chặn ở {Math.round(r.score)}</Badge>}</div>
+            {r.summary && <p className="max-w-[60ch]">{r.summary}</p>}
+            <div className="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-muted-foreground"><span>{r.filesChanged} file · <span className="text-success-fg">+{r.additions}</span> <span className="text-danger-fg">−{r.deletions}</span></span><span>{fmtDur(r.durationMs)}</span>{r.model && <span className="font-mono text-xs">{r.model}</span>}{r.costUsd != null && <span>${r.costUsd.toFixed(2)}</span>}<span className="font-mono text-xs">{r.headSha.slice(0, 7)}</span></div>
           </div>
+        </Card>
+      )}
+
+      {r.gates.map((g) => (
+        <section key={g.id} role="alert" className="flex gap-3 rounded-xl border border-danger bg-danger-bg px-5 py-4 text-danger-fg">
+          <CircleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+          <div><div className="font-semibold">Cổng chặn — điểm tối đa {g.cap}</div><div className="mt-0.5 text-[13px]">{g.reason}</div></div>
+        </section>
+      ))}
+
+      {(r.strengths.length > 0 || r.intent) && (
+        <Card><CardHeader><CardTitle>Ghi nhận</CardTitle></CardHeader><CardContent className="flex flex-col gap-2 text-sm">
+          {r.intent && <p className="text-muted-foreground">Ý định MR: {r.intent}</p>}
+          {r.strengths.length > 0 && <ul className="list-disc pl-5 text-success-fg">{r.strengths.map((s) => <li key={s}>{s}</li>)}</ul>}
+        </CardContent></Card>
+      )}
+
+      <Card><CardHeader><CardTitle>Điểm theo hạng mục</CardTitle></CardHeader><CardContent>
+        {r.categoryScores.map((c) => (
+          <div key={c.category} className="grid grid-cols-[minmax(110px,1.2fr)_3fr_44px_72px] items-center gap-4 border-t py-2.5">
+            <span className="font-medium">{c.name}</span>
+            <Progress value={c.score} barClassName={c.score >= 90 ? "bg-success" : c.score >= 60 ? "bg-chart-3" : "bg-danger"} />
+            <span className="text-right font-semibold tabular-nums">{Math.round(c.score)}</span>
+            <span className="text-right text-xs text-muted-foreground">{c.findings} finding</span>
+          </div>
+        ))}
+      </CardContent></Card>
+
+      <Card className="overflow-hidden">
+        <CardHeader className="flex-row items-baseline justify-between"><CardTitle>Finding <span className="font-normal text-muted-foreground">({r.findings.length})</span></CardTitle></CardHeader>
+        {r.findings.length === 0 ? <Empty>Không có finding 🎉</Empty> : r.findings.map((f) => (
+          <article key={f.id} className="flex flex-col gap-2.5 border-t p-5">
+            <div className="flex flex-wrap items-center gap-2"><SeverityBadge severity={f.severity} /><Badge className="font-mono">{f.ruleId ?? f.category}</Badge><Badge variant={f.source === "ai" ? "info" : "secondary"}>{f.source === "ai" ? "AI" : "Phân tích tĩnh"}</Badge><h3 className="ml-1 text-[15px] font-semibold">{f.title}</h3></div>
+            {f.file && <div className="font-mono text-xs text-primary">{f.file}{f.lineStart ? `:${f.lineStart}` : ""}</div>}
+            <p>{f.why}</p>
+            {f.evidence && <pre className="overflow-x-auto rounded-md bg-zinc-900 px-3.5 py-3 font-mono text-xs leading-[1.7] text-zinc-200">{f.evidence}</pre>}
+            {f.suggestion && <div className="rounded-md bg-success-bg px-3.5 py-3 text-[13px] text-success-fg"><b>Gợi ý.</b> {f.suggestion}</div>}
+            {f.question && <div className="rounded-md bg-info-bg px-3.5 py-3 text-[13px] text-info-fg"><b>Câu hỏi cho tác giả.</b> {f.question}</div>}
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span className="tabular-nums">Độ tin cậy {Math.round(f.confidence * 100)}% · trừ {f.deduction.toFixed(1)}</span>
+              <span className="flex gap-1.5">{(Object.keys(FB) as (keyof typeof FB)[]).map((v) => (
+                <Button key={v} size="sm" variant="outline" className={cn(f.feedback === v && "border-primary bg-info-bg text-info-fg")} onClick={() => fb.mutate({ id: f.id, v: f.feedback === v ? null : v })}>{FB[v]}</Button>
+              ))}</span>
+            </div>
+          </article>
         ))}
       </Card>
     </>

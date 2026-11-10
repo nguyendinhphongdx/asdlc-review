@@ -167,8 +167,9 @@ for (const file of walk(WEB)) {
   const code = stripComments(readFileSync(file, "utf8"));
   const self = rel.startsWith("features/") ? rel.split("/")[1]! : null;
   for (const { spec } of importsOf(code)) {
-    if (!spec.startsWith(".")) continue;
-    const target = path.relative(WEB, path.resolve(path.dirname(file), spec)).split(path.sep).join("/");
+    if (!spec.startsWith(".") && !spec.startsWith("@/")) continue;
+    const abs = spec.startsWith("@/") ? path.join(WEB, spec.slice(2)) : path.resolve(path.dirname(file), spec);
+    const target = path.relative(WEB, abs).split(path.sep).join("/");
     if (self && target.startsWith("features/") && target.split("/")[1] !== self) add("R17", file, `feature "${self}" import feature khác: ${spec}`);
     if (self && target.startsWith("app/")) add("R17", file, `feature import app/: ${spec}`);
   }

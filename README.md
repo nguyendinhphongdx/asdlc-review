@@ -53,7 +53,7 @@ apps/
     src/modules/<m>/   14 module: domain/ application/ infra/ + index.ts + MODULE.md
     src/app/           composition root: http/, workflows/, adapters/
     prisma/schema/     mỗi module một file .prisma (không quan hệ chéo)
-  web/               React 19 + Vite + Tailwind (features/<x>/ độc lập)
+  web/               React 19 + Vite + Tailwind v4 + shadcn/ui, design token, dark mode (features/<x>/ độc lập)
   desktop/           vỏ Electron mỏng
 packages/contracts/  DTO + zod dùng chung
 frameworks/asdlc/    framework chung: ~50 tiêu chí, mức độ, cổng chặn
@@ -69,8 +69,10 @@ docs/  tools/arch/   tài liệu, bộ kiểm luật kiến trúc
 | Danh sách review | Chi tiết finding |
 |---|---|
 | ![Reviews](docs/screenshots/reviews.png) | ![Chi tiết](docs/screenshots/review-detail.png) |
-| **Leaderboard** | **Báo cáo cuối kỳ** |
+| **Leaderboard thi đua** (podium top 3, animation, confetti) | **Báo cáo cuối kỳ** |
 | ![Leaderboard](docs/screenshots/leaderboard.png) | ![Báo cáo](docs/screenshots/reports.png) |
+
+*Giao diện dùng shadcn/ui + Tailwind với token màu (sáng/tối); ảnh chụp tĩnh, trên app thật podium có animation.*
 
 *Ảnh chụp dùng dữ liệu demo giả (`apps/server/scripts/seed-demo.ts`).*
 
