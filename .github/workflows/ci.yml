@@ -3,7 +3,9 @@ on:
   push: { branches: [main] }
   pull_request:
 permissions: { contents: read }
-concurrency: { group: ci-${{ github.ref }}, cancel-in-progress: true }
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 env:
   ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 jobs:
