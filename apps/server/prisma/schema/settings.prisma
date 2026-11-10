@@ -1,0 +1,5 @@
+// Chủ sở hữu: modules/settings.
+model Setting {
+  key   String @id
+  value String
+}

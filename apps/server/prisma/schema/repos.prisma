@@ -1,0 +1,16 @@
+// Chủ sở hữu: modules/repos.
+model Repository {
+  id            String    @id @default(cuid())
+  platform      String
+  fullPath      String
+  webUrl        String
+  defaultBranch String?
+  frameworkId   String?
+  provider      String? // provider AI riêng cho repo (null = mặc định)
+  enabled       Boolean   @default(true)
+  autoReview    Boolean   @default(true)
+  lastPolledAt  DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@unique([platform, fullPath])
+}

@@ -1,0 +1,20 @@
+{
+  "name": "mr-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "redis": "docker compose up -d redis",
+    "db:push": "pnpm --filter @mrd/server db:push",
+    "dev:server": "pnpm --filter @mrd/server dev",
+    "dev:web": "pnpm --filter @mrd/web dev",
+    "dev": "pnpm -r --parallel --filter @mrd/server --filter @mrd/web dev",
+    "desktop": "pnpm --filter @mrd/web build && pnpm --filter @mrd/desktop start",
+    "build": "pnpm --filter @mrd/web build",
+    "arch": "node --experimental-strip-types tools/arch/check.ts",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @mrd/server test",
+    "verify": "pnpm arch && pnpm typecheck && pnpm test"
+  }
+}

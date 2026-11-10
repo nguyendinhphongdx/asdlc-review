@@ -1,0 +1,33 @@
+{
+  "name": "@mrd/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "tsx --env-file-if-exists=../../.env src/main.ts",
+    "db:push": "tsx --env-file-if-exists=../../.env scripts/db.ts push",
+    "db:generate": "tsx --env-file-if-exists=../../.env scripts/db.ts generate",
+    "postinstall": "prisma generate --schema prisma/schema",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@fastify/cors": "11.4.1",
+    "@fastify/static": "8.3.0",
+    "@mrd/contracts": "workspace:*",
+    "@prisma/client": "6.19.3",
+    "bullmq": "5.81.5",
+    "fastify": "5.12.8",
+    "ioredis": "5.11.1",
+    "minimatch": "10.2.6",
+    "yaml": "2.9.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "prisma": "6.19.3",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

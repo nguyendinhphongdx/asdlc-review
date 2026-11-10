@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ASDLC Review — Review MR bằng AI, chấm điểm minh bạch</title>
+<meta name="description" content="ASDLC Review review merge request GitLab/GitHub theo framework ASDLC và harness riêng của từng repo, chấm điểm 0–100 tất định, kèm thống kê và leaderboard." />
+<style>
+:root{--bg:#fff;--fg:#0f172a;--mut:#475569;--card:#f8fafc;--bd:#e2e8f0;--ac:#4f46e5}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1020;--fg:#e2e8f0;--mut:#94a3b8;--card:#111936;--bd:#1f2a50;--ac:#818cf8}}
+*{box-sizing:border-box}body{margin:0;font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;background:var(--bg);color:var(--fg)}
+.w{max-width:1040px;margin:0 auto;padding:0 20px}
+nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0}nav b{font-size:20px;color:var(--ac)}
+nav a{color:var(--mut);text-decoration:none;margin-left:18px}
+.hero{padding:64px 0 40px;text-align:center}h1{font-size:clamp(32px,6vw,54px);line-height:1.1;margin:0 0 16px}
+.hero p{max-width:640px;margin:0 auto 28px;color:var(--mut);font-size:18px}
+.btn{display:inline-block;padding:11px 22px;border-radius:10px;background:var(--ac);color:#fff;text-decoration:none;font-weight:600;margin:4px}
+.btn.o{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:24px 0}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:20px}.c h3{margin:0 0 6px;font-size:17px}.c p{margin:0;color:var(--mut);font-size:15px}
+h2{text-align:center;font-size:28px;margin:48px 0 8px}
+.flow{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:24px 0}
+.flow span{background:var(--card);border:1px solid var(--bd);border-radius:999px;padding:8px 16px;font-size:14px}
+pre{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;overflow-x:auto;font-size:14px}
+footer{border-top:1px solid var(--bd);margin-top:56px;padding:24px 0;text-align:center;color:var(--mut);font-size:14px}
+a.t{color:var(--ac)}
+</style>
+</head>
+<body>
+<div class="w">
+<nav><b>ASDLC Review</b><div><a href="#tinh-nang">Tính năng</a><a href="#cai-dat">Cài đặt</a><a id="gh" href="#">GitHub</a><a id="rel" href="#">Releases</a></div></nav>
+
+<header class="hero">
+<h1>Review hàng chục MR,<br/>không bỏ sót một convention nào.</h1>
+<p>ASDLC Review nhận trigger từ webhook, chat hoặc thao tác tay, nạp framework ASDLC chung cùng harness riêng của từng repo, nhờ AI tìm vấn đề rồi <b>chấm điểm 0–100 bằng code</b> — cùng một kết quả review luôn ra cùng một điểm.</p>
+<a class="btn" id="dl" href="#">Tải bản release</a><a class="btn o" href="#cai-dat">Cài đặt trong 5 phút</a>
+</header>
+
+<h2 id="tinh-nang">Vì sao khác biệt</h2>
+<div class="grid">
+<div class="c"><h3>Hiểu harness của repo</h3><p>Đọc README, AGENTS.md, CLAUDE.md, subagent, skill và tài liệu tính năng; review theo đúng quy ước repo đó tự đặt ra.</p></div>
+<div class="c"><h3>Điểm tất định, có giải trình</h3><p>AI chỉ trả finding kèm bằng chứng, dòng code và câu hỏi “tại sao”. Điểm do công thức tính, có cổng chặn cho lộ secret và lỗi bảo mật.</p></div>
+<div class="c"><h3>Đa nhà cung cấp AI</h3><p>Claude CLI, Codex CLI hoặc API tương thích OpenAI. Đổi provider ở phần cài đặt, không đụng code.</p></div>
+<div class="c"><h3>Thống kê & leaderboard</h3><p>Số MR, thời gian, file đổi, vi phạm convention, rò rỉ secret, xếp hạng Bayesian công bằng cho người ít MR, báo cáo cuối kỳ xuất .md/.csv.</p></div>
+<div class="c"><h3>An toàn khi đọc code không tin cậy</h3><p>Cấu hình rubric đọc từ commit gốc, không phải nhánh MR; diff được coi là dữ liệu; secret được che, không lưu.</p></div>
+<div class="c"><h3>Kiến trúc micro-module</h3><p>14 module độc lập, kiểm bằng <code>pnpm arch</code>: không import chéo, mỗi module sở hữu dữ liệu riêng.</p></div>
+</div>
+
+<h2>Luồng xử lý</h2>
+<div class="flow"><span>Webhook / Chat / Thủ công</span><span>→ Hàng đợi</span><span>→ Clone & nạp harness</span><span>→ Phân tích tĩnh</span><span>→ AI tìm finding</span><span>→ Chấm điểm</span><span>→ Comment lên MR</span><span>→ Thống kê</span></div>
+
+<h2 id="cai-dat">Cài đặt nhanh</h2>
+<pre>git clone https://github.com/OWNER/asdlc-review.git && cd asdlc-review
+cp .env.example .env     # điền GITLAB_TOKEN, GITLAB_WEBHOOK_SECRET
+pnpm install
+pnpm db:push
+pnpm build &amp;&amp; pnpm dev</pre>
+<p style="text-align:center;color:var(--mut)">Cần Node 22, pnpm 10, và <code>claude</code> hoặc <code>codex</code> CLI đã đăng nhập (hoặc API key OpenAI-compatible). Redis là tuỳ chọn.</p>
+
+<footer>ASDLC Review · <a class="t" id="gh2" href="#">Mã nguồn</a> · <a class="t" id="docs" href="#">Tài liệu kiến trúc</a></footer>
+</div>
+<script>
+// Suy ra repo từ URL GitHub Pages: https://OWNER.github.io/REPO/
+var m=location.hostname.match(/^(.+)\.github\.io$/),repo=location.pathname.split("/")[1]||"asdlc-review";
+var base=m?"https://github.com/"+m[1]+"/"+repo:"https://github.com";
+document.getElementById("gh").href=document.getElementById("gh2").href=base;
+document.getElementById("rel").href=document.getElementById("dl").href=base+"/releases/latest";
+document.getElementById("docs").href=base+"/blob/main/docs/MODULES.md";
+document.querySelector("pre").textContent=document.querySelector("pre").textContent.replace("https://github.com/OWNER/asdlc-review.git",base+".git");
+</script>
+</body>
+</html>

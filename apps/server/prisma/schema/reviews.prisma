@@ -1,0 +1,112 @@
+// Chủ sở hữu: modules/reviews. repositoryId / memberId là ID chuỗi, KHÔNG có relation sang module khác.
+model MergeRequest {
+  id             String      @id @default(cuid())
+  repositoryId   String
+  iid            Int
+  title          String
+  description    String      @default("")
+  webUrl         String
+  sourceBranch   String
+  targetBranch   String
+  authorUsername String
+  memberId       String?
+  state          String // opened | merged | closed
+  draft          Boolean     @default(false)
+  openedAt       DateTime
+  mergedAt       DateTime?
+  closedAt       DateTime?
+  firstReviewAt  DateTime?
+  firstScore     Float?
+  latestScore    Float?
+  reviewCount    Int         @default(0)
+  updatedAt      DateTime    @updatedAt
+  runs           ReviewRun[]
+
+  @@unique([repositoryId, iid])
+  @@index([memberId])
+  @@index([openedAt])
+}
+
+model ReviewRun {
+  id               String          @id @default(cuid())
+  mergeRequestId   String
+  mergeRequest     MergeRequest    @relation(fields: [mergeRequestId], references: [id], onDelete: Cascade)
+  round            Int             @default(1)
+  trigger          String
+  triggeredBy      String?
+  headSha          String
+  baseSha          String?
+  status           String          @default("queued")
+  stage            String?
+  provider         String?
+  model            String?
+  frameworkId      String?
+  frameworkVersion String?
+  error            String?
+  score            Float?
+  rawScore         Float?
+  grade            String?
+  verdict          String?
+  gates            String          @default("[]")
+  summary          String?
+  intent           String?
+  strengths        String          @default("[]")
+  harnessFiles     String          @default("[]")
+  filesChanged     Int             @default(0)
+  additions        Int             @default(0)
+  deletions        Int             @default(0)
+  commits          Int             @default(0)
+  durationMs       Int?
+  costUsd          Float?
+  commentUrl       String?
+  stageTimings     String          @default("{}")
+  createdAt        DateTime        @default(now())
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  findings         ReviewFinding[]
+  categoryScores   ReviewCategoryScore[]
+
+  @@index([createdAt])
+  @@index([mergeRequestId])
+}
+
+model ReviewFinding {
+  id          String    @id @default(cuid())
+  runId       String
+  run         ReviewRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  source      String // ai | static
+  category    String
+  ruleId      String?
+  severity    String
+  kind        String    @default("issue")
+  title       String
+  file        String?
+  lineStart   Int?
+  lineEnd     Int?
+  why         String    @default("")
+  evidence    String?
+  suggestion  String?
+  question    String?
+  confidence  Float     @default(0.8)
+  deduction   Float     @default(0)
+  fingerprint String
+  feedback    String? // agree | disagree | fixed
+
+  @@index([runId])
+  @@index([category])
+  @@index([ruleId])
+}
+
+model ReviewCategoryScore {
+  id        String    @id @default(cuid())
+  runId     String
+  run       ReviewRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  category  String
+  name      String
+  weight    Float
+  score     Float
+  deduction Float
+  findings  Int
+
+  @@index([runId])
+}

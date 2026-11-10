@@ -1,0 +1,21 @@
+// Chủ sở hữu: modules/identity. Không relation sang file schema khác.
+model Member {
+  id          String           @id @default(cuid())
+  displayName String
+  email       String?
+  team        String?
+  role        String?
+  active      Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  identities  MemberIdentity[]
+}
+
+model MemberIdentity {
+  id       String @id @default(cuid())
+  memberId String
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  platform String // gitlab | github | email
+  username String
+
+  @@unique([platform, username])
+}
