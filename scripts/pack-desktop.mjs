@@ -31,7 +31,7 @@ execFileSync(process.execPath, ["node_modules/prisma/build/index.js", "generate"
 cpSync("apps/web/dist", `${stage}/apps/web/dist`, { recursive: true });
 cpSync("frameworks", `${stage}/frameworks`, { recursive: true });
 for (const f of ["main.mjs", "icon.png"]) cpSync(`apps/desktop/${f}`, `${stage}/apps/desktop/${f}`);
-writeFileSync(`${stage}/package.json`, JSON.stringify({ name: "asdlc-review", productName: "ASDLC Review", version: pkg.version, main: "apps/desktop/main.mjs", type: "module" }, null, 2));
+writeFileSync(`${stage}/package.json`, JSON.stringify({ name: "asdlc-review", productName: "ASDLC Review", description: "AI review cho merge request", author: "ASDLC Review", version: pkg.version, main: "apps/desktop/main.mjs", type: "module" }, null, 2));
 // Bỏ test khỏi gói
 const prune = (dir) => { for (const e of readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) e.name === "__tests__" ? rmSync(p, { recursive: true, force: true }) : prune(p); } };
 prune(`${stage}/apps/server/src`);
