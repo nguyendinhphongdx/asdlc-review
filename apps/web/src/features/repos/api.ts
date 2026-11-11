@@ -1,4 +1,4 @@
-import type { ConnectionStatusDto, RepoCheckDto, RepoDto, RepoWebhookDto, WebhookSecretDto } from "@mrd/contracts";
+import type { ConfigPreviewDto, ConnectionStatusDto, FrameworkInfoDto, HarnessReportDto, RepoCheckDto, RepoDto, RepoWebhookDto, SettingsDto, WebhookSecretDto } from "@mrd/contracts";
 import { request } from "../../kernel/http.js";
 export const listRepos = () => request<RepoDto[]>("/api/repos");
 export const registerRepo = (url: string) => request<RepoDto>("/api/repos", { method: "POST", json: { url } });
@@ -9,3 +9,7 @@ export const getRepoWebhook = (id: string) => request<RepoWebhookDto>(`/api/repo
 export const createRepoWebhook = (id: string) => request<void>(`/api/repos/${id}/webhook/create`, { method: "POST", json: {} });
 export const getConnection = () => request<ConnectionStatusDto>("/api/connection");
 export const getWebhookSecret = () => request<WebhookSecretDto>("/api/connection/webhook-secret");
+export const listFrameworks = () => request<FrameworkInfoDto[]>("/api/frameworks");
+export const getRepoHarness = (id: string) => request<{ report: HarnessReportDto | null; runId: string | null }>(`/api/repos/${id}/harness`);
+export const previewConfig = (yaml: string, frameworkId?: string) => request<ConfigPreviewDto>("/api/framework-config/preview", { method: "POST", json: { yaml, ...(frameworkId ? { frameworkId } : {}) } });
+export const getSettings = () => request<SettingsDto>("/api/settings");

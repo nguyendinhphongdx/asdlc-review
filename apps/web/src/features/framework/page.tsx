@@ -1,122 +1,147 @@
-import type { Rubric } from "@mrd/contracts";
-import { useQuery } from "@tanstack/react-query";
-import { Bot, Cog } from "lucide-react";
-import { useState } from "react";
-import { SeverityBadge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { FrameworkDetailDto, FrameworkInfoDto, FrameworkKind } from "@mrd/contracts";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { GitFork, Pencil, Plus, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
-import { STAGES } from "../../kernel/stages.js";
-import { getFramework, listFrameworks } from "./api.js";
+import { InlineConfirm } from "../../kernel/confirm.js";
+import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
+import { deleteFramework, getFramework, listFrameworks, restoreFramework } from "./api.js";
+import { FrameworkEditor } from "./edit.js";
+import { ForkDialog } from "./fork-dialog.js";
+import { RulesView, ScoringView } from "./view.js";
+import { DiffView, VersionsView } from "./versions.js";
+import { Workflow } from "./workflow.js";
 
-/** Mỗi bước của pipeline: ai thực hiện (code tất định hay AI) và làm gì. */
-const FLOW: Record<string, { by: "code" | "ai"; what: string }> = {
-  clone: { by: "code", what: "Clone repo, fetch head của MR, tính diff so với nhánh đích. Diff vượt ngân sách thì giữ file ưu tiên và ghi lại file bị bỏ qua." },
-  framework: { by: "code", what: "Nạp bộ tiêu chí này, rồi gộp với `.asdlc.yml` của repo (đọc từ base commit, không tin cấu hình do chính MR gửi lên)." },
-  harness: { by: "code", what: "Tìm AGENTS.md, CLAUDE.md, rules, tài liệu kiến trúc trong repo; đây là quy tắc riêng của repo mà tác giả phải tuân theo." },
-  analysis: { by: "code", what: "Phân tích tĩnh tất định trên diff: lộ secret, debug code, test bị skip, tắt lint, TODO..." },
-  review: { by: "ai", what: "AI đối chiếu diff + harness với các rule bên dưới và chỉ trả về finding (có file, dòng, bằng chứng, lý do, câu hỏi). AI không chấm điểm." },
-  score: { by: "code", what: "Code tính điểm từ finding: trừ theo severity × độ tin cậy, trung bình có trọng số theo hạng mục, rồi áp gate." },
-  publish: { by: "code", what: "Đăng/cập nhật một comment tổng và inline comment cho finding đủ ngưỡng; không đăng trùng finding đã nêu." },
+const KIND: Record<FrameworkKind, { label: string; variant: "success" | "info" | "secondary" }> = {
+  default: { label: "Mặc định", variant: "success" }, template: { label: "Mẫu", variant: "info" }, custom: { label: "Đã chỉnh", variant: "secondary" },
 };
+const ORDER: Record<FrameworkKind, number> = { default: 0, template: 1, custom: 2 };
+const TABS = [{ id: "flow", label: "Quy trình" }, { id: "rules", label: "Hạng mục & rule" }, { id: "scoring", label: "Chấm điểm" }, { id: "versions", label: "Phiên bản" }] as const;
+type TabId = (typeof TABS)[number]["id"];
 
-const By = ({ by }: { by: "code" | "ai" }) => (
-  <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold", by === "ai" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground")}>
-    {by === "ai" ? <Bot className="size-3" /> : <Cog className="size-3" />}{by === "ai" ? "AI" : "Code"}
-  </span>
-);
-
-function Workflow() {
+function FrameworkList({ items, selected, onSelect, onCreate }: { items: FrameworkInfoDto[]; selected: string | undefined; onSelect: (id: string) => void; onCreate: () => void }) {
   return (
-    <Card>
-      <CardHeader><CardTitle>Quy trình review</CardTitle><CardDescription>Mỗi MR đi qua 7 bước. Chỉ một bước dùng AI; điểm luôn do code tính.</CardDescription></CardHeader>
-      <CardContent>
-        <ol className="flex flex-col gap-3">
-          {STAGES.map((s, i) => {
-            const f = FLOW[s.id]!;
-            return (
-              <li key={s.id} className="flex gap-3">
-                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums">{i + 1}</span>
-                <div className="min-w-0"><div className="flex items-center gap-2 text-sm font-medium">{s.label}<By by={f.by} /></div><p className="text-sm text-muted-foreground">{f.what}</p></div>
-              </li>
-            );
-          })}
-        </ol>
-      </CardContent>
+    <Card className="flex flex-col overflow-hidden lg:sticky lg:top-4 lg:self-start">
+      <div className="flex items-center justify-between gap-2 border-b p-4"><h2 className="text-sm font-semibold">Framework ({items.length})</h2><Button size="sm" onClick={onCreate}><Plus />Tạo từ mẫu</Button></div>
+      <ul className="flex flex-col p-2" aria-label="Danh sách framework">
+        {items.map((f) => (
+          <li key={f.id}>
+            <button type="button" aria-current={f.id === selected ? "true" : undefined} onClick={() => onSelect(f.id)}
+              className={cn("flex w-full flex-col gap-1 rounded-lg px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", f.id === selected ? "bg-muted" : "hover:bg-muted/60")}>
+              <span className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate text-sm font-medium">{f.name}</span><Badge variant={KIND[f.kind].variant}>{KIND[f.kind].label}</Badge></span>
+              <span className="text-xs text-muted-foreground">v{f.version} · {f.categories.length} hạng mục · {f.ruleCount} rule · {f.repoCount} repo</span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }
 
-function Categories({ r }: { r: Rubric }) {
-  const [open, setOpen] = useState<string | null>(r.categories[0]?.id ?? null);
-  const total = r.categories.reduce((s, c) => s + c.weight, 0) || 1;
-  return (
-    <Card>
-      <CardHeader><CardTitle>Review cái gì</CardTitle><CardDescription>{r.categories.length} hạng mục, {r.categories.reduce((s, c) => s + c.criteria.length, 0)} rule. Trọng số quyết định phần đóng góp vào điểm tổng.</CardDescription></CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {r.categories.map((c) => {
-          const isOpen = open === c.id;
-          return (
-            <div key={c.id} className="rounded-lg border">
-              <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : c.id)} className="flex w-full items-center gap-3 px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <span className="flex-1 text-sm font-medium">{c.name}</span>
-                <span className="text-xs text-muted-foreground">{c.criteria.length} rule</span>
-                <span className="w-24"><span className="block h-1.5 overflow-hidden rounded-full bg-muted"><span className="block h-full rounded-full bg-primary" style={{ width: `${(c.weight / total) * 100}%` }} /></span></span>
-                <span className="w-10 text-right text-xs font-semibold tabular-nums">{c.weight}</span>
-              </button>
-              {isOpen && (
-                <ul className="divide-y border-t">
-                  {c.criteria.map((k) => (
-                    <li key={k.id} className="px-4 py-3">
-                      <div className="flex flex-wrap items-center gap-2"><code className="font-mono text-xs text-muted-foreground">{k.id}</code><span className="text-sm font-medium">{k.title}</span><SeverityBadge severity={k.defaultSeverity} /></div>
-                      <p className="mt-1 text-sm text-muted-foreground">{k.check}</p>
-                      <p className="mt-1 text-xs text-muted-foreground"><span className="font-medium text-foreground">Hỏi tác giả:</span> {k.why}</p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          );
-        })}
-      </CardContent>
-    </Card>
-  );
-}
+function Detail({ info, bases, onSelect, onDirty, onFork }: { info: FrameworkInfoDto; bases: FrameworkInfoDto[]; onSelect: (id: string | undefined) => void; onDirty: (n: number) => void; onFork: (baseId: string) => void }) {
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<TabId>("flow");
+  const [version, setVersion] = useState<number | undefined>();
+  const [editing, setEditing] = useState(false);
+  const [diff, setDiff] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState<number | null>(null);
+  const q = useQuery({ queryKey: ["framework", info.id, version ?? "latest"], queryFn: () => getFramework(info.id, version) });
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ["frameworks"] }); void qc.invalidateQueries({ queryKey: ["framework", info.id] }); void qc.invalidateQueries({ queryKey: ["framework-diff", info.id] }); };
+  const saved = (d: FrameworkDetailDto) => { qc.setQueryData(["framework", info.id, "latest"], d); setEditing(false); setVersion(undefined); refresh(); };
+  const del = useMutation({ mutationFn: () => deleteFramework(info.id), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["frameworks"] }); onSelect(undefined); } });
+  const restore = useMutation({ mutationFn: (v: number) => restoreFramework(info.id, v), onSuccess: (d) => { setConfirmRestore(null); saved(d); setTab("versions"); } });
+  const d = q.data;
+  if (q.isLoading) return <Loading />;
+  if (q.error || !d) return <ErrorBox error={q.error ?? new Error("Không tải được framework")} />;
+  const custom = d.kind === "custom";
+  const latest = d.versions[0]?.version;
+  const old = custom && version !== undefined && version !== latest;
+  const baseName = bases.find((b) => b.id === d.baseId)?.name ?? d.baseId ?? "bản gốc";
+  const view = (v: number | undefined) => { setVersion(v); setConfirmRestore(null); };
 
-function Scoring({ r }: { r: Rubric }) {
   return (
-    <Card>
-      <CardHeader><CardTitle>Cách chấm điểm</CardTitle><CardDescription>Mỗi hạng mục bắt đầu 100 điểm; điểm tổng là trung bình có trọng số, sau đó áp gate.</CardDescription></CardHeader>
-      <CardContent className="grid gap-6 md:grid-cols-3">
-        <div><h3 className="mb-2 text-sm font-medium">Mức độ và điểm trừ</h3><ul className="flex flex-col gap-2">{(Object.entries(r.severity)).map(([k, v]) => (
-          <li key={k} className="text-sm"><div className="flex items-center gap-2"><SeverityBadge severity={k} /><span className="tabular-nums text-muted-foreground">−{v.deduction}</span></div><p className="mt-0.5 text-xs text-muted-foreground">{v.description}</p></li>))}</ul></div>
-        <div><h3 className="mb-2 text-sm font-medium">Gate chặn điểm</h3><ul className="flex flex-col gap-2">{r.gates.map((g) => (
-          <li key={g.id} className="text-sm"><span className="font-semibold tabular-nums">≤ {g.capTotal}</span> <span className="text-muted-foreground">{g.reason}</span></li>))}</ul>
-          <p className="mt-3 text-xs text-muted-foreground">Với minor/nit, điểm trừ được chia cho √(dòng thay đổi / {r.sizeBaseline}) để MR lớn không bị phạt dồn.</p></div>
-        <div><h3 className="mb-2 text-sm font-medium">Xếp loại</h3><ul className="flex flex-col gap-1">{r.grades.map((g) => (<li key={g.grade} className="flex justify-between text-sm"><span className="font-semibold">{g.grade}</span><span className="tabular-nums text-muted-foreground">≥ {g.min}</span></li>))}</ul></div>
-      </CardContent>
-    </Card>
+    <div className="flex min-w-0 flex-col gap-4">
+      <Card className="flex flex-wrap items-center gap-3 p-5">
+        <div className="min-w-0 flex-[1_1_260px]">
+          <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">{d.name}</h2><Badge variant={KIND[d.kind].variant}>{KIND[d.kind].label}</Badge><Badge variant="outline">v{d.version}</Badge></div>
+          <p className="mt-1 text-[13px] text-muted-foreground">
+            {d.readOnly ? "Chỉ đọc. Muốn chỉnh trọng số, rule hay gate, hãy tạo bản chỉnh sửa (fork)." : `Bản chỉnh sửa từ ${baseName}. ${info.repoCount} repo đang dùng.`}
+          </p>
+        </div>
+        {!editing && (
+          <div className="flex flex-wrap gap-2">
+            {d.readOnly && <Button onClick={() => onFork(d.id)}><GitFork />Tạo bản chỉnh sửa (fork)</Button>}
+            {custom && <Button variant="outline" aria-pressed={diff} onClick={() => setDiff(!diff)}>So với bản gốc</Button>}
+            {custom && !old && <Button onClick={() => { setTab("rules"); setEditing(true); }}><Pencil />Chỉnh sửa</Button>}
+            {custom && <Button variant="outline" onClick={() => { setConfirmDel(true); del.reset(); }}><Trash2 />Xoá</Button>}
+          </div>
+        )}
+      </Card>
+      {confirmDel && <InlineConfirm message={`Xoá "${d.name}" cùng toàn bộ lịch sử phiên bản? Không thể hoàn tác.${info.repoCount ? ` ${info.repoCount} repo đang dùng sẽ khiến thao tác bị từ chối.` : ""}`} confirmLabel="Xoá framework" pending={del.isPending} onConfirm={() => del.mutate()} onCancel={() => setConfirmDel(false)} />}
+      {del.error && <ErrorBox error={del.error} />}
+      {restore.error && <ErrorBox error={restore.error} />}
+
+      {old && (
+        <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-warning bg-warning-bg px-4 py-3 text-sm text-warning-fg">
+          <span className="min-w-0 flex-1">Đang xem phiên bản cũ v{version}, không phải bản mới nhất (v{latest}). Chỉ xem, không sửa được.</span>
+          <Button size="sm" variant="outline" onClick={() => view(undefined)}>Về bản mới nhất</Button>
+          <Button size="sm" disabled={restore.isPending} onClick={() => setConfirmRestore(version!)}>Khôi phục bản này</Button>
+        </div>
+      )}
+      {confirmRestore !== null && <InlineConfirm message={`Khôi phục v${confirmRestore}? Hệ thống tạo phiên bản mới có nội dung của v${confirmRestore}; ${info.repoCount} repo đang dùng sẽ áp dụng từ review kế tiếp.`} confirmLabel="Khôi phục" pending={restore.isPending} onConfirm={() => restore.mutate(confirmRestore)} onCancel={() => setConfirmRestore(null)} />}
+      {diff && custom && <DiffView id={d.id} version={version} baseName={baseName} />}
+
+      {editing ? <FrameworkEditor key={`${d.id}-${d.version}`} detail={d} repoCount={info.repoCount} onCancel={() => setEditing(false)} onSaved={saved} onDirty={onDirty} /> : (
+        <>
+          <div role="tablist" aria-label="Nội dung framework" className="flex gap-1 overflow-x-auto border-b">
+            {TABS.map((t, i) => (
+              <button key={t.id} id={`fw-tab-${t.id}`} role="tab" type="button" aria-selected={tab === t.id} aria-controls="fw-panel" tabIndex={tab === t.id ? 0 : -1} onClick={() => setTab(t.id)}
+                onKeyDown={(e) => { if (e.key === "ArrowRight" || e.key === "ArrowLeft") { const n = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length]!; setTab(n.id); document.getElementById(`fw-tab-${n.id}`)?.focus(); } }}
+                className={cn("-mb-px h-9 shrink-0 border-b-2 px-3.5 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring", tab === t.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground")}>{t.label}</button>
+            ))}
+          </div>
+          <div role="tabpanel" id="fw-panel" aria-labelledby={`fw-tab-${tab}`} className="flex flex-col gap-4">
+            {tab === "flow" && <Workflow />}
+            {tab === "rules" && <RulesView d={d} />}
+            {tab === "scoring" && <ScoringView d={d} />}
+            {tab === "versions" && <VersionsView d={d} viewing={version} onView={view} onRestore={setConfirmRestore} restoring={restore.isPending} />}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
 export function FrameworkPage() {
+  const [sp, setSp] = useSearchParams();
   const list = useQuery({ queryKey: ["frameworks"], queryFn: listFrameworks });
-  const id = list.data?.[0]?.id;
-  const fw = useQuery({ queryKey: ["framework", id], queryFn: () => getFramework(id!), enabled: Boolean(id) });
-  if (list.isLoading || fw.isLoading) return <Loading />;
-  if (list.error || fw.error) return <ErrorBox error={list.error ?? fw.error} />;
-  const r = fw.data;
-  if (!r) return <PageHeader title="Framework" description="Chưa có framework nào." />;
+  const [dirty, setDirty] = useState(0);
+  const [fork, setFork] = useState<string | null>(null);
+  const items = [...(list.data ?? [])].sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+  const selected = items.find((f) => f.id === sp.get("id")) ?? items[0];
+  const onDirty = useCallback((n: number) => setDirty(n), []);
+  useEffect(() => { if (!selected) setDirty(0); }, [selected]);
+  const select = (id: string | undefined) => {
+    if (dirty > 0 && !confirm("Có thay đổi chưa lưu. Rời đi sẽ mất chúng. Tiếp tục?")) return;
+    setDirty(0);
+    setSp(id ? { id } : {}, { replace: true });
+  };
+  const bases = items.filter((f) => f.kind !== "custom");
   return (
     <>
-      <PageHeader title="Framework" description={`${r.name} · v${r.version}. Bộ tiêu chí mặc định áp cho mọi repo; repo có thể ghi đè bằng .asdlc.yml.`} />
-      <Workflow />
-      <Categories r={r} />
-      <Scoring r={r} />
-      <Card>
-        <CardHeader><CardTitle>Harness của repo</CardTitle><CardDescription>Tầng bổ sung nằm trong từng repo.</CardDescription></CardHeader>
-        <CardContent className="text-sm text-muted-foreground">Ngoài các rule trên, AI đọc AGENTS.md / CLAUDE.md / rules / tài liệu kiến trúc của repo và coi mọi quy tắc MUST/NEVER/ALWAYS trong đó là tiêu chí review (ưu tiên hơn quy ước chung). Repo không có harness vẫn được review bằng bộ rule ở trên.</CardContent>
-      </Card>
+      <PageHeader title="Framework" description="Bộ tiêu chí review: quy trình, hạng mục, rule và cách chấm điểm. Mỗi repo chọn một framework; .asdlc.yml của repo có thể ghi đè." />
+      {list.isLoading ? <Loading /> : list.error ? <ErrorBox error={list.error} /> : !selected ? <Card><Empty>Chưa có framework nào.</Empty></Card> : (
+        <div className="grid items-start gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <FrameworkList items={items} selected={selected.id} onSelect={select} onCreate={() => setFork(bases.find((b) => b.kind === "default")?.id ?? bases[0]?.id ?? "")} />
+          <Detail key={selected.id} info={selected} bases={bases} onSelect={select} onDirty={onDirty} onFork={setFork} />
+        </div>
+      )}
+      {fork !== null && bases.length > 0 && <ForkDialog bases={bases} initialBaseId={fork} onClose={() => setFork(null)} onDone={(d) => { setFork(null); setDirty(0); setSp({ id: d.id }, { replace: true }); void list.refetch(); }} />}
     </>
   );
 }

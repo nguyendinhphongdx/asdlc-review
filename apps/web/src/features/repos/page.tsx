@@ -50,7 +50,7 @@ export function ReposPage() {
           ))}</TableBody>
         </Table></Card>
       )}
-      {sel && <RepoDetail key={sel.id} id={sel.id} fullPath={sel.fullPath} onClose={() => setSelected(null)} />}
+      {sel && <RepoDetail key={sel.id} repo={sel} onClose={() => setSelected(null)} />}
       {wizard && <AddRepoWizard onClose={() => setWizard(false)} />}
     </>
   );

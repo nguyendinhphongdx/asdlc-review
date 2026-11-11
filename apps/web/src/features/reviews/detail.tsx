@@ -11,7 +11,8 @@ import { ScoreRing } from "@/components/ui/score-ring";
 import { cn } from "@/lib/utils";
 import { fmtDate, fmtDur, fmtMs } from "../../kernel/format.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
-import { getRun, rerun, setFeedback } from "./api.js";
+import { HarnessPanel } from "../../kernel/harness.js";
+import { getRun, listFrameworks, rerun, setFeedback } from "./api.js";
 import { STAGES, stageLabel } from "../../kernel/stages.js";
 
 const VERDICT: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
@@ -24,6 +25,7 @@ export function ReviewDetailPage() {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["run", id], queryFn: () => getRun(id), refetchInterval: (s) => (s.state.data && ["queued", "running"].includes(s.state.data.status) ? 3000 : false) });
   const re = useMutation({ mutationFn: (mrId: string) => rerun(mrId), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["runs"] }); void qc.invalidateQueries({ queryKey: ["run", id] }); } });
+  const fws = useQuery({ queryKey: ["frameworks"], queryFn: listFrameworks, staleTime: 60_000 });
   const fb = useMutation({ mutationFn: (a: { id: string; v: keyof typeof FB | null }) => setFeedback(a.id, a.v), onSuccess: () => qc.invalidateQueries({ queryKey: ["run", id] }) });
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
@@ -66,6 +68,7 @@ export function ReviewDetailPage() {
             <div className="flex flex-wrap items-center gap-2"><GradeBadge grade={r.grade} />{verdict && <Badge variant={verdict.variant}>{verdict.label}</Badge>}{r.rawScore != null && r.rawScore - r.score > 1 && <Badge>Điểm thô {Math.round(r.rawScore)} → bị chặn ở {Math.round(r.score)}</Badge>}</div>
             {r.summary && <p className="max-w-[60ch]">{r.summary}</p>}
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-muted-foreground"><span>{r.filesChanged} file · <span className="text-success-fg">+{r.additions}</span> <span className="text-danger-fg">−{r.deletions}</span></span><span>{fmtDur(r.durationMs)}</span>{r.model && <span className="font-mono text-xs">{r.model}</span>}{r.costUsd != null && <span>${r.costUsd.toFixed(2)}</span>}<span className="font-mono text-xs">{r.headSha.slice(0, 7)}</span></div>
+            {r.frameworkId && <p className="text-[13px] text-muted-foreground">Chấm bằng framework <Link className="font-medium text-foreground hover:underline" to={`/framework?id=${encodeURIComponent(r.frameworkId)}`}>{fws.data?.find((f) => f.id === r.frameworkId)?.name ?? r.frameworkId}</Link>{r.frameworkVersion && ` v${r.frameworkVersion}`}</p>}
           </div>
         </Card>
       )}
@@ -82,6 +85,11 @@ export function ReviewDetailPage() {
           {r.intent && <p className="text-muted-foreground">Ý định MR: {r.intent}</p>}
           {r.strengths.length > 0 && <ul className="list-disc pl-5 text-success-fg">{r.strengths.map((s) => <li key={s}>{s}</li>)}</ul>}
         </CardContent></Card>
+      )}
+
+      {r.harnessReport && (
+        <Card><CardHeader className="flex-row flex-wrap items-baseline justify-between gap-2"><CardTitle>Độ phủ harness của repo</CardTitle><span className="text-xs text-muted-foreground">Chỉ để gợi ý, không ảnh hưởng điểm</span></CardHeader>
+          <CardContent><HarnessPanel report={r.harnessReport} compact /></CardContent></Card>
       )}
 
       <Card><CardHeader><CardTitle>Điểm theo hạng mục</CardTitle></CardHeader><CardContent>

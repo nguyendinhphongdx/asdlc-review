@@ -4,6 +4,7 @@
 Tìm, phân loại, xếp hạng và nạp (theo ngân sách ký tự) mọi tài liệu quy trình/quy tắc của một repo đã checkout: README, AGENTS.md, CLAUDE.md, rules, subagent, skill, tài liệu kiến trúc/tính năng, cấu hình lint.
 
 ## API
+- `coverage({discovered, contents, repoConfig})` → `HarnessReportDto`: điểm độ phủ 0–100, tất định, chỉ để gợi ý (công thức: docs/HARNESS.md).
 - `readRepoConfig(dir, { ref? })` → nội dung thô `.asdlc.yml` (tại `ref` nếu có) hoặc `null`.
 - `load(dir, { changedFiles, budgetChars, extraDocGlobs? })` → `{ files, discovered, tree, totalFiles }`.
 

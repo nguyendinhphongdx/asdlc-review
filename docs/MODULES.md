@@ -162,7 +162,7 @@ Quy ước: ngoài module, chỉ được `import … from "modules/<name>"` (t�
 | **scm** | Nói chuyện với GitLab/GitHub, chuẩn hoá MR và webhook | không | `parseUrl`, `getMergeRequest`, `listOpen`, `upsertSummaryNote`, `postInline`, `verifyWebhook`, `parseWebhook`→`ScmEvent`, `gitAuth` | – | `Clock` |
 | **workspace** | Chuẩn bị bản checkout cô lập và diff cho một commit | cache đĩa | `prepare({cloneUrl, auth, baseRef, headSha})`→`{dir, diff, numstat, dispose}` | – | – |
 | **harness** | Đọc và xếp hạng tài liệu/quy tắc quy trình có trong thư mục repo | không | `load(dir, changedFiles, budget)`→`Harness` (kèm nội dung `.asdlc.yml` thô) | – | – |
-| **framework** | Giữ rubric ASDLC và áp cấu hình riêng của repo | file YAML | `list`, `resolve(frameworkId, repoConfigYaml?)`→`Rubric` | – | – |
+| **framework** | Giữ rubric (mặc định/mẫu từ YAML, bản tự tạo trong DB có phiên bản) và áp cấu hình riêng của repo | `CustomFramework`, `FrameworkVersion` | `list`, `detail`, `fork`, `update`, `restore`, `resolve(frameworkId, repoConfigYaml?)`→`Rubric` | – | – |
 | **analysis** | Phát hiện vấn đề tất định từ diff/file (secret, debug, test bị skip…) | không | `analyze({diff, files})`→`Finding[]` | – | – |
 | **reviewer** | Chạy provider AI và trả `RawReview` hợp lệ | không | `review(ReviewRequest)`→`RawReview`, `providers()` | – | `ProcessRunner`, `HttpClient` |
 | **scoring** | Biến findings + rubric thành điểm/grade/gate/verdict | không | `score({rubric, findings, changedLines})`→`ScoreResult` (hàm thuần) | – | – |

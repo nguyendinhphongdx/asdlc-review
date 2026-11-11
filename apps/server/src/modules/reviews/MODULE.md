@@ -8,6 +8,8 @@ Lưu và truy vấn lịch sử review: MR, từng lần chạy (run), finding v
 - Run: `startRun`, `setStage`, `completeRun`, `failRun`, `findRunByHead`, `latestSucceeded`, `getRun`, `listRuns`, `setFindingFeedback`.
 - `facts({ from, to })` → `MrFact[]` (dữ kiện thô, không tính metric).
 
+Mỗi run lưu thêm `frameworkId`/`frameworkVersion` (chấm bằng bản nào), `omittedFiles`, `harnessReport` (JSON độ phủ harness lúc review).
+
 ## Sự kiện
 Phát `reviews.run.completed`, `reviews.run.failed`. Không nhận.
 
