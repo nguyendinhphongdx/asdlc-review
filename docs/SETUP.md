@@ -23,11 +23,21 @@ Mở http://localhost:4319.
 ## 1. Tạo token cho bot
 Nên dùng một **tài khoản bot riêng** (hoặc Project/Group Access Token) để comment hiện dưới tên bot, không phải tên bạn.
 
-1. GitLab → tài khoản bot → **Preferences → Access tokens** (hoặc Project → Settings → Access tokens).
-2. Scope tối thiểu: **`api`** (đăng comment, tạo webhook) và **`read_repository`** (clone để review).
-3. Role: **Developer** để review và comment; **Maintainer** nếu muốn nút "Tạo webhook tự động".
-4. Đặt hạn dùng hợp lý (≤ 1 năm) và ghi lại ngày hết hạn. Sao chép token ngay: GitLab chỉ hiện một lần.
-5. Thêm bot vào repo/group cần review.
+**Các bước**
+1. Đăng nhập GitLab bằng tài khoản bot → **Preferences → Access tokens** → **Add new token**.
+   (Project/Group token: vào project/group → **Settings → Access tokens**.)
+2. Đặt tên (vd `asdlc-review`) và hạn dùng (≤ 1 năm; ghi lại ngày hết hạn).
+3. Chọn scope:
+
+| Scope | Bắt buộc | Dùng để |
+|---|---|---|
+| `api` | có | đọc MR, đăng/cập nhật comment và inline, tạo webhook |
+| `read_repository` | có | clone repo để review |
+
+   Token chỉ có `read_api` **không đủ** (kiểm tra kết nối sẽ báo thiếu scope `api`).
+4. Với Project/Group token, chọn role: **Developer** để review và comment; **Maintainer** nếu muốn nút "Tạo webhook tự động".
+5. Bấm **Create** và **sao chép token ngay**: GitLab chỉ hiện một lần (dạng `glpat-…`).
+6. Thêm bot vào repo/group cần review (với PAT của tài khoản bot: Members → role Developer trở lên).
 
 ## 2. Kết nối trong ứng dụng
 **Cài đặt → Kết nối → GitLab**: nhập URL (vd `https://gitlab.com`) và token, bấm **Lưu**, rồi **Kiểm tra kết nối**. Bạn sẽ thấy:

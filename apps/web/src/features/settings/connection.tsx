@@ -96,6 +96,17 @@ function GitlabCard({ c }: { c: ConnectionStatusDto }) {
               {replacing && <Button type="button" variant="ghost" size="sm" className="h-9" onClick={() => { setReplacing(false); setToken(""); }}>Huỷ thay</Button>}
             </div>
             <Hint id="gl-token-h">Token được mã hoá khi lưu và không bao giờ hiển thị lại. Cần scope <code className="font-mono">api</code> và vai trò Developer trở lên.</Hint>
+            <details className="mt-2 rounded-lg border bg-muted/30 text-sm">
+              <summary className="cursor-pointer select-none px-3 py-2 font-medium">Cách tạo token</summary>
+              <ol className="list-decimal space-y-1.5 px-3 pb-3 pl-8 text-muted-foreground">
+                <li>Nên dùng <b className="text-foreground">tài khoản bot riêng</b> hoặc Project/Group Access Token để comment hiện dưới tên bot.</li>
+                <li>GitLab → <b className="text-foreground">Preferences → Access tokens</b> (token của project/group: <b className="text-foreground">Settings → Access tokens</b>) → <b className="text-foreground">Add new token</b>.</li>
+                <li>Chọn scope: <code className="font-mono text-foreground">api</code> và <code className="font-mono text-foreground">read_repository</code>. Thiếu <code className="font-mono">api</code> sẽ không comment được.</li>
+                <li>Vai trò: <b className="text-foreground">Developer</b> để review và comment; <b className="text-foreground">Maintainer</b> nếu muốn tạo webhook tự động.</li>
+                <li>Đặt hạn dùng (≤ 1 năm), bấm tạo rồi <b className="text-foreground">sao chép ngay</b>: GitLab chỉ hiện token một lần.</li>
+                <li>Thêm bot vào repo/group cần review, dán token vào ô trên và bấm <b className="text-foreground">Lưu &amp; kiểm tra</b>.</li>
+              </ol>
+            </details>
           </div>
           <div aria-live="polite" className="flex flex-col gap-3">
             <TestResult pending={busy} result={test.data} error={save.error ?? test.error} />
