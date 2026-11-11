@@ -156,7 +156,9 @@
 .anim-shine::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28), transparent); animation: shine 3.6s ease-in-out infinite; }
 @keyframes spin-slow { to { transform: rotate(360deg); } }
 .anim-spin { animation: spin-slow 80s linear infinite; }
-@media (prefers-reduced-motion: reduce) { .anim-spin, .anim-rise, .anim-pop, .anim-float, .anim-fall, .anim-slide, .anim-bar, .anim-glow, .anim-shine::after { animation: none !important; } }
+@keyframes twinkle { 0%, 100% { opacity: 0.25; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+.anim-twinkle { animation: twinkle 3s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .anim-twinkle, .anim-spin, .anim-rise, .anim-pop, .anim-float, .anim-fall, .anim-slide, .anim-bar, .anim-glow, .anim-shine::after { animation: none !important; } }
 
 /* ?still=1 — tắt animation để chụp ảnh tĩnh */
 .still *, .still *::after { animation: none !important; }

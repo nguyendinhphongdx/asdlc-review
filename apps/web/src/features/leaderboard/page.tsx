@@ -1,111 +1,43 @@
 import { useQuery } from "@tanstack/react-query";
 import type { LeaderboardRow } from "@mrd/contracts";
-import { ArrowUp, ArrowDown, Crown, ShieldAlert, Sparkles, Trophy } from "lucide-react";
-import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Trophy } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCountUp } from "@/hooks/use-count-up";
 import { cn } from "@/lib/utils";
 import { fmtHours, fmtScore } from "../../kernel/format.js";
 import { useRange } from "../../kernel/range.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
-import { getLeaderboard } from "./api.js";
+import { ActivityFeed, Ticker } from "./activity.js";
+import { getLeaderboard, getRecentRuns } from "./api.js";
+import { PodiumSlot } from "./podium.js";
+import { RankTable } from "./rank-table.js";
+import { Eyebrow, GlassCard, Sparkles, Spotlights } from "./stage.js";
 
-/** Mỗi hạng: vương miện + màu huy chương + chiều cao bục + chữ nổi trên bục. */
-const PLACES = [
-  { ord: "1st", color: "#fbbf24", glow: "rgb(251 191 36 / 0.45)", height: 230, crown: "size-14", avatar: "size-24 text-3xl" },
-  { ord: "2nd", color: "#cbd5e1", glow: "rgb(203 213 225 / 0.3)", height: 178, crown: "size-11", avatar: "size-20 text-2xl" },
-  { ord: "3rd", color: "#d98b52", glow: "rgb(217 139 82 / 0.3)", height: 146, crown: "size-11", avatar: "size-20 text-2xl" },
-] as const;
 const PERIODS = [{ d: 7, l: "7 ngày" }, { d: 30, l: "30 ngày" }, { d: 90, l: "90 ngày" }];
-
-function Podium({ row, place }: { row: LeaderboardRow; place: 0 | 1 | 2 }) {
-  const m = PLACES[place];
-  const delay = place === 0 ? 0.45 : place === 1 ? 0.2 : 0;
-  const score = useCountUp(row.rankScore ?? 0, 1400, delay * 1000 + 300);
-  return (
-    <div className="flex min-w-0 flex-1 flex-col items-center">
-      <div className="anim-pop flex flex-col items-center" style={{ animationDelay: `${delay + 0.35}s` }}>
-        <Crown className={cn("anim-float", m.crown)} style={{ color: m.color, filter: `drop-shadow(0 0 14px ${m.glow})` }} fill="currentColor" strokeWidth={1.5} aria-label={`Hạng ${place + 1}`} />
-        <div className="relative mt-1">
-          <span className={cn("flex items-center justify-center rounded-full p-[3px]", place === 0 && "anim-glow")} style={{ background: `linear-gradient(160deg, ${m.color}, color-mix(in oklab, ${m.color} 30%, #0b1030))` }}>
-            <Avatar name={row.name} className={cn("bg-[#141a3d] font-bold text-white", m.avatar)} />
-          </span>
-          <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-md bg-primary px-1.5 text-[11px] font-bold leading-5 text-primary-foreground tabular-nums shadow">{row.mrCount}</span>
-        </div>
-        <div className="mt-4 max-w-full truncate px-1 text-lg font-bold text-white">@{row.usernames[0] ?? row.name}</div>
-        <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-sm font-semibold tabular-nums text-white">
-          <Trophy className="size-3.5" style={{ color: m.color }} />{score.toFixed(1)}
-        </div>
-      </div>
-      <div className="anim-rise relative mt-5 w-full overflow-hidden rounded-t-2xl border border-b-0 border-white/10"
-        style={{ height: m.height, animationDelay: `${delay}s`, background: "linear-gradient(180deg, #1c2457 0%, #121842 40%, #0b1030 100%)", boxShadow: `inset 0 1px 0 rgb(255 255 255 / 0.18), 0 -10px 40px -18px ${m.glow}` }}>
-        <span className="anim-shine absolute inset-0 overflow-hidden" />
-        <span aria-hidden="true" className="absolute inset-x-0 top-3 select-none text-center text-[88px] font-black italic leading-none tracking-tight"
-          style={{ color: "transparent", WebkitTextStroke: `2px color-mix(in oklab, ${m.color} 28%, transparent)`, background: `linear-gradient(180deg, color-mix(in oklab, ${m.color} 30%, transparent), transparent 85%)`, WebkitBackgroundClip: "text", backgroundClip: "text" }}>{m.ord}</span>
-      </div>
-    </div>
-  );
-}
 
 function Period() {
   const { days, setDays } = useRange();
   return (
-    <div role="group" aria-label="Kỳ xếp hạng" className="mx-auto flex w-fit rounded-xl border border-white/10 bg-black/30 p-1">
+    <div role="group" aria-label="Kỳ xếp hạng" className="mx-auto flex rounded-xl border border-white/10 bg-black/30 p-1">
       {PERIODS.map((p) => (
         <button key={p.d} type="button" onClick={() => setDays(p.d)} aria-pressed={days === p.d}
-          className={cn("rounded-lg px-5 py-1.5 text-sm font-semibold transition-colors", days === p.d ? "bg-primary text-primary-foreground shadow" : "text-white/60 hover:text-white")}>{p.l}</button>
+          className={cn("rounded-lg px-5 py-1.5 text-sm font-semibold transition-colors", days === p.d ? "text-white shadow-[0_0_18px_#6366f166]" : "text-white/60 hover:text-white")}
+          style={days === p.d ? { background: "linear-gradient(180deg, #818cf8, #6366f1)" } : undefined}>{p.l}</button>
       ))}
     </div>
   );
 }
 
-function RankTable({ rows, start, max }: { rows: LeaderboardRow[]; start: number; max: number }) {
-  return (
-    <div className="overflow-x-auto px-2 pb-4 sm:px-6">
-      <table className="w-full min-w-[640px] border-separate border-spacing-y-1.5 text-sm text-white">
-        <thead>
-          <tr className="text-left text-[11px] font-semibold uppercase tracking-wider text-white/45">
-            <th className="px-4 py-2">Hạng</th><th className="px-4 py-2">Thành viên</th><th className="px-4 py-2">Điểm</th><th className="px-4 py-2">Hoạt động</th><th className="px-4 py-2">Tình trạng</th><th className="px-4 py-2 text-right">Cải thiện</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => {
-            const up = (r.improvement ?? 0) >= 0;
-            return (
-              <tr key={r.memberId ?? r.name} className="anim-slide bg-white/[0.04] transition-colors hover:bg-white/[0.08]" style={{ animationDelay: `${1.1 + i * 0.07}s` }}>
-                <td className="rounded-l-xl px-4 py-3"><span className="inline-flex items-center gap-2 font-semibold tabular-nums text-white/70"><Trophy className="size-4 text-white/35" />{start + i}</span></td>
-                <td className="px-4 py-3"><span className="inline-flex items-center gap-2.5"><Avatar name={r.name} className="size-8 bg-[#1c2457] text-xs text-white" /><span className="font-medium">@{r.usernames[0] ?? r.name}</span></span></td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3"><span className="w-10 font-semibold tabular-nums">{fmtScore(r.rankScore)}</span>
-                    <span className="h-1.5 w-28 overflow-hidden rounded-full bg-white/10"><span className="anim-bar block h-full rounded-full bg-primary" style={{ width: `${max ? ((r.rankScore ?? 0) / max) * 100 : 0}%`, animationDelay: `${1.2 + i * 0.07}s` }} /></span></div>
-                </td>
-                <td className="px-4 py-3 tabular-nums text-white/60">{r.mrCount} MR · {r.runCount} lần</td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex gap-1.5">
-                    {r.secretLeaks > 0 && <Badge variant="danger"><ShieldAlert className="size-3" />{r.secretLeaks} secret</Badge>}
-                    {r.blockers > 0 && <Badge variant="blocker">{r.blockers} blocker</Badge>}
-                    {r.secretLeaks === 0 && r.blockers === 0 && <Badge variant="success"><Sparkles className="size-3" />Sạch</Badge>}
-                  </span>
-                </td>
-                <td className="rounded-r-xl px-4 py-3 text-right">
-                  <span className={cn("inline-flex items-center gap-1.5 font-bold tabular-nums", up ? "text-emerald-400" : "text-red-400")}>
-                    <span className={cn("flex size-5 items-center justify-center rounded-full", up ? "bg-emerald-400/20" : "bg-red-400/20")}>{up ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}</span>
-                    {up ? "+" : ""}{fmtScore(r.improvement)}
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
+/** Danh hiệu rút ra từ chính số liệu của top 3. */
+function titles(top: LeaderboardRow[]): string[] {
+  const fastest = top.reduce((b, r, i) => ((r.improvement ?? -Infinity) > (top[b]!.improvement ?? -Infinity) ? i : b), 0);
+  const fewest = top.reduce((b, r, i) => (r.avgReviewRounds < top[b]!.avgReviewRounds ? i : b), 0);
+  return top.map((_, i) => (i === 0 ? "Quán quân" : i === fastest ? "Tăng tốc nhanh" : i === fewest ? "Ít vòng review nhất" : `Hạng ${i + 1}`));
 }
 
 export function LeaderboardPage() {
   const { days } = useRange();
   const q = useQuery({ queryKey: ["leaderboard", days], queryFn: () => getLeaderboard(days) });
+  const runs = useQuery({ queryKey: ["leaderboard-runs"], queryFn: () => getRecentRuns(8) });
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
   const rows = q.data ?? [];
@@ -113,26 +45,41 @@ export function LeaderboardPage() {
   const top = rows.slice(0, 3);
   const rest = rows.slice(3);
   const max = Math.max(...rows.map((r) => r.rankScore ?? 0), 1);
-  const order = [top[1], top[0], top[2]].map((r, i) => (r ? { r, place: ([1, 0, 2] as const)[i]! } : null));
+  const names = titles(top);
+  const order = [1, 0, 2].map((i) => (top[i] ? { row: top[i]!, place: i as 0 | 1 | 2, title: names[i]! } : null));
+  const recent = runs.data?.items ?? [];
+  const teamAvg = rows.reduce((s, r) => s + (r.rankScore ?? 0), 0) / rows.length;
+  const totalMr = rows.reduce((s, r) => s + r.mrCount, 0);
   return (
     <>
       <PageHeader title="Bảng xếp hạng" description="Xếp theo điểm lần review đầu, chuẩn hoá Bayesian để công bằng với người ít MR." />
-
-      <section aria-label="Bảng xếp hạng" className="relative isolate overflow-hidden rounded-2xl border border-white/10 text-white shadow-xl"
-        style={{ background: "radial-gradient(90% 70% at 50% 18%, #232b6b 0%, #121842 45%, #070a1f 100%)" }}>
-        <div className="relative px-4 pt-6 sm:px-8"><Period /></div>
-
-        <div className="relative mx-auto mt-6 max-w-3xl px-4 pt-6 sm:px-8">
-          <div aria-hidden="true" className="anim-spin pointer-events-none absolute left-1/2 top-[-30px] -z-10 size-[620px] -translate-x-1/2"
-            style={{ background: "repeating-conic-gradient(from 0deg, rgb(255 255 255 / 0.09) 0deg 7deg, transparent 7deg 16deg)", WebkitMaskImage: "radial-gradient(circle, #000 8%, transparent 68%)", maskImage: "radial-gradient(circle, #000 8%, transparent 68%)" }} />
-          <div className="flex items-end justify-center gap-0">
-            {order.map((s, i) => (s ? <Podium key={s.r.name + i} row={s.r} place={s.place} /> : <div key={i} className="flex-1" />))}
-          </div>
+      <section aria-label="Bảng xếp hạng" className="relative isolate overflow-hidden rounded-[18px] border border-white/10 text-white shadow-2xl"
+        style={{ background: "radial-gradient(70% 55% at 38% 22%, #2a3382 0%, #141a55 38%, #070a1f 100%)" }}>
+        <Sparkles /><Spotlights />
+        <div className="relative flex flex-wrap items-center gap-3 px-6 pb-3.5 pt-5">
+          <div><Eyebrow>Bảng xếp hạng</Eyebrow><div className="mt-0.5 text-xl font-extrabold tracking-tight">Ai đang dẫn đầu?</div></div>
+          <Period />
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold"><Trophy className="size-3.5 text-amber-400" />{rows.length} thành viên · {totalMr} MR</span>
         </div>
-
-        {rest.length > 0 && (
-          <div className="relative border-t border-white/10 bg-[#0a0e2a]/80 pt-4 backdrop-blur-sm"><RankTable rows={rest} start={4} max={max} /></div>
-        )}
+        <Ticker runs={recent} />
+        <div className="relative grid gap-5 px-6 pb-6 pt-3 lg:grid-cols-[minmax(0,1fr)_290px]">
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="relative px-3 pt-4">
+              <div aria-hidden="true" className="anim-spin pointer-events-none absolute left-1/2 top-[-40px] -z-0 size-[560px] -translate-x-1/2"
+                style={{ background: "repeating-conic-gradient(from 0deg, rgb(255 255 255 / .08) 0deg 6deg, transparent 6deg 14deg)", WebkitMaskImage: "radial-gradient(circle, #000 6%, transparent 66%)", maskImage: "radial-gradient(circle, #000 6%, transparent 66%)" }} />
+              <div className="relative flex items-end justify-center">
+                {order.map((s, i) => (s ? <PodiumSlot key={s.row.name + i} row={s.row} place={s.place} title={s.title} /> : <div key={i} className="flex-1" />))}
+              </div>
+              <div aria-hidden="true" className="-mt-1 mx-[8%] h-6 rounded-[50%] blur-[6px]" style={{ background: "radial-gradient(ellipse at center, rgb(251 191 36 / .35), rgb(99 102 241 / .2) 45%, transparent 70%)" }} />
+            </div>
+            {rest.length > 0 && <GlassCard className="mt-2 pt-1.5"><RankTable rows={rest} start={4} max={max} /></GlassCard>}
+          </div>
+          <aside className="flex flex-col gap-3.5">
+            <GlassCard className="p-4"><Eyebrow>Kỳ xếp hạng</Eyebrow><div className="mt-1.5 flex items-baseline gap-2"><span className="text-3xl font-extrabold tabular-nums">{days}</span><span className="text-white/60">ngày gần nhất</span></div><div className="mt-2 text-xs text-white/50">Từ {new Date(Date.now() - days * 864e5).toLocaleDateString("vi-VN")} đến nay</div></GlassCard>
+            <GlassCard className="p-4"><Eyebrow>Điểm trung bình team</Eyebrow><div className="mt-1.5 text-3xl font-extrabold tabular-nums">{fmtScore(teamAvg)}</div><div className="mt-2 text-xs text-white/50">Trung bình điểm xếp hạng của {rows.length} thành viên</div></GlassCard>
+            <ActivityFeed runs={recent} />
+          </aside>
+        </div>
       </section>
 
       <details className="group rounded-xl border bg-card shadow-sm">
