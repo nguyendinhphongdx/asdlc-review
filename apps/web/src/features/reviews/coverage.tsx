@@ -130,7 +130,7 @@ export function HarnessLoad({ load }: { load: HarnessLoadDto | null }) {
     <Card>
       <CardHeader>
         <CardTitle>Harness đã nạp <span className="font-normal text-muted-foreground">({loaded}/{load.items.length} file · {fmtKb(load.loadedChars)} · AI dẫn chiếu {cited})</span></CardTitle>
-        <CardDescription>Toàn bộ file luật/tài liệu của repo được nạp đầy đủ, không cắt theo ngân sách nhỏ. Quét {load.totalRepoFiles} file đã được git theo dõi.</CardDescription>
+        <CardDescription>Framework là bộ chuẩn chung; ngoài ra app tự nhận diện luật riêng của repo theo tên file và theo liên kết giữa các tài liệu, không bắt repo theo cấu trúc cố định, và nạp đầy đủ. AI còn tự khám phá thêm khi review. Quét {load.totalRepoFiles} file.</CardDescription>
       </CardHeader>
       <CardContent>
         {bad.length > 0 && <p role="alert" className="mb-3 rounded-lg border border-warning bg-warning-bg px-3.5 py-2.5 text-[13px] text-warning-fg">{bad.length} file chưa nạp đủ: {bad.slice(0, 3).map((b) => b.path).join(", ")}{bad.length > 3 ? ` +${bad.length - 3}` : ""}. Xem lý do ở danh sách bên dưới.</p>}
@@ -142,6 +142,7 @@ export function HarnessLoad({ load }: { load: HarnessLoadDto | null }) {
                 <li key={i.path} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
                   <span className="min-w-0 flex-1 break-all font-mono">{i.path}</span>
                   <span className="tabular-nums text-muted-foreground">{fmtKb(i.size)}</span>
+                  {i.via && <span className="text-muted-foreground" title={`Tìm thấy qua liên kết từ ${i.via}`}>← {i.via.split("/").pop()}</span>}
                   {i.cited && <Badge variant="info">AI dẫn chiếu</Badge>}
                   {!i.loaded ? <Badge variant="danger" title={i.reason}>Chưa nạp</Badge> : i.truncated ? <Badge variant="warning" title={i.reason}>Bị cắt</Badge> : <Badge variant="success">Nạp đủ</Badge>}
                 </li>

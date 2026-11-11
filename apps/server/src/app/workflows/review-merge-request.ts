@@ -93,7 +93,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
 
       const cited = new Set(ai.review.harnessUsed);
       const harnessLoad = {
-        items: harness.load.map((h) => ({ path: h.path, kind: h.kind, size: h.size, chars: h.chars, loaded: h.loaded, truncated: h.truncated, reason: h.reason, cited: cited.has(h.path) })),
+        items: harness.load.map((h) => ({ path: h.path, kind: h.kind, size: h.size, chars: h.chars, loaded: h.loaded, truncated: h.truncated, reason: h.reason, via: h.via, cited: cited.has(h.path) })),
         totalRepoFiles: harness.totalFiles, loadedChars: harness.files.reduce((s, f) => s + f.content.length, 0),
       };
       emit("review", "info", `AI trả ${ai.review.findings.length} finding, ${ai.review.checks.length} mục checklist${ai.usage.costUsd != null ? `, chi phí $${ai.usage.costUsd.toFixed(2)}` : ""}`);

@@ -1,4 +1,5 @@
 import { classify, MAX_FILE_CHARS, nestedInstructionAdjust, relevanceBoost, summarizeTree, type HarnessKind } from "../domain/classify.js";
+import { extractReferences } from "../domain/references.js";
 import { fileSize, listTrackedFiles, readAtRef, readText } from "../infra/fs.js";
 
 export interface HarnessFile {
@@ -11,7 +12,7 @@ export interface HarnessFile {
 }
 
 /** Báo cáo nạp cho từng file harness tìm thấy: nạp đủ / cắt / không nạp (kèm lý do). */
-export interface HarnessLoadItem { path: string; kind: HarnessKind; size: number; priority: number; loaded: boolean; truncated: boolean; chars: number; reason?: string }
+export interface HarnessLoadItem { path: string; kind: HarnessKind; size: number; priority: number; loaded: boolean; truncated: boolean; chars: number; reason?: string; /** File dẫn tới file này (nếu được tìm thấy qua liên kết thay vì theo mẫu đường dẫn). */ via?: string }
 
 export interface Harness {
   files: HarnessFile[];
@@ -65,8 +66,16 @@ export async function loadHarness(dir: string, opts: LoadOptions): Promise<Harne
   const files: HarnessFile[] = [];
   const load: HarnessLoadItem[] = [];
   let used = 0;
-  for (const c of candidates) {
-    const item = { path: c.path, kind: c.kind, size: c.size, priority: c.priority };
+  const tracked = new Set(all);
+  const seen = new Set(candidates.map((c) => c.path));
+  const viaOf = new Map<string, string>();
+  const MAX_REFERENCED = 150;
+  let referenced = 0;
+  // Hàng đợi: file theo mẫu trước, rồi file được dẫn tới (bất kể nằm ở đâu), theo chiều rộng, tối đa 3 tầng.
+  const queue: (Omit<HarnessFile, "content" | "truncated"> & { depth: number })[] = candidates.map((c) => ({ ...c, depth: 0 }));
+  for (let qi = 0; qi < queue.length; qi++) {
+    const c = queue[qi]!;
+    const item = { path: c.path, kind: c.kind, size: c.size, priority: c.priority, ...(viaOf.has(c.path) ? { via: viaOf.get(c.path) } : {}) };
     if (used >= opts.budgetChars) { load.push({ ...item, loaded: false, truncated: false, chars: 0, reason: "Vượt trần ngữ cảnh an toàn (CONTEXT_BUDGET_CHARS)" }); continue; }
     const max = Math.min(MAX_FILE_CHARS[c.kind], opts.budgetChars - used);
     const text = await readText(dir, c.path);
@@ -74,6 +83,17 @@ export async function loadHarness(dir: string, opts: LoadOptions): Promise<Harne
     files.push({ ...c, content, truncated: text.length > max });
     load.push({ ...item, loaded: true, truncated: text.length > max, chars: content.length, ...(text.length > max ? { reason: "Bị cắt do vượt trần" } : {}) });
     used += content.length;
+    if (c.depth < 3 && referenced < MAX_REFERENCED) {
+      for (const ref of extractReferences(c.path, content, tracked)) {
+        if (seen.has(ref) || referenced >= MAX_REFERENCED) continue;
+        seen.add(ref);
+        const size = await fileSize(dir, ref);
+        if (size === 0 || size > 2_000_000) continue;
+        referenced++;
+        viaOf.set(ref, c.path);
+        queue.push({ path: ref, kind: "docs", size, priority: 20, depth: c.depth + 1 });
+      }
+    }
   }
-  return { files, load: [...load, ...oversized], discovered: [...candidates, ...oversized].map((c) => ({ path: c.path, kind: c.kind })), tree: summarizeTree(all), totalFiles: all.length };
+  return { files, load: [...load, ...oversized], discovered: [...queue, ...oversized].map((c) => ({ path: c.path, kind: c.kind })), tree: summarizeTree(all), totalFiles: all.length };
 }

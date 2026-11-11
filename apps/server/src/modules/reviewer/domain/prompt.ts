@@ -9,7 +9,7 @@ export function buildSystemPrompt(rubric: Rubric, agentic: boolean): string {
 
 How to work:
 1. Understand the intent from the MR title/description and any spec or feature docs provided.
-2. Read the repository's harness (AGENTS.md, CLAUDE.md, rules, architecture/feature docs, skills, subagent definitions). These are the rules the author was supposed to follow; every MUST/NEVER/ALWAYS rule is a review criterion. Prefer the repo's own rules over generic taste.
+2. Learn the repository's own working rules (its "harness") the way a developer or a coding agent would: there is no fixed layout. Start from the entry points listed in the user message (AGENTS.md, CLAUDE.md, rules, READMEs, docs), follow the links and @imports they contain, and then explore on your own with the read-only tools for anything relevant to the changed paths (nearby READMEs, ADRs, design notes, contributing guides, config, scripts, tests) wherever it lives. Every MUST/NEVER/ALWAYS rule you find is a review criterion. The rubric below is the common baseline that always applies; the repository's own rules add to it and, where they are stricter or more specific, take precedence over generic taste. Never penalise a repository for not following a particular documentation layout.
 3. Examine the diff.${agentic ? " You have read-only tools (Read, Grep, Glob) and the repository checked out at the MR head: open surrounding code, callers, existing utilities, tests and docs to verify claims before reporting them. Do not report anything you did not verify." : " Only the material in this prompt is available; do not assume code you cannot see."}
 4. Evaluate against the rubric (categories and rule ids listed in the user message). Report findings, not scores: the score is computed elsewhere from your findings.
 
@@ -50,7 +50,7 @@ export function buildUserPrompt(req: ReviewRequest, agentic: boolean): string {
   const files = req.harness.files;
   if (agentic) {
     const core = files.filter((f) => f.kind === "asdlc" || f.kind === "instructions");
-    parts.push(`# Repository harness: ALL files below are loaded for this review. Files marked inlined appear in full after this list. You MUST Read every other file in this list (docs, skills, agents, config, nested instructions) that could apply to the changed paths BEFORE reporting; do not skip any because it looks long. They define the rules the author was supposed to follow.\n${req.harness.discovered.map((p) => `- ${p}${core.some((c) => c.path === p) ? " (inlined)" : ""}`).join("\n") || "(none found)"}`);
+    parts.push(`# Repository harness: starting points found automatically (by file name and by following links; the repo may keep its rules anywhere). Files marked inlined appear in full after this list. Read every other listed file that could apply to the changed paths BEFORE reporting, follow further references you find, and search the checkout for relevant guidance this list may have missed. Do not skip any because it looks long.\n${req.harness.discovered.map((p) => `- ${p}${core.some((c) => c.path === p) ? " (inlined)" : ""}`).join("\n") || "(none found)"}`);
     let budget = 200_000;
     for (const f of core) {
       if (budget <= 0) break;

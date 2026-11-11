@@ -38,7 +38,9 @@ export function computeCoverage(input: CoverageInput): HarnessReportDto {
   });
 
   // 2. Tài liệu kiến trúc
-  const arch = input.discovered.filter((d) => d.kind === "docs" && /(architect|adr|decision|structure|design)/i.test(d.path));
+  // Nhận diện theo tên file HOẶC theo nội dung: tài liệu kiến trúc có thể nằm ở bất kỳ đâu (được dẫn từ AGENTS.md, README…).
+  const archByContent = input.contents.filter((c) => c.kind === "docs" && lines(c.content) >= MIN_LINES && /(kiến trúc|architecture|ranh giới|boundar|layer|module)/i.test(c.content.slice(0, 4000)));
+  const arch = [...new Map([...input.discovered.filter((d) => d.kind === "docs" && /(architect|adr|decision|structure|design)/i.test(d.path)), ...archByContent].map((d) => [d.path, d])).values()];
   const readme = input.discovered.find((d) => /^README(\.\w+)?$/i.test(d.path));
   add({
     id: "architecture", label: "Tài liệu kiến trúc (docs/ARCHITECTURE.md…)", max: 20,

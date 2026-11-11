@@ -37,6 +37,8 @@ export interface HarnessLoadItemDto {
   loaded: boolean;
   truncated: boolean;
   reason?: string;
+  /** File dẫn tới file này (tìm thấy qua liên kết, không phụ thuộc vị trí). */
+  via?: string;
   /** AI nêu file này trong harnessUsed (đã tham chiếu khi review). */
   cited: boolean;
 }
