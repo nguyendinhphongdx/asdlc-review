@@ -1,7 +1,8 @@
-import { BarChart3, FileText, FolderGit2, GitPullRequest, Moon, Settings, Sun, Trophy, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, FileText, FolderGit2, GitPullRequest, ListChecks, Moon, Settings, Sun, Trophy, Users, type LucideIcon } from "lucide-react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/use-theme";
+import { FrameworkPage } from "../features/framework/index.js";
 import { LeaderboardPage } from "../features/leaderboard/index.js";
 import { MembersPage } from "../features/members/index.js";
 import { OverviewPage } from "../features/overview/index.js";
@@ -21,6 +22,7 @@ const groups: { title: string; items: Item[] }[] = [
   { title: "Quản lý", items: [
     { to: "/members", label: "Thành viên", icon: Users },
     { to: "/repos", label: "Repository", icon: FolderGit2 },
+    { to: "/framework", label: "Framework", icon: ListChecks },
     { to: "/reports", label: "Báo cáo", icon: FileText, range: true },
     { to: "/settings", label: "Cài đặt", icon: Settings },
   ] },
@@ -80,6 +82,7 @@ export function App() {
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/members" element={<MembersPage />} />
         <Route path="/repos" element={<ReposPage />} />
+        <Route path="/framework" element={<FrameworkPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { fmtDate, fmtDur, fmtMs } from "../../kernel/format.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { getRun, rerun, setFeedback } from "./api.js";
-import { STAGES, stageLabel } from "./stages.js";
+import { STAGES, stageLabel } from "../../kernel/stages.js";
 
 const VERDICT: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
   approve: { label: "Có thể merge", variant: "success" }, comment: { label: "Cần góp ý", variant: "warning" }, request_changes: { label: "Yêu cầu sửa", variant: "danger" },

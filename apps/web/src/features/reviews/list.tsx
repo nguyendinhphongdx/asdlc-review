@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { fmtDate, fmtDur } from "../../kernel/format.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { listRuns, requestReview } from "./api.js";
-import { stageLabel } from "./stages.js";
+import { stageLabel } from "../../kernel/stages.js";
 
 const SEV_DOT: [string, string][] = [["blocker", "bg-danger"], ["critical", "bg-chart-4"], ["major", "bg-chart-3"], ["minor", "bg-chart-2"]];
 
