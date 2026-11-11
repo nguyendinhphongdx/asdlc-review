@@ -55,7 +55,7 @@ sh(`npx --yes @electron/packager@18 ${stage} "ASDLC Review" --platform=${mac ? "
 const outDir = readdirSync("out/app").map((d) => path.join("out/app", d))[0];
 const zip = `out/ASDLC-Review-${osName}-${arch}.zip`;
 if (mac) execFileSync("ditto", ["-c", "-k", "--keepParent", path.join(outDir, "ASDLC Review.app"), zip]);
-else execFileSync("tar", ["-a", "-c", "-f", zip, "-C", "out/app", path.basename(outDir)]);
+else execFileSync(process.env.SystemRoot ? path.join(process.env.SystemRoot, "System32", "tar.exe") : "tar", ["-a", "-c", "-f", zip, "-C", "out/app", path.basename(outDir)]);
 
 const hash = createHash("sha256");
 await new Promise((ok, err) => createReadStream(zip).on("data", (d) => hash.update(d)).on("end", ok).on("error", err));
