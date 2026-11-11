@@ -2,11 +2,19 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, Menu, Tray, nativeImage, safeStorage, shell } from "electron";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+
+/** App GUI không thừa hưởng PATH của shell: bổ sung các nơi thường cài claude/codex/git/node. */
+function richPath() {
+  const home = os.homedir();
+  const extra = [path.join(home, ".local/bin"), path.join(home, ".claude/local"), path.join(home, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+  return [...new Set([...extra, ...(process.env.PATH ?? "").split(path.delimiter)])].filter(Boolean).join(path.delimiter);
+}
 const port = process.env.PORT ?? "4319";
 const url = `http://127.0.0.1:${port}`;
 let server;
@@ -32,7 +40,11 @@ function masterKey() {
 function startServer() {
   server = spawn(process.execPath, ["--import", "tsx", "--env-file-if-exists=../../.env", "src/main.ts"], {
     cwd: path.join(root, "apps/server"),
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", WEB_DIST: path.join(root, "apps/web/dist"), PORT: port, MRD_SECRET_KEY: masterKey() },
+    env: {
+      ...process.env, ELECTRON_RUN_AS_NODE: "1", WEB_DIST: path.join(root, "apps/web/dist"), PORT: port, MRD_SECRET_KEY: masterKey(), PATH: richPath(),
+      // Bản đóng gói: dữ liệu để ở thư mục người dùng (không ghi vào bundle), hàng đợi trong bộ nhớ, quét MR định kỳ vì máy cá nhân khó nhận webhook.
+      ...(app.isPackaged ? { DATA_DIR: path.join(app.getPath("userData"), "data"), REDIS_URL: process.env.REDIS_URL ?? "memory", POLL_INTERVAL_MIN: process.env.POLL_INTERVAL_MIN ?? "5" } : {}),
+    },
     stdio: "inherit",
   });
   server.on("exit", (code) => { if (!quitting) console.error(`server thoát (${code})`); });

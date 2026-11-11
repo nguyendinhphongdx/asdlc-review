@@ -147,9 +147,9 @@ Dữ liệu demo: `pnpm --filter @mrd/server exec node --import tsx scripts/seed
 
 ## Phát hành (release)
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.3.0 && git push origin v0.3.0
 ```
-Workflow `release.yml` chạy verify, build web, đóng gói `asdlc-review-<tag>.tar.gz` (+ sha256) và tạo GitHub Release.
+Workflow `release.yml` chạy verify, build web, đóng gói `asdlc-review-<tag>.tar.gz` (+ sha256), tạo GitHub Release, rồi build app desktop trên 3 runner (macOS Apple Silicon, macOS Intel, Windows) và đính kèm `ASDLC-Review-{mac-arm64,mac-x64,win-x64}.zip`. Build thử cục bộ: `pnpm pack:desktop`. App chưa ký số: macOS bấm chuột phải → Mở; Windows SmartScreen → Run anyway. Trang tải xuống trên landing page tự đề xuất bản theo hệ điều hành người xem.
 
 | Workflow | Khi nào | Làm gì |
 |---|---|---|

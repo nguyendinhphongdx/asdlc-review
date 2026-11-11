@@ -1,7 +1,7 @@
 {
   "name": "mr-dashboard",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "packageManager": "pnpm@10.14.0",
   "scripts": {
@@ -12,6 +12,7 @@
     "dev": "pnpm -r --parallel --filter @mrd/server --filter @mrd/web dev",
     "desktop": "pnpm --filter @mrd/web build && pnpm --filter @mrd/desktop start",
     "build": "pnpm --filter @mrd/web build",
+    "pack:desktop": "node scripts/pack-desktop.mjs",
     "arch": "node --experimental-strip-types tools/arch/check.ts",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter @mrd/server test",

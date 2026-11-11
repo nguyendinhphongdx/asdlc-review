@@ -24,18 +24,25 @@ h2{text-align:center;font-size:28px;margin:48px 0 8px}
 .flow span{background:var(--card);border:1px solid var(--bd);border-radius:999px;padding:8px 16px;font-size:14px}
 pre{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:16px;overflow-x:auto;font-size:14px}
 footer{border-top:1px solid var(--bd);margin-top:56px;padding:24px 0;text-align:center;color:var(--mut);font-size:14px}
+.dlbox{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:28px;text-align:center;margin:20px 0}
+.dlbox .rec{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ac);margin-bottom:6px}
+.dlbox .btn{font-size:18px;padding:14px 28px}.dlbox small{display:block;color:var(--mut);margin-top:8px}
+.dllist{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:20px}
+.dllist a{display:block;text-align:left;background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:14px 16px;text-decoration:none;color:var(--fg)}
+.dllist a:hover,.dllist a.rec{border-color:var(--ac)}.dllist b{display:block}.dllist span{color:var(--mut);font-size:13px}
+.note{color:var(--mut);font-size:14px;max-width:760px;margin:12px auto 0;text-align:left}.note code{font-size:13px}
 a.t{color:var(--ac)}
 .shot{width:100%;border:1px solid var(--bd);border-radius:12px;background:#fff}@media(max-width:520px){.grid{grid-template-columns:1fr!important}}
 </style>
 </head>
 <body>
 <div class="w">
-<nav><b style="display:flex;align-items:center;gap:10px"><img src="assets/logo-mark.svg" alt="" width="32" height="32"/>ASDLC Review</b><div><a href="#tinh-nang">Tính năng</a><a href="#cai-dat">Cài đặt</a><a id="gh" href="#">GitHub</a><a id="rel" href="#">Releases</a></div></nav>
+<nav><b style="display:flex;align-items:center;gap:10px"><img src="assets/logo-mark.svg" alt="" width="32" height="32"/>ASDLC Review</b><div><a href="#tinh-nang">Tính năng</a><a href="#tai-xuong">Tải xuống</a><a href="#cai-dat">Cài đặt</a><a id="gh" href="#">GitHub</a><a id="rel" href="#">Releases</a></div></nav>
 
 <header class="hero">
 <h1>Review hàng chục MR,<br/>không bỏ sót một convention nào.</h1>
 <p>ASDLC Review nhận trigger từ webhook, chat hoặc thao tác tay, nạp framework ASDLC chung cùng harness riêng của từng repo, nhờ AI tìm vấn đề rồi <b>chấm điểm 0–100 bằng code</b> — cùng một kết quả review luôn ra cùng một điểm.</p>
-<a class="btn" id="dl" href="#">Tải bản release</a><a class="btn o" href="#cai-dat">Cài đặt trong 5 phút</a>
+<a class="btn" id="dl" href="#tai-xuong">Tải ứng dụng</a><a class="btn o" href="#cai-dat">Cài đặt trong 5 phút</a>
 </header>
 
 <h2 id="tinh-nang">Vì sao khác biệt</h2>
@@ -59,7 +66,17 @@ a.t{color:var(--ac)}
 <h2>Kiến trúc</h2>
 <img class="shot" src="assets/architecture.svg" alt="Kiến trúc micro-module" style="margin-bottom:16px"/>
 <img class="shot" src="assets/scoring.svg" alt="Chấm điểm"/>
-<h2 id="cai-dat">Cài đặt nhanh</h2>
+<h2 id="tai-xuong">Tải xuống</h2>
+<p style="text-align:center;color:var(--mut);margin:0">Ứng dụng desktop chạy cục bộ: dữ liệu và token nằm trên máy bạn, token được mã hoá.</p>
+<div class="dlbox" id="dlbox">
+<div class="rec" id="dl-rec">Phiên bản phù hợp với bạn</div>
+<a class="btn" id="dl-main" href="#">Tải bản mới nhất</a>
+<small id="dl-sub">Đang nhận diện hệ điều hành…</small>
+<div class="dllist" id="dllist"></div>
+</div>
+<div class="note" id="dl-note"></div>
+
+<h2 id="cai-dat">Cài đặt từ mã nguồn</h2>
 <pre>git clone https://github.com/nguyendinhphongdx/asdlc-review.git && cd asdlc-review
 cp .env.example .env     # điền GITLAB_TOKEN, GITLAB_WEBHOOK_SECRET
 pnpm install
@@ -74,9 +91,47 @@ pnpm build &amp;&amp; pnpm dev</pre>
 var m=location.hostname.match(/^(.+)\.github\.io$/),repo=location.pathname.split("/")[1]||"asdlc-review";
 var base=m?"https://github.com/"+m[1]+"/"+repo:"https://github.com";
 document.getElementById("gh").href=document.getElementById("gh2").href=base;
-document.getElementById("rel").href=document.getElementById("dl").href=base+"/releases/latest";
+document.getElementById("rel").href=base+"/releases/latest";
 document.getElementById("docs").href=base+"/blob/main/docs/MODULES.md";
 document.querySelector("pre").textContent=document.querySelector("pre").textContent.replace("https://github.com/OWNER/asdlc-review.git",base+".git");
+
+// ---- Trang tải xuống: đề xuất bản theo hệ điều hành người xem ----
+(function(){
+  var rel=base+"/releases/latest/download/";
+  var ASSETS=[
+    {id:"mac-arm64",os:"mac",label:"macOS · Apple Silicon (M1/M2/M3/M4)",file:"ASDLC-Review-mac-arm64.zip",hint:"macOS 12+, chip Apple"},
+    {id:"mac-x64",os:"mac",label:"macOS · Intel",file:"ASDLC-Review-mac-x64.zip",hint:"macOS 12+, chip Intel"},
+    {id:"win-x64",os:"win",label:"Windows 10/11 (64-bit)",file:"ASDLC-Review-win-x64.zip",hint:"Giải nén rồi chạy ASDLC Review.exe"},
+    {id:"src",os:"any",label:"Mã nguồn / chạy dạng server (Linux, Docker…)",file:null,hint:"Node 22 + pnpm 10, xem mục cài đặt bên dưới",href:base+"/releases/latest"}
+  ];
+  var ua=navigator.userAgent||"",plat=(navigator.userAgentData&&navigator.userAgentData.platform)||navigator.platform||"";
+  var os=/android|iphone|ipad|ipod/i.test(ua)?"mobile":/win/i.test(plat+ua)?"win":/mac/i.test(plat+ua)?"mac":/linux|cros/i.test(plat+ua)?"linux":"other";
+  function pick(arch){
+    var id=os==="win"?"win-x64":os==="mac"?(arch==="x86"?"mac-x64":"mac-arm64"):"src";
+    return ASSETS.filter(function(a){return a.id===id})[0];
+  }
+  function render(arch,known){
+    var rec=pick(arch);
+    var url=function(a){return a.href||rel+a.file};
+    var main=document.getElementById("dl-main"),sub=document.getElementById("dl-sub");
+    main.href=url(rec);
+    if(os==="mobile"){main.textContent="Mở trên máy tính để tải";main.href="#dllist";sub.textContent="ASDLC Review là ứng dụng desktop. Mở trang này trên Mac hoặc Windows.";}
+    else if(rec.id==="src"){main.textContent="Xem hướng dẫn chạy từ mã nguồn";main.href="#cai-dat";sub.textContent=(os==="linux"?"Chưa có bản đóng gói cho Linux; ":"Không nhận diện được hệ điều hành; ")+"chạy dạng server bằng Node 22 + pnpm.";}
+    else{main.textContent="Tải cho "+rec.label.split(" · ")[0].replace(" 10/11 (64-bit)","");sub.textContent=rec.label+(os==="mac"&&!known?" — nếu Mac của bạn dùng chip Intel, chọn bản Intel bên dưới.":"");}
+    document.getElementById("dllist").innerHTML=ASSETS.map(function(a){return '<a href="'+url(a)+'"'+(a.id===rec.id?' class="rec"':'')+'><b>'+a.label+(a.id===rec.id?' ✓':'')+'</b><span>'+a.hint+'</span></a>';}).join("");
+    var n=document.getElementById("dl-note");
+    n.innerHTML=os==="mac"?'<b>Mở lần đầu trên macOS:</b> ứng dụng chưa được ký số của Apple nên hệ thống có thể chặn. Giải nén, kéo <code>ASDLC Review</code> vào Applications, bấm chuột phải &rarr; <b>Mở</b> &rarr; <b>Mở</b>. Nếu vẫn bị chặn: <code>xattr -dr com.apple.quarantine "/Applications/ASDLC Review.app"</code>.'
+      :os==="win"?'<b>Mở lần đầu trên Windows:</b> ứng dụng chưa được ký số nên SmartScreen có thể cảnh báo: chọn <b>More info</b> &rarr; <b>Run anyway</b>. Cần cài <a class="t" href="https://git-scm.com/download/win">Git</a> và Claude Code CLI (<code>claude</code>) đã đăng nhập để review.'
+      :'<b>Yêu cầu:</b> <code>git</code> và <code>claude</code> (hoặc <code>codex</code>) CLI đã đăng nhập, hoặc API key OpenAI-compatible. Dữ liệu nằm trong thư mục dữ liệu người dùng của hệ điều hành.';
+  }
+  render("arm",false);
+  if(os==="mac"&&navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues){
+    navigator.userAgentData.getHighEntropyValues(["architecture"]).then(function(v){render(v.architecture||"arm",!!v.architecture)}).catch(function(){});
+  }
+  // Hiện số phiên bản mới nhất nếu GitHub API trả lời; lỗi thì bỏ qua.
+  var m2=base.match(/github\.com\/([^/]+\/[^/]+)$/);
+  if(m2&&window.fetch)fetch("https://api.github.com/repos/"+m2[1]+"/releases/latest").then(function(r){return r.ok?r.json():null}).then(function(j){if(j&&j.tag_name)document.getElementById("dl-rec").textContent="Phiên bản phù hợp với bạn · "+j.tag_name}).catch(function(){});
+})();
 </script>
 </body>
 </html>

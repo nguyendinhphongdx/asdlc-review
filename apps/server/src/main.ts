@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { buildContainer } from "./app/container.js";
 import { buildServer } from "./app/http/server.js";
@@ -23,9 +24,11 @@ async function ensureDatabase() {
   const current = existsSync(stamp) ? readFileSync(stamp, "utf8").trim() : "";
   if (existsSync(file) && current === digest) return;
   log.info(existsSync(file) ? "cập nhật cấu trúc cơ sở dữ liệu" : "tạo cơ sở dữ liệu lần đầu", { file });
-  await run("npx", ["--no-install", "prisma", "db", "push", "--skip-generate", "--schema", schemaDir], {
+  // Chạy prisma CLI bằng chính runtime hiện tại (không cần npx/PATH: app desktop đóng gói không có).
+  const prismaBin = createRequire(import.meta.url).resolve("prisma/build/index.js");
+  await run(process.execPath, [prismaBin, "db", "push", "--skip-generate", "--schema", schemaDir], {
     cwd: path.join(ROOT_DIR, "apps/server"),
-    env: { DATABASE_URL: config.databaseUrl },
+    env: { DATABASE_URL: config.databaseUrl, ELECTRON_RUN_AS_NODE: process.versions.electron ? "1" : (process.env.ELECTRON_RUN_AS_NODE ?? "") },
     timeoutMs: 120_000,
   });
   writeFileSync(stamp, digest);

@@ -1,5 +1,6 @@
 name: Release
-# Tạo release: git tag v0.1.0 && git push origin v0.1.0
+# Tạo release: git tag v0.3.0 && git push origin v0.3.0
+# Job "release" tạo release + gói mã nguồn; job "desktop" build app macOS (arm64, Intel) và Windows rồi đính kèm vào release.
 on:
   push: { tags: ["v*"] }
 permissions: { contents: write }
@@ -30,3 +31,27 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" --generate-notes --title "ASDLC Review $GITHUB_REF_NAME" \
             "asdlc-review-${GITHUB_REF_NAME}.tar.gz" "asdlc-review-${GITHUB_REF_NAME}.tar.gz.sha256"
+
+  # Bản cài đặt app desktop: build trên từng OS để native module (Prisma engine) đúng nền tảng.
+  desktop:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-14, name: "macOS (Apple Silicon)" }
+          - { os: macos-15-intel, name: "macOS (Intel)" }
+          - { os: windows-latest, name: "Windows" }
+    runs-on: ${{ matrix.os }}
+    name: desktop · ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm pack:desktop
+      - name: Tải lên release
+        shell: bash
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: gh release upload "$GITHUB_REF_NAME" out/ASDLC-Review-*.zip out/ASDLC-Review-*.zip.sha256 --clobber
