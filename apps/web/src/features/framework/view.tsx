@@ -57,6 +57,7 @@ export function ScoringView({ d }: { d: FrameworkDetailDto }) {
           <li key={k} className="text-sm"><div className="flex items-center gap-2"><SeverityBadge severity={k} /><span className="tabular-nums text-muted-foreground">−{v.deduction}</span></div><p className="mt-0.5 text-xs text-muted-foreground">{v.description}</p></li>))}</ul></div>
         <div><h3 className="mb-2 text-sm font-medium">Gate chặn điểm</h3><ul className="flex flex-col gap-2">{d.gates.map((g) => (
           <li key={g.id} className="text-sm"><span className="font-semibold tabular-nums">≤ {g.capTotal}</span> <span className="text-muted-foreground">{g.reason}</span> {g.locked && <LockedBadge />}</li>))}</ul>
+          <p className="mt-3 text-xs text-muted-foreground">Đăng comment lên MR: <b>{d.publish.comments ? `bật (inline từ ${d.publish.inlineMinSeverity}, tối đa ${d.publish.maxInline})` : "tắt (chỉ chấm điểm)"}</b>.</p>
           <p className="mt-3 text-xs text-muted-foreground">Với minor/nit, điểm trừ được chia cho √(dòng thay đổi / {d.sizeBaseline}) để MR lớn không bị phạt dồn.</p></div>
         <div><h3 className="mb-2 text-sm font-medium">Xếp loại</h3><ul className="flex flex-col gap-1">{d.grades.map((g) => (<li key={g.grade} className="flex justify-between text-sm"><span className="font-semibold">{g.grade}</span><span className="tabular-nums text-muted-foreground">≥ {g.min}</span></li>))}</ul></div>
       </CardContent>

@@ -101,3 +101,20 @@ describe("framework: .asdlc.yml (D3)", () => {
     assert.ok(parseRepoConfig(": : :").error);
   });
 });
+
+describe("framework: chính sách đăng comment", () => {
+  it("mọi framework dựng sẵn mặc định KHÔNG tự đăng comment", async () => {
+    for (const id of ["asdlc", "web", "backend", "mobile"]) assert.equal(buildRubric(await src.load(id), null).publish.comments, false, id);
+  });
+  it(".asdlc.yml của repo không bật được đăng comment", async () => {
+    const base = await src.load("asdlc");
+    const { config } = parseRepoConfig("publish:\n  comments: true\n");
+    assert.equal(buildRubric(base, config).publish.comments, false);
+  });
+  it("chỉnh sửa framework đổi được chính sách và ghi vào diff", async () => {
+    const base = await src.load("asdlc");
+    const next = applyEdit(base, { ...toEdit(base), publish: { comments: true, inlineMinSeverity: "critical", maxInline: 5 } });
+    assert.equal(next.publish.comments, true);
+    assert.ok(diffFrameworks(base, next).some((c) => c.path === "publish.comments"));
+  });
+});

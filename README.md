@@ -116,7 +116,6 @@ pnpm desktop
 | `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | Provider tương thích OpenAI |
 | `REDIS_URL` | `redis://…` hoặc `memory` |
 | `DATA_DIR`, `DATABASE_URL` | Nơi lưu repo cache và SQLite |
-| `PUBLISH_COMMENTS` | Mặc định `false`: chỉ chấm điểm, không comment lên MR; `true` để tự đăng comment |
 | `INLINE_MIN_SEVERITY`, `MAX_INLINE_COMMENTS` | Điều khiển comment inline |
 | `POLL_INTERVAL_MIN` | >0 bật poller (khi không nhận được webhook) |
 

@@ -67,10 +67,6 @@ export function ReviewTab() {
           {(p.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.label}{x.available ? "" : " (chưa sẵn sàng)"}</option>)}</Select></Row>
         <Row label="Framework mặc định"><Select aria-label="Framework mặc định" value={v.defaultFramework} onChange={(e) => save.mutate({ defaultFramework: e.target.value })}>
           {(f.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name} v{x.version}</option>)}</Select></Row>
-        <Row label="Đăng comment lên MR" hint="Tắt để chỉ xem kết quả trên dashboard (chế độ thử)."><Check label="Đăng comment" checked={v.publishComments} onChange={(c) => save.mutate({ publishComments: c })} /></Row>
-        <Row label="Mức tối thiểu để comment inline"><Select aria-label="Mức tối thiểu để comment inline" value={v.inlineMinSeverity} onChange={(e) => save.mutate({ inlineMinSeverity: e.target.value as typeof v.inlineMinSeverity })}>
-          {["blocker", "critical", "major", "minor", "nit"].map((x) => <option key={x}>{x}</option>)}</Select></Row>
-        <Row label="Số comment inline tối đa"><Input aria-label="Số comment inline" className="w-24" type="number" min={0} key={`i${v.maxInlineComments}`} defaultValue={v.maxInlineComments} onBlur={(e) => num(e.target.value, 0, (n) => n !== v.maxInlineComments && save.mutate({ maxInlineComments: n }))} /></Row>
         <Row label="Điểm đạt"><Input aria-label="Điểm đạt" className="w-24" type="number" min={0} max={100} key={`p${v.passScore}`} defaultValue={v.passScore} onBlur={(e) => num(e.target.value, 0, (n) => n !== v.passScore && save.mutate({ passScore: n }))} /></Row>
         {save.error && <div className="mt-3"><ErrorBox error={save.error} /></div>}
       </CardContent></Card>

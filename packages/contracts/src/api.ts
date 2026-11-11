@@ -128,9 +128,6 @@ export interface RepoDto {
 export interface SettingsDto {
   reviewProvider: "claude-cli" | "codex-cli" | "openai-compatible";
   defaultFramework: string;
-  publishComments: boolean;
-  inlineMinSeverity: "blocker" | "critical" | "major" | "minor" | "nit";
-  maxInlineComments: number;
   passScore: number;
   /** Bỏ qua MR nháp (Draft/WIP) khi review tự động. */
   skipDrafts: boolean;

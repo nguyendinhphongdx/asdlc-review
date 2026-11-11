@@ -73,5 +73,6 @@ export function buildRubric(base: FrameworkFile, repo: RepoConfig | null, versio
     sizeBaseline: fw.sizeBaseline,
     categories: fw.categories.map((c) => ({ ...c, criteria: c.criteria.map(({ enabled: _e, locked: _k, ...r }) => r) })),
     repoNotes: repo?.notes,
+    publish: fw.publish, // chỉ framework quyết định; .asdlc.yml của repo không đổi được
   };
 }

@@ -42,6 +42,13 @@ grades:
   - { grade: D, min: 60 }
   - { grade: F, min: 0 }
 
+# Đăng comment lên MR. Mặc định tắt: chỉ chấm điểm, xem trên dashboard. Chỉ framework quyết định;
+# `.asdlc.yml` của repo không bật được.
+publish:
+  comments: false
+  inlineMinSeverity: major
+  maxInline: 15
+
 # Kích thước MR: minor/nit được chia cho hệ số sqrt(changedLines / sizeBaseline),
 # để MR lớn không bị phạt dồn vì nhiều lỗi vặt; blocker/critical/major giữ nguyên.
 sizeBaseline: 200

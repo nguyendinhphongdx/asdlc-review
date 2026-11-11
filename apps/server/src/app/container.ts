@@ -38,8 +38,8 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   const settings = createSettingsModule({
     db, events,
     defaults: {
-      reviewProvider: config.REVIEW_PROVIDER, defaultFramework: "asdlc", publishComments: config.PUBLISH_COMMENTS,
-      inlineMinSeverity: config.INLINE_MIN_SEVERITY, maxInlineComments: config.MAX_INLINE_COMMENTS, passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS,
+      reviewProvider: config.REVIEW_PROVIDER, defaultFramework: "asdlc",
+      passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS,
       workDir: "", triggerMode: "polling", pollIntervalMin: config.POLL_INTERVAL_MIN > 0 ? config.POLL_INTERVAL_MIN : 5,
     },
   });

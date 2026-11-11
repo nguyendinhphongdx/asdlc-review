@@ -87,13 +87,13 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       };
 
       let commentUrl: string | undefined;
-      if (settings.publishComments) {
+      if (fw.rubric.publish.comments) {
         commentUrl = await stage("publish", async () => {
           try {
             const url = await m.scm.upsertSummaryNote(mr, m.publisher.renderSummary(report), m.publisher.summaryMarker);
             // Không đăng lại inline cho vấn đề đã nêu ở lần review trước.
             const seen = new Set((previous?.findings ?? []).map((f) => `${f.file}|${f.ruleId}|${f.title.toLowerCase()}`));
-            const drafts = m.publisher.renderInline(report, { minSeverity: settings.inlineMinSeverity, max: settings.maxInlineComments });
+            const drafts = m.publisher.renderInline(report, { minSeverity: fw.rubric.publish.inlineMinSeverity, max: fw.rubric.publish.maxInline });
             for (const d of drafts) {
               const f = scored.find((x) => x.file === d.file && x.lineStart === d.line && x.ruleId === d.ruleId);
               if (f && seen.has(`${f.file}|${f.ruleId}|${f.title.toLowerCase()}`)) continue;

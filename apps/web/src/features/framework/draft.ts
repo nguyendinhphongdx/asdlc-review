@@ -1,4 +1,4 @@
-import type { FrameworkCategoryDto, FrameworkDetailDto, FrameworkEditInput, FrameworkGateDto, FrameworkRuleDto, Grade, Severity } from "@mrd/contracts";
+import type { PublishPolicy, FrameworkCategoryDto, FrameworkDetailDto, FrameworkEditInput, FrameworkGateDto, FrameworkRuleDto, Grade, Severity } from "@mrd/contracts";
 import { SEVERITY_RANK } from "@mrd/contracts";
 
 /** Bản nháp đang chỉnh: cùng hình dạng với phần nội dung của FrameworkDetailDto (giữ cờ locked để khoá UI; server vẫn kiểm lại). */
@@ -8,13 +8,14 @@ export interface Draft {
   gates: FrameworkGateDto[];
   grades: { grade: Grade; min: number }[];
   sizeBaseline: number;
+  publish: PublishPolicy;
   categories: FrameworkCategoryDto[];
 }
 
 export const SEVERITIES: Severity[] = ["blocker", "critical", "major", "minor", "nit"];
 export const RULE_ID = /^[A-Za-z0-9_-]{2,24}$/;
 
-export const toDraft = (d: FrameworkDetailDto): Draft => structuredClone({ name: d.name, severity: d.severity, gates: d.gates, grades: d.grades, sizeBaseline: d.sizeBaseline, categories: d.categories });
+export const toDraft = (d: FrameworkDetailDto): Draft => structuredClone({ name: d.name, severity: d.severity, gates: d.gates, grades: d.grades, sizeBaseline: d.sizeBaseline, publish: d.publish, categories: d.categories });
 
 export const toInput = (d: Draft, note: string): FrameworkEditInput => ({
   name: d.name.trim(),
@@ -22,6 +23,7 @@ export const toInput = (d: Draft, note: string): FrameworkEditInput => ({
   gates: d.gates.map((g) => ({ id: g.id, reason: g.reason, capTotal: g.capTotal, when: g.when })),
   grades: d.grades,
   sizeBaseline: d.sizeBaseline,
+  publish: d.publish,
   categories: d.categories.map((c) => ({ id: c.id, name: c.name, weight: c.weight, criteria: c.criteria.map(({ locked: _l, ...r }) => r) })),
   ...(note.trim() ? { note: note.trim() } : {}),
 });
@@ -31,6 +33,7 @@ function flatten(d: Draft): Map<string, string> {
   const m = new Map<string, string>();
   m.set("Tên framework", d.name);
   m.set("Chuẩn kích thước MR", String(d.sizeBaseline));
+  m.set("Đăng comment", JSON.stringify(d.publish));
   for (const k of SEVERITIES) m.set(`Điểm trừ ${k}`, String(d.severity[k].deduction));
   for (const g of d.grades) m.set(`Ngưỡng xếp loại ${g.grade}`, String(g.min));
   for (const g of d.gates) m.set(`Trần gate ${g.id}`, String(g.capTotal));

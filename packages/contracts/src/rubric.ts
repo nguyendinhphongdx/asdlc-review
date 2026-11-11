@@ -25,6 +25,14 @@ export interface RubricGate {
   reason: string;
 }
 
+/** Chính sách đăng comment lên MR. Thuộc framework (không phải cài đặt app); `.asdlc.yml` của repo không đổi được. */
+export interface PublishPolicy {
+  /** Tự đăng comment tổng + inline lên MR. Mặc định tắt: chỉ chấm điểm, xem trên dashboard. */
+  comments: boolean;
+  inlineMinSeverity: Severity;
+  maxInline: number;
+}
+
 /** Bộ tiêu chí đã áp cấu hình repo: đầu vào chung cho framework → reviewer → scoring. */
 export interface Rubric {
   id: string;
@@ -37,6 +45,7 @@ export interface Rubric {
   sizeBaseline: number;
   categories: RubricCategory[];
   repoNotes?: string;
+  publish: PublishPolicy;
 }
 
 export interface CategoryScoreResult {

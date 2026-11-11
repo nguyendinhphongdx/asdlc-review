@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -41,7 +41,7 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
     git(origin, "add", "."), git(origin, "commit", "-qm", "add pay");
     headSha = git(origin, "rev-parse", "HEAD");
 
-    const cfg = loadConfig({ DATA_DIR: path.join(tmp, "data"), DATABASE_URL: `file:${path.join(tmp, "t.db")}`, REDIS_URL: "memory", PUBLISH_COMMENTS: "true" } as NodeJS.ProcessEnv);
+    const cfg = loadConfig({ DATA_DIR: path.join(tmp, "data"), DATABASE_URL: `file:${path.join(tmp, "t.db")}`, REDIS_URL: "memory" } as NodeJS.ProcessEnv);
     await run("npx", ["--no-install", "prisma", "db", "push", "--skip-generate", "--schema", "prisma/schema"], { cwd: SERVER_DIR, env: { DATABASE_URL: cfg.databaseUrl }, timeoutMs: 120_000 });
 
     const mr: MrInfo = {
@@ -62,7 +62,12 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
         usage: { provider: "claude-cli", model: "fake", costUsd: 0.12, durationMs: 5 },
       }),
     };
-    c = buildContainer({ ...cfg, frameworksDir: path.resolve(SERVER_DIR, "../../frameworks") }, silentLogger, { scm, reviewer });
+    // Mặc định framework KHÔNG đăng comment; bản sao dùng cho test bật lên để kiểm tra đường đăng.
+    const fwDir = path.join(tmp, "frameworks");
+    cpSync(path.resolve(SERVER_DIR, "../../frameworks"), fwDir, { recursive: true });
+    const yamlPath = path.join(fwDir, "asdlc/framework.yaml");
+    writeFileSync(yamlPath, readFileSync(yamlPath, "utf8").replace("comments: false", "comments: true"));
+    c = buildContainer({ ...cfg, frameworksDir: fwDir }, silentLogger, { scm, reviewer });
     await c.startWorkers();
   });
 

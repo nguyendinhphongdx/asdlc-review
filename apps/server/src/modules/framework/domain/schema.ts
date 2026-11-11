@@ -36,6 +36,8 @@ export const FrameworkFileSchema = z.object({
     .default([]),
   grades: z.array(z.object({ grade: z.enum(["A", "B", "C", "D", "F"]), min: z.number() })),
   sizeBaseline: z.number().default(200),
+  /** Chính sách đăng comment lên MR; mặc định KHÔNG tự đăng. */
+  publish: z.object({ comments: z.boolean().default(false), inlineMinSeverity: SeveritySchema.default("major"), maxInline: z.number().int().min(0).max(100).default(15) }).default({}),
   categories: z.array(
     z.object({ id: z.string(), name: z.string(), weight: z.number().min(0), criteria: z.array(CriterionSchema).default([]) }),
   ),

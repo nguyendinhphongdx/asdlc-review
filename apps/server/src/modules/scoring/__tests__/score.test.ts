@@ -27,6 +27,7 @@ const rubric: Rubric = {
     { grade: "F", min: 0 },
   ],
   sizeBaseline: 200,
+  publish: { comments: false, inlineMinSeverity: "major", maxInline: 15 },
   categories: [
     { id: "security", name: "Sec", weight: 50, criteria: [{ id: "SEC-01", title: "", check: "", why: "", defaultSeverity: "blocker" }] },
     { id: "style", name: "Style", weight: 50, criteria: [{ id: "CON-01", title: "", check: "", why: "", defaultSeverity: "minor" }] },

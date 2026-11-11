@@ -11,6 +11,7 @@ const Edit = z.object({
   gates: z.array(z.object({ id: z.string().max(40), reason: z.string().max(200), capTotal: z.number(), when: z.object({ ruleIds: z.array(z.string()).optional(), category: z.string().optional(), minSeverity: Severity.optional() }) })).max(30),
   grades: z.array(z.object({ grade: z.enum(["A", "B", "C", "D", "F"]), min: z.number().min(0).max(100) })).min(1),
   sizeBaseline: z.number().min(1).max(100000),
+  publish: z.object({ comments: z.boolean(), inlineMinSeverity: Severity, maxInline: z.number().int().min(0).max(100) }).optional(),
   categories: z.array(z.object({
     id: z.string().max(40), name: z.string().max(120), weight: z.number().min(0).max(1000),
     criteria: z.array(z.object({ id: z.string().max(40), title: z.string().max(200), check: z.string().max(2000), why: z.string().max(1000).default(""), defaultSeverity: Severity, enabled: z.boolean() })).max(200),

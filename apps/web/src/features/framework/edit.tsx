@@ -167,6 +167,16 @@ export function FrameworkEditor({ detail, repoCount, onCancel, onSaved, onDirty 
           </CardContent>
         </Card>
         <Card>
+          <CardHeader><CardTitle>Đăng comment lên MR</CardTitle><CardDescription>Mặc định tắt: review chỉ chấm điểm và hiện trên dashboard. Bật thì app tự đăng comment tổng và inline lên MR sau mỗi lần review.</CardDescription></CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <label className="flex items-center justify-between gap-3 text-sm"><span>Tự đăng comment</span><input aria-label="Tự đăng comment" type="checkbox" className="size-4 accent-[var(--primary)]" checked={draft.publish.comments} onChange={(e) => setDraft({ ...draft, publish: { ...draft.publish, comments: e.target.checked } })} /></label>
+            {draft.publish.comments && <>
+              <label className="flex items-center justify-between gap-3 text-sm"><span>Mức tối thiểu để comment inline</span><select aria-label="Mức tối thiểu để comment inline" className="rounded-md border bg-transparent px-2 py-1" value={draft.publish.inlineMinSeverity} onChange={(e) => setDraft({ ...draft, publish: { ...draft.publish, inlineMinSeverity: e.target.value as typeof draft.publish.inlineMinSeverity } })}>{SEVERITIES.map((s) => <option key={s}>{s}</option>)}</select></label>
+              <label className="flex items-center justify-between gap-3 text-sm"><span>Số comment inline tối đa</span><Input aria-label="Số comment inline tối đa" type="number" min={0} max={100} className={NUM} value={draft.publish.maxInline} onChange={(e) => setDraft({ ...draft, publish: { ...draft.publish, maxInline: num(e.target.value) } })} /></label>
+            </>}
+          </CardContent>
+        </Card>
+        <Card>
           <CardHeader><CardTitle>Ngưỡng xếp loại</CardTitle><CardDescription>Điểm tối thiểu cho từng hạng. Hạng thấp nhất phải bắt đầu từ 0.</CardDescription></CardHeader>
           <CardContent className="flex flex-col gap-2">
             {draft.grades.map((g) => (

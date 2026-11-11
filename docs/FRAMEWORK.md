@@ -30,6 +30,9 @@ categories:
 ```
 Điểm mỗi hạng mục bắt đầu 100, trừ theo `severity × độ tin cậy`; điểm tổng là trung bình có trọng số; sau đó áp gate. Chi tiết công thức: [SCORING.md](SCORING.md).
 
+## Đăng comment lên MR (`publish`)
+Mỗi framework có mục `publish`: `comments` (tự đăng comment tổng + inline lên MR), `inlineMinSeverity`, `maxInline`. **Mặc định tắt** ở mọi bản dựng sẵn: review chỉ chấm điểm và hiện trên dashboard. Muốn bật, tạo bản chỉnh sửa (fork) rồi bật ở Framework → Chỉnh sửa → "Đăng comment lên MR". `.asdlc.yml` của repo không bật được mục này.
+
 ## Quy tắc bảo mật nền (`locked`)
 Rule `SEC-01` (lộ secret) và gate `secret-leak`, `critical-security` luôn áp dụng. Với bản fork và với `.asdlc.yml`: không tắt rule, không hạ mức độ, không xoá gate, không nới trần gate. Server kiểm tra; cờ `locked` do server giữ, client không đổi được.
 

@@ -75,7 +75,7 @@ export function createFrameworkModule(deps: FrameworkDeps): FrameworkApi {
       id, name: file.name, version: label, kind, baseId, readOnly: kind !== "custom", language: file.language,
       severity: file.severity as FrameworkDetailDto["severity"],
       gates: file.gates.map((g) => ({ id: g.id, reason: g.reason, capTotal: g.capTotal, when: g.when, locked: g.locked })),
-      grades: [...file.grades].sort((a, b) => b.min - a.min), sizeBaseline: file.sizeBaseline,
+      grades: [...file.grades].sort((a, b) => b.min - a.min), sizeBaseline: file.sizeBaseline, publish: file.publish,
       categories: file.categories.map((c) => ({ id: c.id, name: c.name, weight: c.weight, criteria: c.criteria.map((r) => ({ id: r.id, title: r.title, check: r.check, why: r.why, defaultSeverity: r.defaultSeverity, enabled: r.enabled, locked: r.locked })) })),
       versions,
     };

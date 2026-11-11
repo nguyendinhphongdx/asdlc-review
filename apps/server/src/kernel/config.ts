@@ -44,8 +44,6 @@ const EnvSchema = z.object({
   REVIEW_TIMEOUT_MIN: z.coerce.number().default(20),
   CONTEXT_BUDGET_CHARS: z.coerce.number().default(180_000),
   DIFF_BUDGET_CHARS: z.coerce.number().default(120_000),
-
-  PUBLISH_COMMENTS: bool,
   INLINE_MIN_SEVERITY: z.enum(["blocker", "critical", "major", "minor", "nit"]).default("major"),
   MAX_INLINE_COMMENTS: z.coerce.number().default(15),
   POLL_INTERVAL_MIN: z.coerce.number().default(0),
@@ -62,7 +60,6 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   return {
     ...env,
     PUBLIC_URL: env.PUBLIC_URL ?? `http://localhost:${env.PORT}`,
-    PUBLISH_COMMENTS: env.PUBLISH_COMMENTS ?? false,
     KEEP_WORKTREES: env.KEEP_WORKTREES ?? false,
     databaseUrl,
     dataDir,

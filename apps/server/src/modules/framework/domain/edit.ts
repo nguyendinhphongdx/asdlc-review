@@ -66,6 +66,7 @@ export function applyEdit(current: FrameworkFile, edit: FrameworkEditInput): Fra
     language: edit.language ?? current.language,
     severity: edit.severity,
     sizeBaseline: edit.sizeBaseline,
+    publish: edit.publish ?? current.publish,
     grades: edit.grades,
     gates: edit.gates.map((g) => ({ ...g, locked: lockedGates.has(g.id) })),
     categories: edit.categories.map((c) => ({
@@ -83,6 +84,9 @@ export function diffFrameworks(a: FrameworkFile, b: FrameworkFile): FrameworkCha
   };
   push("name", a.name, b.name);
   push("sizeBaseline", a.sizeBaseline, b.sizeBaseline);
+  push("publish.comments", a.publish?.comments, b.publish?.comments);
+  push("publish.inlineMinSeverity", a.publish?.inlineMinSeverity, b.publish?.inlineMinSeverity);
+  push("publish.maxInline", a.publish?.maxInline, b.publish?.maxInline);
   for (const [k, v] of Object.entries(b.severity)) push(`severity.${k}.deduction`, (a.severity as Record<string, { deduction: number }>)[k]?.deduction, v.deduction);
   for (const g of b.grades) push(`grade.${g.grade}.min`, a.grades.find((x) => x.grade === g.grade)?.min, g.min);
   const ag = new Map(a.gates.map((g) => [g.id, g]));

@@ -1,5 +1,5 @@
 import type { Severity } from "./finding.js";
-import type { Grade } from "./rubric.js";
+import type { Grade, PublishPolicy } from "./rubric.js";
 
 /** Hợp đồng API framework (M1). */
 
@@ -51,6 +51,7 @@ export interface FrameworkDetailDto {
   gates: FrameworkGateDto[];
   grades: { grade: Grade; min: number }[];
   sizeBaseline: number;
+  publish: PublishPolicy;
   categories: FrameworkCategoryDto[];
   /** Lịch sử (mới nhất trước); rỗng với bản chỉ đọc. */
   versions: FrameworkVersionDto[];
@@ -64,6 +65,7 @@ export interface FrameworkEditInput {
   gates: { id: string; reason: string; capTotal: number; when: FrameworkGateDto["when"] }[];
   grades: { grade: Grade; min: number }[];
   sizeBaseline: number;
+  publish?: PublishPolicy;
   categories: { id: string; name: string; weight: number; criteria: Omit<FrameworkRuleDto, "locked">[] }[];
   note?: string;
 }
