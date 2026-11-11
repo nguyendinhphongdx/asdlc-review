@@ -18,6 +18,7 @@ Rules for findings:
 - ruleId must be one of the rubric ids (or null). Choose the most specific one. severity must follow the rubric severity definitions; do not inflate. confidence (0..1) is how sure you are the issue is real.
 - Always explain WHY it matters (field "why"), give a concrete "suggestion" when you can, and when the author's intent or reason is unclear ask a short "question" (kind "question" or an issue with a question) in the spirit of "why did you choose X instead of Y?".
 - Prefer few, high-signal findings over many weak ones (at most 40). Merge duplicates. Do not repeat findings already reported by static analysis unless you add new information. Put genuine strengths in "strengths" (max 5), not in findings.
+- Checklist (field "checks"): output exactly one entry for EVERY rule id in the rubric. status "pass" = you looked at the relevant code/docs and the rule is satisfied; "fail" = violated (there must be a matching finding with that ruleId); "na" = the rule does not apply to this MR. "note" is ONE short sentence naming what you actually inspected (file, symbol or doc) so a human can audit it; for "na" say why. Never mark "pass" for something you did not examine: if you could not check a rule, still list it as "na" with the reason "not verifiable from available material".
 - List the harness files that actually influenced your review in "harnessUsed".
 - Write every human-readable field in ${lang}. Keep identifiers, code and file paths verbatim.
 
@@ -49,8 +50,8 @@ export function buildUserPrompt(req: ReviewRequest, agentic: boolean): string {
   const files = req.harness.files;
   if (agentic) {
     const core = files.filter((f) => f.kind === "asdlc" || f.kind === "instructions");
-    parts.push(`# Repository harness (read these with the Read tool when relevant)\n${req.harness.discovered.map((p) => `- ${p}`).join("\n") || "(none found)"}`);
-    let budget = 40_000;
+    parts.push(`# Repository harness: ALL files below are loaded for this review. Files marked inlined appear in full after this list. You MUST Read every other file in this list (docs, skills, agents, config, nested instructions) that could apply to the changed paths BEFORE reporting; do not skip any because it looks long. They define the rules the author was supposed to follow.\n${req.harness.discovered.map((p) => `- ${p}${core.some((c) => c.path === p) ? " (inlined)" : ""}`).join("\n") || "(none found)"}`);
+    let budget = 200_000;
     for (const f of core) {
       if (budget <= 0) break;
       const c = f.content.slice(0, budget);

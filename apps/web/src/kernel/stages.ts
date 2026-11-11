@@ -2,7 +2,7 @@
 export const STAGES = [
   { id: "clone", label: "Clone repository" },
   { id: "framework", label: "Nạp framework" },
-  { id: "harness", label: "Đọc harness" },
+  { id: "harness", label: "Nạp harness" },
   { id: "analysis", label: "Phân tích tĩnh" },
   { id: "review", label: "Review bằng AI" },
   { id: "score", label: "Chấm điểm" },

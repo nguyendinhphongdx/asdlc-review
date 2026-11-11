@@ -45,6 +45,18 @@ gates:
     minSeverity: blocker
   capTotal: 59
   reason: Có vấn đề blocker
+- id: many-major
+  when:
+    minSeverity: major
+    minCount: 3
+  capTotal: 74
+  reason: Có từ 3 vấn đề major trở lên
+- id: any-major
+  when:
+    minSeverity: major
+    minCount: 1
+  capTotal: 89
+  reason: Còn vấn đề major chưa sửa (không đạt hạng A)
 grades:
 - grade: A
   min: 90

@@ -32,8 +32,15 @@ total           = min(total, cap của mọi gate bị kích hoạt)
 | blocker | 35 | | Lộ secret (SEC-01) | 30 |
 | critical | 25 | | Security ≥ critical | 49 |
 | major | 12 | | Có blocker | 59 |
+| ≥ 3 finding major (`minCount: 3`) | 74 |
+| ≥ 1 finding major | 89 (không đạt hạng A) |
 | minor | 4 | | | |
 | nit | 1 | | | |
+
+Gate theo số lượng (`when.minCount`) tồn tại vì điểm trung bình theo hạng mục làm một finding major chỉ trừ ~1 điểm tổng; không có chúng, MR 6 major vẫn đạt hạng A. Finding trùng không được đếm hai lần.
+
+## Checklist theo rule
+AI phải khai trạng thái cho **mọi** rule của framework (`pass`/`fail`/`na` + một câu nêu rõ đã xem gì). Code gộp lại: rule có finding thật luôn là `fail` (AI không tự khai đạt được); rule AI không nhắc tới là `unchecked`, hiển thị rõ ở trang chi tiết và **không** được coi là đạt. Danh sách file và file bị bỏ qua (vượt ngân sách diff) cũng được lưu theo từng lần review.
 
 Grade: A ≥ 90 · B ≥ 80 · C ≥ 70 · D ≥ 60 · F < 60.
 Verdict: `request_changes` nếu có gate hoặc finding ≥ major; `comment` nếu có minor; ngược lại `approve`.

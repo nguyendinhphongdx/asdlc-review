@@ -91,6 +91,14 @@ export interface RunDetailDto extends RunSummaryDto {
   omittedFiles: string[];
   /** Độ phủ harness của repo tại thời điểm review (null với review cũ). */
   harnessReport: import("./framework.js").HarnessReportDto | null;
+  /** Checklist theo rule của framework (rỗng với review cũ). */
+  /** Harness đã nạp: từng file, kích thước, nạp đủ hay không (null với review cũ). */
+  harnessLoad: import("./review.js").HarnessLoadDto | null;
+  /** Nhật ký hoạt động của lần review (rỗng với review cũ). */
+  activity: import("./events.js").RunActivityEntry[];
+  ruleChecks: import("./review.js").RuleCheckDto[];
+  /** Danh sách file đổi và trạng thái được review (rỗng với review cũ). */
+  files: import("./review.js").FileReviewDto[];
   findings: FindingDto[];
   categoryScores: { category: string; name: string; weight: number; score: number; deduction: number; findings: number }[];
 }

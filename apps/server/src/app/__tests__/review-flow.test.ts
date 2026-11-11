@@ -58,7 +58,7 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
     const reviewer: ReviewerApi = {
       providers: async () => [],
       review: async () => ({
-        review: { summary: "Thêm hàm thanh toán", intent: "Thêm pay()", strengths: [], harnessUsed: ["CLAUDE.md"], findings: [{ category: "conventions", ruleId: "CON-03", severity: "major", kind: "issue", title: "Dùng console.log thay vì logger", file: "src/pay.ts", lineStart: 3, lineEnd: null, why: "CLAUDE.md cấm console.log", evidence: null, suggestion: "Dùng logger", question: "Vì sao không dùng logger?", confidence: 0.9 }] },
+        review: { summary: "Thêm hàm thanh toán", intent: "Thêm pay()", strengths: [], harnessUsed: ["CLAUDE.md"], checks: [{ ruleId: "ARC-01", status: "pass", note: "Đã đối chiếu cấu trúc thư mục" }], findings: [{ category: "conventions", ruleId: "CON-03", severity: "major", kind: "issue", title: "Dùng console.log thay vì logger", file: "src/pay.ts", lineStart: 3, lineEnd: null, why: "CLAUDE.md cấm console.log", evidence: null, suggestion: "Dùng logger", question: "Vì sao không dùng logger?", confidence: 0.9 }] },
         usage: { provider: "claude-cli", model: "fake", costUsd: 0.12, durationMs: 5 },
       }),
     };
@@ -94,6 +94,17 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
 
     assert.ok(d.findings.some((f) => f.source === "static" && f.ruleId === "SEC-01"), "phải bắt được secret");
     assert.ok(d.findings.some((f) => f.source === "ai" && f.ruleId === "CON-03"));
+    // Checklist đầy đủ: mỗi rule một dòng; fail theo finding, rule AI không nhắc là unchecked; có danh sách file.
+    // Nhật ký tiến trình được lưu cùng run (nguồn của SSE/replay).
+    assert.ok(d.activity.length >= 8, `activity: ${d.activity.length}`);
+    assert.ok(d.activity.some((a) => a.stage === "harness" && /file harness/.test(a.message)));
+    assert.ok(d.activity.some((a) => a.stage === "score" && /Điểm/.test(a.message)));
+    assert.ok(d.ruleChecks.length >= 30);
+    assert.equal(d.ruleChecks.find((r) => r.ruleId === "CON-03")?.status, "fail");
+    assert.equal(d.ruleChecks.find((r) => r.ruleId === "SEC-01")?.status, "fail");
+    assert.equal(d.ruleChecks.find((r) => r.ruleId === "ARC-01")?.status, "pass");
+    assert.ok(d.ruleChecks.some((r) => r.status === "unchecked"));
+    assert.ok(d.files.some((f) => f.path === "src/pay.ts" && f.reviewed));
     assert.ok(!JSON.stringify(d.findings).includes("AKIAABCDEFGHIJKLMNOP"), "không được lưu secret thật");
     assert.ok(d.score! <= 30, `lộ secret → điểm bị chặn ≤ 30 (được ${d.score})`);
     assert.equal(d.grade, "F");

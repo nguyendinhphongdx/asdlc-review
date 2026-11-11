@@ -1,5 +1,6 @@
-import type { RunDetailDto } from "@mrd/contracts";
+import type { RunActivityEntry, RunDetailDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { Check, CircleAlert, ExternalLink, Loader2, TriangleAlert, X } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Avatar } from "@/components/ui/avatar";
@@ -11,8 +12,10 @@ import { ScoreRing } from "@/components/ui/score-ring";
 import { cn } from "@/lib/utils";
 import { fmtDate, fmtDur, fmtMs } from "../../kernel/format.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
+import { FileCoverage, HarnessLoad, RuleChecklist } from "./coverage.js";
 import { HarnessPanel } from "../../kernel/harness.js";
-import { getRun, listFrameworks, rerun, setFeedback } from "./api.js";
+import { getRun, listFrameworks, openRunStream, rerun, setFeedback } from "./api.js";
+import { ActivityLog } from "./live-log.js";
 import { STAGES, stageLabel } from "../../kernel/stages.js";
 
 const VERDICT: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
@@ -23,7 +26,20 @@ const FB = { agree: "Đồng ý", disagree: "Không đồng ý", fixed: "Đã s�
 export function ReviewDetailPage() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["run", id], queryFn: () => getRun(id), refetchInterval: (s) => (s.state.data && ["queued", "running"].includes(s.state.data.status) ? 3000 : false) });
+  const [live, setLive] = useState<RunActivityEntry[]>([]);
+  const [connected, setConnected] = useState(false);
+  const q = useQuery({ queryKey: ["run", id], queryFn: () => getRun(id), refetchInterval: (s) => (s.state.data && ["queued", "running"].includes(s.state.data.status) ? (connected ? 15000 : 3000) : false) });
+  const active = q.data ? ["queued", "running"].includes(q.data.status) : false;
+  // SSE: nhận tiến trình từng bước; khi xong/lỗi thì tải lại chi tiết.
+  useEffect(() => {
+    if (!active) return;
+    setLive([]);
+    return openRunStream({
+      onProgress: (_r, e) => setLive((l) => [...l, e]),
+      onDone: () => void qc.invalidateQueries({ queryKey: ["run", id] }),
+      onStatus: setConnected,
+    }, id);
+  }, [active, id, qc]);
   const re = useMutation({ mutationFn: (mrId: string) => rerun(mrId), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["runs"] }); void qc.invalidateQueries({ queryKey: ["run", id] }); } });
   const fws = useQuery({ queryKey: ["frameworks"], queryFn: listFrameworks, staleTime: 60_000 });
   const fb = useMutation({ mutationFn: (a: { id: string; v: keyof typeof FB | null }) => setFeedback(a.id, a.v), onSuccess: () => qc.invalidateQueries({ queryKey: ["run", id] }) });
@@ -47,6 +63,16 @@ export function ReviewDetailPage() {
 
       <Pipeline r={r} retrying={re.isPending} retried={re.isSuccess} onRetry={() => re.mutate(r.mr.id)} />
       {re.error && <ErrorBox error={re.error} />}
+
+      {(active || r.activity.length > 0) && (
+        <Card>
+          <CardHeader className="flex-row items-center justify-between gap-2">
+            <CardTitle>{active ? "Hoạt động trực tiếp" : "Nhật ký review"}</CardTitle>
+            {active && <Badge variant={connected ? "success" : "secondary"}>{connected ? "● Đang nhận trực tiếp" : "Đang kết nối…"}</Badge>}
+          </CardHeader>
+          <CardContent><ActivityLog entries={active ? live : r.activity} live={active} /></CardContent>
+        </Card>
+      )}
 
       {r.omittedFiles.length > 0 && (
         <section role="status" className="flex gap-3 rounded-xl border border-warning bg-warning-bg px-5 py-4 text-warning-fg">
@@ -102,6 +128,10 @@ export function ReviewDetailPage() {
           </div>
         ))}
       </CardContent></Card>
+
+      <HarnessLoad load={r.harnessLoad ?? null} />
+      <RuleChecklist checks={r.ruleChecks ?? []} />
+      <FileCoverage files={r.files ?? []} findings={r.findings} />
 
       <Card className="overflow-hidden">
         <CardHeader className="flex-row items-baseline justify-between"><CardTitle>Finding <span className="font-normal text-muted-foreground">({r.findings.length})</span></CardTitle></CardHeader>

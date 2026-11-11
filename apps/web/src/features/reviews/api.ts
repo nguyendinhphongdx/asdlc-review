@@ -10,3 +10,4 @@ export const setFeedback = (findingId: string, feedback: "agree" | "disagree" | 
 export const listFrameworks = () => request<FrameworkInfoDto[]>("/api/frameworks");
 export const discoverProjects = (q: string) => request<DiscoverProjectDto[]>(`/api/discover/projects${qs({ q })}`);
 export const discoverMrs = (project: string, state: string, q: string) => request<DiscoverMrDto[]>(`/api/discover/mrs${qs({ project, state, q })}`);
+export { openRunStream } from "../../kernel/stream.js";

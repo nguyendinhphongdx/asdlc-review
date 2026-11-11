@@ -52,6 +52,7 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
             system,
             user: attempt === 1 ? user : `${user}\n\nPREVIOUS OUTPUT WAS NOT VALID JSON FOR THE SCHEMA. Return ONLY the JSON object.`,
             workdir: req.workdir,
+            onActivity: req.onActivity,
           });
           const review = normalizeReview(parseReviewText(out.text), req.rubric);
           return { review, usage: { provider: provider.id, model: out.model, costUsd: out.costUsd, durationMs: Date.now() - started } };

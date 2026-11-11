@@ -28,7 +28,7 @@ export interface FrameworkGateDto {
   id: string;
   reason: string;
   capTotal: number;
-  when: { ruleIds?: string[]; category?: string; minSeverity?: Severity };
+  when: { ruleIds?: string[]; category?: string; minSeverity?: Severity; minCount?: number };
   locked: boolean;
 }
 

@@ -1,4 +1,4 @@
-import type { HarnessReportDto } from "@mrd/contracts";
+import type { RunActivityEntry, FileReviewDto, HarnessLoadDto, HarnessReportDto, RuleCheckDto } from "@mrd/contracts";
 import type { Grade, RunStatus, ReviewTrigger, Verdict } from "@mrd/contracts";
 
 export interface MrSnapshot {
@@ -96,6 +96,10 @@ export interface RunResult {
   frameworkId?: string | null;
   frameworkVersion?: string | null;
   harnessReport?: unknown;
+  ruleChecks?: RuleCheckDto[];
+  harnessLoad?: HarnessLoadDto | null;
+  activity?: RunActivityEntry[];
+  files?: FileReviewDto[];
   findings: FindingRecord[];
   categoryScores: CategoryScoreRecord[];
 }
@@ -145,6 +149,10 @@ export interface RunDetail extends RunSummary {
   stageTimings: Record<string, number>;
   omittedFiles: string[];
   harnessReport: HarnessReportDto | null;
+  harnessLoad: HarnessLoadDto | null;
+  activity: RunActivityEntry[];
+  ruleChecks: RuleCheckDto[];
+  files: FileReviewDto[];
   findings: FindingDto[];
   categoryScores: CategoryScoreRecord[];
 }

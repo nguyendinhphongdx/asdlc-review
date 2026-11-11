@@ -28,6 +28,7 @@ import { POLL_QUEUE, REVIEW_QUEUE } from "./workflows/mappers.js";
 import { createPollOpenMrs } from "./workflows/poll-open-mrs.js";
 import { createRegisterRepo } from "./workflows/register-repo.js";
 import { createRequestReview } from "./workflows/request-review.js";
+import { createProgressHub } from "./progress.js";
 import { createReviewMergeRequest } from "./workflows/review-merge-request.js";
 
 /** Composition root: dựng module, nối port↔adapter, dựng workflow. */
@@ -81,10 +82,11 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   };
 
   const app: AppSettings = { publicUrl: config.PUBLIC_URL, contextBudgetChars: config.CONTEXT_BUDGET_CHARS, diffBudgetChars: config.DIFF_BUDGET_CHARS, botMention: config.BOT_MENTION };
+  const progress = createProgressHub(events);
   const requestReview = createRequestReview(modules, log.child("request"));
   const workflows = {
     requestReview,
-    reviewMergeRequest: createReviewMergeRequest(modules, app, log.child("review")),
+    reviewMergeRequest: createReviewMergeRequest(modules, app, log.child("review"), progress),
     handleScmEvent: createHandleScmEvent(modules, requestReview, log.child("event")),
     pollOpenMrs: createPollOpenMrs(modules, requestReview, log.child("poll")),
     chatCommand: createChatCommand(modules, requestReview, { publicUrl: config.PUBLIC_URL }),
@@ -92,7 +94,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   };
 
   return {
-    modules, workflows, events, db, credentials, publicUrl: config.PUBLIC_URL,
+    modules, workflows, events, db, credentials, progress, publicUrl: config.PUBLIC_URL,
     storage: { dirs, defaults: { dataDir: config.dataDir, reposDir: config.reposDir, runsDir: config.runsDir } },
     /** Bật worker xử lý hàng đợi và poller (nếu cấu hình). */
     async startWorkers() {

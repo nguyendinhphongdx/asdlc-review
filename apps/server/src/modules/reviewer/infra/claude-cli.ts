@@ -14,9 +14,9 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
   return {
     id: "claude-cli",
     agentic: true,
-    async run({ system, user, workdir }) {
+    async run({ system, user, workdir, onActivity }) {
       const args = [
-        "-p", "--output-format", "json",
+        "-p", "--output-format", "stream-json", "--verbose",
         "--json-schema", JSON.stringify(REVIEW_JSON_SCHEMA),
         "--tools", "Read,Grep,Glob",
         "--permission-mode", "dontAsk",
@@ -26,13 +26,30 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
         ...(o.model ? ["--model", o.model] : []),
         ...(o.maxBudgetUsd > 0 ? ["--max-budget-usd", String(o.maxBudgetUsd)] : []),
       ];
-      const res = await run(o.bin, args, { cwd: workdir, input: user, timeoutMs: o.timeoutMs, allowFailure: true });
-      let out: Record<string, unknown>;
-      try {
-        out = JSON.parse(res.stdout);
-      } catch {
-        throw new ModuleError("reviewer", "upstream_error", `claude CLI không trả JSON (exit ${res.code}): ${(res.stderr || res.stdout).slice(0, 500)}`);
-      }
+      let final: Record<string, unknown> | undefined;
+      let lastThink = 0;
+      const rel = (p: unknown) => String(p ?? "").replace(`${workdir}/`, "");
+      const onLine = (line: string) => {
+        let ev: { type?: string; message?: { content?: { type?: string; name?: string; input?: Record<string, unknown> }[] } } & Record<string, unknown>;
+        try { ev = JSON.parse(line); } catch { return; }
+        if (ev.type === "result") { final = ev; return; }
+        if (ev.type !== "assistant") return;
+        for (const b of ev.message?.content ?? []) {
+          if (b.type === "tool_use") {
+            const i = b.input ?? {};
+            if (b.name === "Read") onActivity?.({ kind: "tool", message: `Đọc ${rel(i.file_path)}` });
+            else if (b.name === "Grep") onActivity?.({ kind: "tool", message: `Tìm "${String(i.pattern ?? "").slice(0, 80)}"${i.path ? ` trong ${rel(i.path)}` : ""}` });
+            else if (b.name === "Glob") onActivity?.({ kind: "tool", message: `Liệt kê ${String(i.pattern ?? "")}` });
+            else if (b.name === "StructuredOutput") onActivity?.({ kind: "ai", message: "Đang tổng hợp kết quả review" });
+          } else if (b.type === "thinking" && Date.now() - lastThink > 8000) {
+            lastThink = Date.now();
+            onActivity?.({ kind: "ai", message: "AI đang suy luận…" });
+          }
+        }
+      };
+      const res = await run(o.bin, args, { cwd: workdir, input: user, timeoutMs: o.timeoutMs, allowFailure: true, onStdoutLine: onLine });
+      if (!final) throw new ModuleError("reviewer", "upstream_error", `claude CLI không trả kết quả (exit ${res.code}): ${(res.stderr || res.stdout).slice(-500)}`);
+      const out: Record<string, unknown> = final;
       if (out.is_error === true || (res.code !== 0 && !out.result && !out.structured_output)) {
         throw new ModuleError("reviewer", "upstream_error", `claude CLI lỗi: ${String(out.result ?? res.stderr).slice(0, 500)}`);
       }

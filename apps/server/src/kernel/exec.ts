@@ -14,6 +14,8 @@ export interface ExecOptions {
   /** Chuỗi cần che khi in lỗi (token…). */
   redact?: string[];
   allowFailure?: boolean;
+  /** Gọi cho từng dòng stdout ngay khi có (dùng để stream tiến trình). */
+  onStdoutLine?: (line: string) => void;
 }
 
 export class ExecError extends Error {
@@ -42,7 +44,18 @@ export function run(cmd: string, args: string[], opts: ExecOptions = {}): Promis
           setTimeout(() => child.kill("SIGKILL"), 5000).unref();
         }, opts.timeoutMs)
       : undefined;
-    child.stdout.on("data", (d) => (stdout += d));
+    let lineBuf = "";
+    child.stdout.on("data", (d) => {
+      stdout += d;
+      if (!opts.onStdoutLine) return;
+      lineBuf += d;
+      let i: number;
+      while ((i = lineBuf.indexOf("\n")) >= 0) {
+        const line = lineBuf.slice(0, i).trim();
+        lineBuf = lineBuf.slice(i + 1);
+        if (line) try { opts.onStdoutLine(line); } catch { /* lỗi của callback không được làm hỏng tiến trình */ }
+      }
+    });
     child.stderr.on("data", (d) => (stderr += d));
     child.on("error", (err) => {
       if (timer) clearTimeout(timer);

@@ -20,7 +20,7 @@ export interface RubricCategory {
 
 export interface RubricGate {
   id: string;
-  when: { ruleIds?: string[]; category?: string; minSeverity?: Severity };
+  when: { ruleIds?: string[]; category?: string; minSeverity?: Severity; /** Số finding tối thiểu thoả điều kiện (mặc định 1). */ minCount?: number };
   capTotal: number;
   reason: string;
 }

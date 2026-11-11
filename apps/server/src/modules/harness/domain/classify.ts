@@ -38,7 +38,8 @@ const RULES: Rule[] = [
   },
 ];
 
-export const MAX_FILE_CHARS: Record<HarnessKind, number> = { asdlc: 20_000, instructions: 40_000, docs: 25_000, skills: 12_000, agents: 12_000, config: 6_000 };
+/** Trần an toàn cho MỘT file (không cắt nội dung bình thường; harness được nạp đầy đủ). */
+export const MAX_FILE_CHARS: Record<HarnessKind, number> = { asdlc: 400_000, instructions: 400_000, docs: 400_000, skills: 400_000, agents: 400_000, config: 100_000 };
 
 export function classify(p: string, extraDocGlobs: string[] = []): { kind: HarnessKind; priority: number } | null {
   if (p.includes("node_modules/") || p.includes("vendor/")) return null;

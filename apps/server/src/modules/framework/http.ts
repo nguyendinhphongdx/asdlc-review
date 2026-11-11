@@ -8,7 +8,7 @@ const Edit = z.object({
   name: z.string().max(120),
   language: z.string().max(10).optional(),
   severity: z.object({ blocker: Sev, critical: Sev, major: Sev, minor: Sev, nit: Sev }),
-  gates: z.array(z.object({ id: z.string().max(40), reason: z.string().max(200), capTotal: z.number(), when: z.object({ ruleIds: z.array(z.string()).optional(), category: z.string().optional(), minSeverity: Severity.optional() }) })).max(30),
+  gates: z.array(z.object({ id: z.string().max(40), reason: z.string().max(200), capTotal: z.number(), when: z.object({ ruleIds: z.array(z.string()).optional(), category: z.string().optional(), minSeverity: Severity.optional(), minCount: z.number().int().min(1).optional() }) })).max(30),
   grades: z.array(z.object({ grade: z.enum(["A", "B", "C", "D", "F"]), min: z.number().min(0).max(100) })).min(1),
   sizeBaseline: z.number().min(1).max(100000),
   publish: z.object({ comments: z.boolean(), inlineMinSeverity: Severity, maxInline: z.number().int().min(0).max(100) }).optional(),

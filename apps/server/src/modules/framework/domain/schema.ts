@@ -27,6 +27,7 @@ export const FrameworkFileSchema = z.object({
           ruleIds: z.array(z.string()).optional(),
           category: z.string().optional(),
           minSeverity: SeveritySchema.optional(),
+          minCount: z.number().int().min(1).optional(),
         }),
         capTotal: z.number(),
         reason: z.string(),

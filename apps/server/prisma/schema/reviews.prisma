@@ -62,6 +62,10 @@ model ReviewRun {
   stageTimings     String          @default("{}")
   harnessReport    String? // JSON HarnessReportDto: độ phủ harness lúc review
   omittedFiles     String          @default("[]") // file bị bỏ qua vì diff vượt ngân sách
+  activity         String          @default("[]") // JSON RunActivityEntry[]: nhật ký tiến trình
+  harnessLoad      String? // JSON HarnessLoadDto: harness đã nạp (từng file)
+  ruleChecks       String          @default("[]") // JSON RuleCheckDto[]: checklist theo rule
+  fileList         String          @default("[]") // JSON FileReviewDto[]: file đổi + trạng thái review
   createdAt        DateTime        @default(now())
   startedAt        DateTime?
   finishedAt       DateTime?

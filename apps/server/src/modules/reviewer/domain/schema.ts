@@ -6,12 +6,21 @@ const nullable = (t: string) => ({ type: [t, "null"] });
 export const REVIEW_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "intent", "findings", "strengths", "harnessUsed"],
+  required: ["summary", "intent", "findings", "strengths", "harnessUsed", "checks"],
   properties: {
     summary: { type: "string" },
     intent: { type: "string" },
     strengths: { type: "array", items: { type: "string" } },
     harnessUsed: { type: "array", items: { type: "string" } },
+    checks: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["ruleId", "status", "note"],
+        properties: { ruleId: { type: "string" }, status: { type: "string", enum: ["pass", "fail", "na"] }, note: { type: "string" } },
+      },
+    },
     findings: {
       type: "array",
       items: {
@@ -56,6 +65,7 @@ export function normalizeReview(review: RawReview, rubric: Rubric): RawReview {
   const cats = new Set(rubric.categories.map((c) => c.id));
   return {
     ...review,
+    checks: review.checks.filter((c) => ruleCat.has(c.ruleId)),
     findings: review.findings.map((f) => {
       const ruleId = f.ruleId && ruleCat.has(f.ruleId) ? f.ruleId : null;
       const category = ruleId ? ruleCat.get(ruleId)! : cats.has(f.category) ? f.category : rubric.categories[0]?.id ?? f.category;

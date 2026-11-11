@@ -64,14 +64,14 @@ export function scoreFindings({ rubric, findings, changedLines }: ScoreInput): S
   const gates: ScoreResult["gates"] = [];
   for (const g of rubric.gates) {
     const min = g.when.minSeverity ? SEVERITY_RANK[g.when.minSeverity] : 0;
-    const hit = gating.some((f) => {
+    const matched = gating.filter((f) => {
       const cat = (f.ruleId && ruleCategory.get(f.ruleId)) || f.category;
       if (g.when.ruleIds && !(f.ruleId && g.when.ruleIds.includes(f.ruleId))) return false;
       if (g.when.category && cat !== g.when.category) return false;
       if (min && SEVERITY_RANK[f.severity] < min) return false;
       return Boolean(g.when.ruleIds || g.when.category || min);
     });
-    if (hit) gates.push({ id: g.id, reason: g.reason, cap: g.capTotal });
+    if (new Set(matched.map(dedupKey)).size >= (g.when.minCount ?? 1)) gates.push({ id: g.id, reason: g.reason, cap: g.capTotal });
   }
 
   const total = round1(Math.min(rawTotal, ...gates.map((g) => g.cap)));

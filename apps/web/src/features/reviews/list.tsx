@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, GradeBadge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { fmtDate, fmtDur } from "../../kernel/format.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
-import { listRuns, requestReview } from "./api.js";
+import { listRuns, openRunStream, requestReview } from "./api.js";
 import { MrPicker } from "./picker.js";
 import { stageLabel } from "../../kernel/stages.js";
 
@@ -27,7 +27,14 @@ export function ReviewsPage() {
   const qc = useQueryClient();
   const [url, setUrl] = useState("");
   const [search, setSearch] = useState("");
-  const q = useQuery({ queryKey: ["runs"], queryFn: () => listRuns({ limit: 100 }), refetchInterval: 5000 });
+  const q = useQuery({ queryKey: ["runs"], queryFn: () => listRuns({ limit: 100 }), refetchInterval: 20000 });
+  // Cập nhật danh sách ngay khi có tiến trình mới (SSE), polling chỉ là dự phòng.
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => { clearTimeout(t); t = setTimeout(() => void qc.invalidateQueries({ queryKey: ["runs"] }), 400); };
+    const close = openRunStream({ onProgress: refresh, onDone: refresh });
+    return () => { clearTimeout(t); close(); };
+  }, [qc]);
   const m = useMutation({ mutationFn: requestReview, onSuccess: () => { setUrl(""); void qc.invalidateQueries({ queryKey: ["runs"] }); } });
   const items = (q.data?.items ?? []).filter((r) => !search || `${r.mr.title} ${r.mr.authorUsername}`.toLowerCase().includes(search.toLowerCase()));
   return (

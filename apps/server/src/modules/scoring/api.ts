@@ -1,4 +1,5 @@
-import type { Finding, Rubric, ScoreResult } from "@mrd/contracts";
+import type { Finding, RuleCheck, RuleCheckDto, Rubric, ScoreResult } from "@mrd/contracts";
+import { buildChecklist } from "./domain/checklist.js";
 import { scoreFindings } from "./domain/score.js";
 
 export interface ScoreRequest {
@@ -9,8 +10,10 @@ export interface ScoreRequest {
 
 export interface ScoringApi {
   score(input: ScoreRequest): ScoreResult;
+  /** Checklist theo rule: fail suy từ finding, rule AI bỏ sót là "unchecked". */
+  checklist(rubric: Rubric, aiChecks: RuleCheck[], findings: Finding[]): RuleCheckDto[];
 }
 
 export function createScoringModule(): ScoringApi {
-  return { score: (input) => scoreFindings(input) };
+  return { score: (input) => scoreFindings(input), checklist: buildChecklist };
 }

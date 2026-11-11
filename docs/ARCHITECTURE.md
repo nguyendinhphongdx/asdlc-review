@@ -90,7 +90,7 @@ docs: ["docs/features/**"]  # tài liệu tính năng cần đọc
 
 Interface `ReviewProvider.review(ctx) → RawReview` (JSON theo schema cố định, validate bằng zod).
 
-| Provider | Cách chạy | Đọc harness |
+| Provider | Cách chạy | Nạp harness |
 |---|---|---|
 | `claude-cli` | `claude -p --output-format json --json-schema …` trong worktree, chỉ cho phép tool đọc | Native: tự nạp `CLAUDE.md`, có thể tự mở skill/agent/docs |
 | `codex-cli` | `codex exec -s read-only -C <worktree> --output-schema … -o <file>` | Native `AGENTS.md`, tự duyệt repo |

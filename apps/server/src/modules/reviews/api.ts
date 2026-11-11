@@ -21,7 +21,7 @@ export interface ReviewsApi {
   startRun(input: StartRunInput): Promise<{ runId: string; round: number }>;
   setStage(runId: string, stage: string, timings?: Record<string, number>): Promise<void>;
   completeRun(runId: string, result: RunResult): Promise<void>;
-  failRun(runId: string, error: string): Promise<void>;
+  failRun(runId: string, error: string, activity?: unknown[]): Promise<void>;
 
   /** Run đã có (đang chạy/đã xong) cho đúng commit này của MR: dùng để khử trùng review. */
   findRunByHead(mrId: string, headSha: string): Promise<RunSummary | null>;
@@ -52,8 +52,8 @@ export function createReviewsModule(deps: ReviewsDeps): ReviewsApi {
       const { mrId } = await repo.completeRun(runId, result, clock.now());
       deps.events.publish("reviews.run.completed", { runId, mrId, score: result.score, grade: result.grade });
     },
-    async failRun(runId, error) {
-      const { mrId } = await repo.failRun(runId, error, clock.now());
+    async failRun(runId, error, activity) {
+      const { mrId } = await repo.failRun(runId, error, clock.now(), activity);
       deps.events.publish("reviews.run.failed", { runId, mrId, error: error.slice(0, 300) });
     },
     findRunByHead: (mrId, sha) => repo.findRunByHead(mrId, sha),

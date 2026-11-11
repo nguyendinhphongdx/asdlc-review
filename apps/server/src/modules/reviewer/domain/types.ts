@@ -20,7 +20,11 @@ export interface ReviewRequest {
   omittedFiles: string[];
   stats: { filesChanged: number; additions: number; deletions: number };
   staticFindings: Finding[];
+  /** Nhận hoạt động của AI theo thời gian thực (đọc file nào, đang suy luận…). */
+  onActivity?: (a: ActivityEvent) => void;
 }
+
+export interface ActivityEvent { kind: "tool" | "ai"; message: string }
 
 export interface ReviewUsage {
   provider: ProviderId;
@@ -38,5 +42,5 @@ export interface ReviewResponse {
 export interface Provider {
   readonly id: ProviderId;
   readonly agentic: boolean;
-  run(input: { system: string; user: string; workdir: string }): Promise<{ text: string; model: string; costUsd: number | null }>;
+  run(input: { system: string; user: string; workdir: string; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null }>;
 }

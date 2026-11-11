@@ -90,3 +90,46 @@ describe("scoreFindings", () => {
     assert.deepEqual(scoreFindings({ rubric, findings: fs, changedLines: 300 }), scoreFindings({ rubric, findings: fs, changedLines: 300 }));
   });
 });
+
+describe("gate theo số lượng (minCount)", () => {
+  const withGates: Rubric = {
+    ...rubric,
+    gates: [
+      { id: "many-major", when: { minSeverity: "major", minCount: 3 }, capTotal: 74, reason: "≥3 major" },
+      { id: "any-major", when: { minSeverity: "major", minCount: 1 }, capTotal: 89, reason: "có major" },
+    ],
+  };
+  const majors = (n: number) => Array.from({ length: n }, (_, i) => f({ severity: "major", ruleId: "CON-01", title: `m${i}`, file: `a${i}.ts`, lineStart: 1 }));
+  it("1 major → trần 89, không đạt hạng A", () => {
+    const r = scoreFindings({ rubric: withGates, findings: majors(1), changedLines: 100 });
+    assert.ok(r.total <= 89);
+    assert.notEqual(r.grade, "A");
+  });
+  it("3 major → trần 74", () => {
+    const r = scoreFindings({ rubric: withGates, findings: majors(3), changedLines: 100 });
+    assert.ok(r.total <= 74);
+    assert.deepEqual(r.gates.map((g) => g.id).sort(), ["any-major", "many-major"]);
+  });
+  it("finding trùng không được đếm hai lần", () => {
+    const dup = [majors(1)[0]!, majors(1)[0]!, majors(1)[0]!];
+    const r = scoreFindings({ rubric: withGates, findings: dup, changedLines: 100 });
+    assert.deepEqual(r.gates.map((g) => g.id), ["any-major"]);
+  });
+});
+
+describe("checklist theo rule", () => {
+  it("fail suy từ finding; rule AI bỏ sót là unchecked, không mặc định đạt", async () => {
+    const { buildChecklist } = await import("../domain/checklist.js");
+    const out = buildChecklist(rubric, [{ ruleId: "SEC-01", status: "pass", note: "đã đọc" }], [f({ severity: "major", ruleId: "CON-01", title: "console.log" })]);
+    const by = Object.fromEntries(out.map((c) => [c.ruleId, c]));
+    assert.equal(by["SEC-01"]!.status, "pass");
+    assert.equal(by["CON-01"]!.status, "fail");
+    const none = buildChecklist(rubric, [], []);
+    assert.ok(none.every((c) => c.status === "unchecked"));
+  });
+  it("AI tự khai pass cho rule đã có finding thì vẫn là fail", async () => {
+    const { buildChecklist } = await import("../domain/checklist.js");
+    const out = buildChecklist(rubric, [{ ruleId: "CON-01", status: "pass", note: "ok" }], [f({ ruleId: "CON-01", title: "vi phạm" })]);
+    assert.equal(out.find((c) => c.ruleId === "CON-01")!.status, "fail");
+  });
+});

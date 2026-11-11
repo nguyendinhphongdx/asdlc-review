@@ -42,7 +42,8 @@ const EnvSchema = z.object({
   OPENAI_API_KEY: z.string().default(""),
   OPENAI_MODEL: z.string().default(""),
   REVIEW_TIMEOUT_MIN: z.coerce.number().default(20),
-  CONTEXT_BUDGET_CHARS: z.coerce.number().default(180_000),
+  /** Trần an toàn tổng cho harness nạp vào review (ký tự). Mặc định đủ lớn để nạp đầy đủ; vượt thì file ưu tiên thấp bị liệt kê là "chưa nạp". */
+  CONTEXT_BUDGET_CHARS: z.coerce.number().default(1_500_000),
   DIFF_BUDGET_CHARS: z.coerce.number().default(120_000),
   INLINE_MIN_SEVERITY: z.enum(["blocker", "critical", "major", "minor", "nit"]).default("major"),
   MAX_INLINE_COMMENTS: z.coerce.number().default(15),
