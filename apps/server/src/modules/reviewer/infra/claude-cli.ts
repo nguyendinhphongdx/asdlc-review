@@ -14,9 +14,11 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
   return {
     id: "claude-cli",
     agentic: true,
-    async ask({ system, user, workdir }) {
-      const args = ["-p", "--output-format", "json", "--tools", "", "--permission-mode", "dontAsk", "--no-session-persistence", "--append-system-prompt", system, ...(o.model ? ["--model", o.model] : [])];
-      const res = await run(o.bin, args, { cwd: workdir, input: user, timeoutMs: Math.min(o.timeoutMs, 180_000), allowFailure: true });
+    async ask({ system, user, workdir, images }) {
+      const withImages = Boolean(images?.length);
+      // Ảnh đi qua stdin dạng stream-json (khối image base64): không cần bật công cụ đọc file.
+      const args = ["-p", ...(withImages ? ["--input-format", "stream-json", "--output-format", "stream-json", "--verbose"] : ["--output-format", "json"]), "--tools", "", "--permission-mode", "dontAsk", "--no-session-persistence", "--append-system-prompt", system, ...(o.model ? ["--model", o.model] : [])];
+      const res = await run(o.bin, args, { cwd: workdir, input: withImages ? `${JSON.stringify({ type: "user", message: { role: "user", content: [...images!.map((i) => ({ type: "image", source: { type: "base64", media_type: i.mediaType, data: i.data } })), { type: "text", text: user }] } })}\n` : user, timeoutMs: Math.min(o.timeoutMs, 180_000), allowFailure: true });
       let out: Record<string, unknown> = {};
       try { out = JSON.parse(res.stdout.trim().split("\n").filter(Boolean).pop() ?? "{}"); } catch { /* xử lý bên dưới */ }
       if (out.is_error === true || typeof out.result !== "string") throw new ModuleError("reviewer", "upstream_error", `claude CLI lỗi (exit ${res.code}): ${String(out.result ?? (res.stderr || res.stdout)).slice(0, 300)}`);

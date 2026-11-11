@@ -128,7 +128,11 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
     const mr = await m.reviews.getMr(req.params.id);
     return { messages: await m.agent.listMessages(mr.id), lessons: await m.agent.listLessons(mr.repositoryId) };
   });
-  app.post<{ Params: { id: string } }>("/api/mrs/:id/chat", async (req) => w.agentChat(req.params.id, z.object({ text: z.string().trim().min(1).max(4000) }).parse(req.body).text));
+  const ChatBody = z.object({
+    text: z.string().trim().max(4000).default(""),
+    images: z.array(z.object({ mediaType: z.enum(["image/png", "image/jpeg", "image/gif", "image/webp"]), data: z.string().max(5_000_000) })).max(4).default([]),
+  }).refine((b) => b.text.length > 0 || b.images.length > 0, "Cần nội dung hoặc ảnh");
+  app.post<{ Params: { id: string } }>("/api/mrs/:id/chat", { bodyLimit: 24 * 1024 * 1024 }, async (req) => { const b = ChatBody.parse(req.body); return w.agentChat(req.params.id, b.text || "Xem ảnh đính kèm.", undefined, b.images); });
   app.get<{ Params: { id: string } }>("/api/repos/:id/lessons", async (req) => m.agent.listLessons(req.params.id));
   app.post<{ Params: { id: string } }>("/api/lessons/:id/approve", async (req) => m.agent.setLessonStatus(req.params.id, "active"));
   app.post<{ Params: { id: string } }>("/api/lessons/:id/reject", async (req) => m.agent.setLessonStatus(req.params.id, "rejected"));

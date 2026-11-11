@@ -1,5 +1,8 @@
 import type { Finding, RawReview, Rubric } from "@mrd/contracts";
 
+/** Ảnh dán vào chat (base64, không kèm tiền tố data:). */
+export interface ChatImage { mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; data: string }
+
 export type ProviderId = "claude-cli" | "codex-cli" | "openai-compatible";
 
 export interface ReviewHarnessFile {
@@ -45,6 +48,6 @@ export interface Provider {
   readonly id: ProviderId;
   readonly agentic: boolean;
   /** Hỏi đáp tự do, không công cụ (tuỳ chọn). */
-  ask?(input: { system: string; user: string; workdir: string }): Promise<{ text: string; costUsd: number | null }>;
+  ask?(input: { system: string; user: string; workdir: string; images?: ChatImage[] }): Promise<{ text: string; costUsd: number | null }>;
   run(input: { system: string; user: string; workdir: string; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null }>;
 }

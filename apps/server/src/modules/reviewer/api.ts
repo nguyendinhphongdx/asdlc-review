@@ -2,7 +2,7 @@ import { ModuleError } from "../../kernel/errors.js";
 import type { Logger } from "../../kernel/logger.js";
 import { buildSystemPrompt, buildUserPrompt } from "./domain/prompt.js";
 import { normalizeReview, parseReviewText } from "./domain/schema.js";
-import type { Provider, ProviderId, ReviewRequest, ReviewResponse } from "./domain/types.js";
+import type { ChatImage, Provider, ProviderId, ReviewRequest, ReviewResponse } from "./domain/types.js";
 import { claudeCliProvider } from "./infra/claude-cli.js";
 import { codexCliProvider } from "./infra/codex-cli.js";
 import { openAiProvider } from "./infra/openai.js";
@@ -27,7 +27,7 @@ export interface ProviderInfo {
 export interface ReviewerApi {
   review(req: ReviewRequest): Promise<ReviewResponse>;
   /** Hỏi đáp tự do với agent (không công cụ, không đọc repo). */
-  ask(req: { provider: ProviderId; system: string; user: string; workdir: string }): Promise<{ text: string; costUsd: number | null }>;
+  ask(req: { provider: ProviderId; system: string; user: string; workdir: string; images?: ChatImage[] }): Promise<{ text: string; costUsd: number | null }>;
   providers(): Promise<ProviderInfo[]>;
 }
 
@@ -70,7 +70,8 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
     async ask(req) {
       const provider = providers[req.provider];
       if (!provider?.ask) throw new ModuleError("reviewer", "not_configured", "Provider này chưa hỗ trợ chat. Hãy chọn Claude Code CLI ở Cài đặt.");
-      return provider.ask({ system: req.system, user: req.user, workdir: req.workdir });
+      if (req.images?.length && provider.id !== "claude-cli") throw new ModuleError("reviewer", "not_configured", "Gửi ảnh trong chat chỉ hỗ trợ Claude Code CLI.");
+      return provider.ask({ system: req.system, user: req.user, workdir: req.workdir, images: req.images });
     },
 
     async providers() {

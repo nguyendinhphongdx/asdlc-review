@@ -1,4 +1,4 @@
-import type { ChatMessageDto, LessonDto, RunActivityEntry } from "@mrd/contracts";
+import type { ChatImageDto, ChatMessageDto, LessonDto, RunActivityEntry } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, BookOpen, Check, Send, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -61,16 +61,30 @@ export function AgentChat({ mrId, live, active, connected }: { mrId: string; liv
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  const [images, setImages] = useState<ChatImageDto[]>([]);
+  const [imgError, setImgError] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
   const q = useQuery({ queryKey: ["chat", mrId], queryFn: () => getChat(mrId) });
   const send = useMutation({
-    mutationFn: (t: string) => sendChat(mrId, t),
-    onMutate: (t) => setPending(t),
+    mutationFn: (a: { t: string; imgs: ChatImageDto[] }) => sendChat(mrId, a.t, a.imgs),
+    onMutate: (a) => setPending(a.imgs.length ? `${a.t}\n📎 ${a.imgs.length} ảnh đính kèm` : a.t),
     onSettled: () => { setPending(null); void qc.invalidateQueries({ queryKey: ["chat", mrId] }); void qc.invalidateQueries({ queryKey: ["runs"] }); },
   });
   const msgs = q.data?.messages ?? [];
   useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [msgs.length, pending, send.isPending]);
-  const submit = (t: string) => { const v = t.trim(); if (!v || send.isPending) return; setText(""); send.mutate(v); };
+  const submit = (t: string) => { const v = t.trim(); if ((!v && !images.length) || send.isPending) return; setText(""); const imgs = images; setImages([]); send.mutate({ t: v, imgs }); };
+  const onPaste = (e: React.ClipboardEvent) => {
+    const files = [...e.clipboardData.items].filter((i) => i.kind === "file" && /^image\/(png|jpeg|gif|webp)$/.test(i.type)).map((i) => i.getAsFile()).filter((f): f is File => !!f);
+    if (!files.length) return;
+    e.preventDefault();
+    setImgError(null);
+    for (const f of files) {
+      if (f.size > 3_500_000) { setImgError("Ảnh quá lớn (tối đa ~3.5MB)."); continue; }
+      const rd = new FileReader();
+      rd.onload = () => { const m = /^data:(image\/[a-z]+);base64,(.+)$/.exec(String(rd.result)); if (m) setImages((l) => (l.length >= 4 ? l : [...l, { mediaType: m[1] as ChatImageDto["mediaType"], data: m[2]! }])); };
+      rd.readAsDataURL(f);
+    }
+  };
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-2">
@@ -90,10 +104,21 @@ export function AgentChat({ mrId, live, active, connected }: { mrId: string; liv
         <div className="flex flex-wrap gap-1.5">
           {SUGGEST.map((s) => <Button key={s} size="sm" variant="outline" disabled={send.isPending} onClick={() => (s.endsWith(": ") ? setText(s) : submit(s))}>{s}</Button>)}
         </div>
+        {(images.length > 0 || imgError) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {images.map((im, i) => (
+              <span key={i} className="relative">
+                <img src={`data:${im.mediaType};base64,${im.data}`} alt={`Ảnh đính kèm ${i + 1}`} className="size-16 rounded-md border object-cover" />
+                <button type="button" aria-label={`Bỏ ảnh ${i + 1}`} className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full border bg-background" onClick={() => setImages((l) => l.filter((_, j) => j !== i))}><X className="size-3" /></button>
+              </span>
+            ))}
+            {imgError && <span role="alert" className="text-[13px] text-danger-fg">{imgError}</span>}
+          </div>
+        )}
         <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); submit(text); }}>
           <label className="sr-only" htmlFor="agent-chat-input">Tin nhắn cho agent</label>
-          <input id="agent-chat-input" value={text} onChange={(e) => setText(e.target.value)} maxLength={4000} placeholder="Hỏi hoặc dạy agent…" className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" />
-          <Button type="submit" disabled={send.isPending || !text.trim()}><Send />Gửi</Button>
+          <input id="agent-chat-input" value={text} onChange={(e) => setText(e.target.value)} maxLength={4000} onPaste={onPaste} placeholder="Hỏi hoặc dạy agent… (dán ảnh bằng Cmd/Ctrl+V)" className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" />
+          <Button type="submit" disabled={send.isPending || (!text.trim() && !images.length)}><Send />Gửi</Button>
         </form>
         <div className="border-t pt-3">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium"><BookOpen className="size-4" aria-hidden="true" />Sổ tay của repo</div>

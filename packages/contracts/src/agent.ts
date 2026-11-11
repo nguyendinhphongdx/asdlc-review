@@ -3,4 +3,5 @@ export interface ChatMessageDto { id: string; role: "user" | "agent" | "system";
 export type LessonStatus = "proposed" | "active" | "rejected";
 export interface LessonDto { id: string; repoId: string; text: string; status: LessonStatus; source: "user" | "agent" | "feedback"; createdAt: string }
 export interface ChatStateDto { messages: ChatMessageDto[]; lessons: LessonDto[] }
+export interface ChatImageDto { mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; data: string }
 export interface ChatReplyDto { reply: string; lessons: string[]; queued?: boolean }
