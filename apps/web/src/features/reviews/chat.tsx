@@ -1,26 +1,18 @@
 import type { ChatImageDto, ChatMessageDto, LessonDto, RunActivityEntry } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, BookOpen, Check, Send, Trash2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { BookOpen, Check, Trash2, X } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from "@/components/ai-elements/conversation";
+import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputHeader, PromptInputSubmit, PromptInputTextarea, PromptInputTools, usePromptInputAttachments, usePromptInputController, PromptInputProvider } from "@/components/ai-elements/prompt-input";
 import { ErrorBox } from "../../kernel/page.js";
 import { approveLesson, deleteLesson, getChat, rejectLesson, sendChat } from "./api.js";
 import { ActivityLog } from "./live-log.js";
 
 const SUGGEST = ["Giải thích finding nghiêm trọng nhất", "Finding nào có thể là báo nhầm?", "nhớ: ", "review lại"];
-
-function Bubble({ m }: { m: ChatMessageDto }) {
-  const me = m.role === "user";
-  return (
-    <div className={cn("flex gap-2", me && "justify-end")}>
-      {!me && <span className="mt-1 grid size-6 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Bot className="size-3.5" aria-hidden="true" /></span>}
-      <div className={cn("max-w-[78ch] whitespace-pre-wrap break-words rounded-xl px-3.5 py-2 text-sm", me ? "bg-primary text-primary-foreground" : "border bg-muted/40")}>{m.text}</div>
-    </div>
-  );
-}
 
 function Lessons({ lessons, onChange }: { lessons: LessonDto[]; onChange: () => void }) {
   const act = useMutation({ mutationFn: async (a: { id: string; op: "ok" | "no" | "del" }) => { if (a.op === "ok") await approveLesson(a.id); else if (a.op === "no") await rejectLesson(a.id); else await deleteLesson(a.id); }, onSuccess: onChange });
@@ -56,14 +48,35 @@ function Lessons({ lessons, onChange }: { lessons: LessonDto[]; onChange: () => 
   );
 }
 
-/** Màn review dạng chat: tiến trình trực tiếp, hỏi đáp về kết quả, dạy agent (sổ tay bài học của repo). */
+function Attachments() {
+  const att = usePromptInputAttachments();
+  if (!att.files.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2 px-3 pt-3">
+      {att.files.map((f) => (
+        <span key={f.id} className="relative">
+          <img src={f.url} alt={f.filename ?? "Ảnh đính kèm"} className="size-16 rounded-md border object-cover" />
+          <button type="button" aria-label="Bỏ ảnh" className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full border bg-background" onClick={() => att.remove(f.id)}><X className="size-3" /></button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function Suggestions({ disabled, onSend }: { disabled: boolean; onSend: (t: string) => void }) {
+  const ctl = usePromptInputController();
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {SUGGEST.map((s) => <Button key={s} type="button" size="sm" variant="outline" disabled={disabled} onClick={() => (s.endsWith(": ") ? ctl.textInput.setInput(s) : onSend(s))}>{s}</Button>)}
+    </div>
+  );
+}
+
+/** Màn review dạng chat (AI Elements): tiến trình trực tiếp, hỏi đáp, dán ảnh, dạy agent qua sổ tay bài học của repo. */
 export function AgentChat({ mrId, live, active, connected }: { mrId: string; live: RunActivityEntry[]; active: boolean; connected: boolean }) {
   const qc = useQueryClient();
-  const [text, setText] = useState("");
   const [pending, setPending] = useState<string | null>(null);
-  const [images, setImages] = useState<ChatImageDto[]>([]);
-  const [imgError, setImgError] = useState<string | null>(null);
-  const end = useRef<HTMLDivElement>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const q = useQuery({ queryKey: ["chat", mrId], queryFn: () => getChat(mrId) });
   const send = useMutation({
     mutationFn: (a: { t: string; imgs: ChatImageDto[] }) => sendChat(mrId, a.t, a.imgs),
@@ -71,20 +84,7 @@ export function AgentChat({ mrId, live, active, connected }: { mrId: string; liv
     onSettled: () => { setPending(null); void qc.invalidateQueries({ queryKey: ["chat", mrId] }); void qc.invalidateQueries({ queryKey: ["runs"] }); },
   });
   const msgs = q.data?.messages ?? [];
-  useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [msgs.length, pending, send.isPending]);
-  const submit = (t: string) => { const v = t.trim(); if ((!v && !images.length) || send.isPending) return; setText(""); const imgs = images; setImages([]); send.mutate({ t: v, imgs }); };
-  const onPaste = (e: React.ClipboardEvent) => {
-    const files = [...e.clipboardData.items].filter((i) => i.kind === "file" && /^image\/(png|jpeg|gif|webp)$/.test(i.type)).map((i) => i.getAsFile()).filter((f): f is File => !!f);
-    if (!files.length) return;
-    e.preventDefault();
-    setImgError(null);
-    for (const f of files) {
-      if (f.size > 3_500_000) { setImgError("Ảnh quá lớn (tối đa ~3.5MB)."); continue; }
-      const rd = new FileReader();
-      rd.onload = () => { const m = /^data:(image\/[a-z]+);base64,(.+)$/.exec(String(rd.result)); if (m) setImages((l) => (l.length >= 4 ? l : [...l, { mediaType: m[1] as ChatImageDto["mediaType"], data: m[2]! }])); };
-      rd.readAsDataURL(f);
-    }
-  };
+  const submit = (t: string, imgs: ChatImageDto[] = []) => { if (send.isPending || (!t.trim() && !imgs.length)) return; setNotice(null); send.mutate({ t: t.trim(), imgs }); };
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between gap-2">
@@ -93,33 +93,36 @@ export function AgentChat({ mrId, live, active, connected }: { mrId: string; liv
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {active && <ActivityLog entries={live} live />}
-        <div role="log" aria-label="Hội thoại" className="flex max-h-[26rem] min-h-24 flex-col gap-2.5 overflow-y-auto">
-          {msgs.length === 0 && !pending && <p className="text-sm text-muted-foreground">Hỏi agent về kết quả review này, hoặc dạy nó cách review repo này. Ví dụ: “vì sao finding đầu là blocker?”, “nhớ: đừng báo console.log trong scripts/”.</p>}
-          {msgs.map((m) => <Bubble key={m.id} m={m} />)}
-          {pending && <Bubble m={{ id: "p", role: "user", text: pending, createdAt: "" }} />}
-          {send.isPending && <p className="text-[13px] text-muted-foreground" aria-live="polite">Agent đang trả lời…</p>}
-          <div ref={end} />
-        </div>
-        {send.error && <ErrorBox error={send.error} />}
-        <div className="flex flex-wrap gap-1.5">
-          {SUGGEST.map((s) => <Button key={s} size="sm" variant="outline" disabled={send.isPending} onClick={() => (s.endsWith(": ") ? setText(s) : submit(s))}>{s}</Button>)}
-        </div>
-        {(images.length > 0 || imgError) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {images.map((im, i) => (
-              <span key={i} className="relative">
-                <img src={`data:${im.mediaType};base64,${im.data}`} alt={`Ảnh đính kèm ${i + 1}`} className="size-16 rounded-md border object-cover" />
-                <button type="button" aria-label={`Bỏ ảnh ${i + 1}`} className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full border bg-background" onClick={() => setImages((l) => l.filter((_, j) => j !== i))}><X className="size-3" /></button>
-              </span>
+        <Conversation className="relative h-[26rem] flex-none rounded-lg border" aria-label="Hội thoại">
+          <ConversationContent>
+            {msgs.length === 0 && !pending && <ConversationEmptyState title="Hỏi hoặc dạy agent" description="Hỏi về kết quả review này, hoặc dạy cách review repo này: “nhớ: đừng báo console.log trong scripts/”. Dán ảnh bằng Cmd/Ctrl+V." />}
+            {msgs.map((m) => (
+              <Message key={m.id} from={m.role === "user" ? "user" : "assistant"}>
+                <MessageContent>{m.role === "user" ? <span className="whitespace-pre-wrap">{m.text}</span> : <MessageResponse>{m.text}</MessageResponse>}</MessageContent>
+              </Message>
             ))}
-            {imgError && <span role="alert" className="text-[13px] text-danger-fg">{imgError}</span>}
-          </div>
-        )}
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); submit(text); }}>
-          <label className="sr-only" htmlFor="agent-chat-input">Tin nhắn cho agent</label>
-          <input id="agent-chat-input" value={text} onChange={(e) => setText(e.target.value)} maxLength={4000} onPaste={onPaste} placeholder="Hỏi hoặc dạy agent… (dán ảnh bằng Cmd/Ctrl+V)" className="h-9 min-w-0 flex-1 rounded-md border bg-background px-3 text-sm" />
-          <Button type="submit" disabled={send.isPending || (!text.trim() && !images.length)}><Send />Gửi</Button>
-        </form>
+            {pending && <Message from="user"><MessageContent><span className="whitespace-pre-wrap">{pending}</span></MessageContent></Message>}
+            {send.isPending && <p className="text-[13px] text-muted-foreground" aria-live="polite">Agent đang trả lời…</p>}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+        {send.error && <ErrorBox error={send.error} />}
+        {notice && <p role="alert" className="text-[13px] text-danger-fg">{notice}</p>}
+        <PromptInputProvider>
+          <Suggestions disabled={send.isPending} onSend={(t) => submit(t)} />
+          <PromptInput
+            accept="image/png,image/jpeg,image/gif,image/webp" multiple maxFiles={4} maxFileSize={3_500_000}
+            onError={(e) => setNotice(e.code === "max_file_size" ? "Ảnh quá lớn (tối đa ~3.5MB)." : e.code === "max_files" ? "Tối đa 4 ảnh." : "Chỉ nhận ảnh png/jpg/gif/webp.")}
+            onSubmit={(m) => submit(m.text, m.files.flatMap((f) => { const r = /^data:(image\/[a-z]+);base64,(.+)$/.exec(f.url); return r ? [{ mediaType: r[1] as ChatImageDto["mediaType"], data: r[2]! }] : []; }))}
+          >
+            <PromptInputHeader><Attachments /></PromptInputHeader>
+            <PromptInputBody><PromptInputTextarea placeholder="Hỏi hoặc dạy agent… (dán ảnh bằng Cmd/Ctrl+V)" /></PromptInputBody>
+            <PromptInputFooter>
+              <PromptInputTools />
+              <PromptInputSubmit status={send.isPending ? "submitted" : undefined} />
+            </PromptInputFooter>
+          </PromptInput>
+        </PromptInputProvider>
         <div className="border-t pt-3">
           <div className="mb-2 flex items-center gap-2 text-sm font-medium"><BookOpen className="size-4" aria-hidden="true" />Sổ tay của repo</div>
           <Lessons lessons={q.data?.lessons ?? []} onChange={() => void qc.invalidateQueries({ queryKey: ["chat", mrId] })} />
