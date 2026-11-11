@@ -6,3 +6,4 @@ export * from "./events.js";
 export * from "./api.js";
 export * from "./connection.js";
 export * from "./framework.js";
+export * from "./agent.js";

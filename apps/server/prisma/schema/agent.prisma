@@ -1,0 +1,22 @@
+// Chủ sở hữu: modules/agent. Chỉ lưu ID chuỗi của MR/repo (không relation chéo module).
+model AgentMessage {
+  id        String   @id @default(cuid())
+  mrId      String
+  role      String // user | agent | system
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([mrId, createdAt])
+}
+
+model AgentLesson {
+  id        String   @id @default(cuid())
+  repoId    String
+  text      String
+  status    String // proposed | active | rejected
+  source    String // user | agent | feedback
+  mrId      String?
+  createdAt DateTime @default(now())
+
+  @@index([repoId, status])
+}

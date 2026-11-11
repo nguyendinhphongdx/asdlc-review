@@ -1,3 +1,4 @@
+import { createAgentModule } from "../modules/agent/index.js";
 import { createAnalysisModule } from "../modules/analysis/index.js";
 import { createAnalyticsModule } from "../modules/analytics/index.js";
 import { createFrameworkModule } from "../modules/framework/index.js";
@@ -22,6 +23,7 @@ import { createCredentials } from "./credentials.js";
 import { resolveMasterKey } from "./secret-key.js";
 import { memberDirectoryAdapter, paramsAdapter, runFactsAdapter } from "./adapters/analytics.js";
 import type { AppSettings, Modules } from "./modules.js";
+import { createAgentChat } from "./workflows/agent-chat.js";
 import { createChatCommand } from "./workflows/chat-command.js";
 import { createHandleScmEvent } from "./workflows/handle-event.js";
 import { POLL_QUEUE, REVIEW_QUEUE } from "./workflows/mappers.js";
@@ -77,6 +79,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     repos: createReposModule({ db, events }),
     reviews,
     settings,
+    agent: createAgentModule({ db }),
     analytics: createAnalyticsModule({ facts: runFactsAdapter(reviews), members: memberDirectoryAdapter(identity), params: paramsAdapter(settings) }),
     ...overrides, // dùng cho test: thay module thật bằng bản giả
   };
@@ -91,6 +94,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     pollOpenMrs: createPollOpenMrs(modules, requestReview, log.child("poll")),
     chatCommand: createChatCommand(modules, requestReview, { publicUrl: config.PUBLIC_URL }),
     registerRepo: createRegisterRepo(modules),
+    agentChat: createAgentChat(modules, requestReview, log.child("agent")),
   };
 
   return {

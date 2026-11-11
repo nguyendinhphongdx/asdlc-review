@@ -26,6 +26,8 @@ export interface ProviderInfo {
 
 export interface ReviewerApi {
   review(req: ReviewRequest): Promise<ReviewResponse>;
+  /** Hỏi đáp tự do với agent (không công cụ, không đọc repo). */
+  ask(req: { provider: ProviderId; system: string; user: string; workdir: string }): Promise<{ text: string; costUsd: number | null }>;
   providers(): Promise<ProviderInfo[]>;
 }
 
@@ -63,6 +65,12 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
         }
       }
       throw new ModuleError("reviewer", "upstream_error", `AI không trả JSON hợp lệ: ${String(lastErr).slice(0, 300)}`, lastErr);
+    },
+
+    async ask(req) {
+      const provider = providers[req.provider];
+      if (!provider?.ask) throw new ModuleError("reviewer", "not_configured", "Provider này chưa hỗ trợ chat. Hãy chọn Claude Code CLI ở Cài đặt.");
+      return provider.ask({ system: req.system, user: req.user, workdir: req.workdir });
     },
 
     async providers() {

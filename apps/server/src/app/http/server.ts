@@ -123,6 +123,16 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
     return reply.status(202).send(await w.requestReview({ platform: repo.platform as "gitlab" | "github", projectPath: repo.fullPath, iid: mr.iid, trigger: "manual", force: true }));
   });
   app.post("/api/repos", async (req, reply) => reply.status(201).send(await w.registerRepo(z.object({ url: z.string() }).parse(req.body).url)));
+  // ---------- agent: chat theo MR + sổ tay bài học ----------
+  app.get<{ Params: { id: string } }>("/api/mrs/:id/chat", async (req) => {
+    const mr = await m.reviews.getMr(req.params.id);
+    return { messages: await m.agent.listMessages(mr.id), lessons: await m.agent.listLessons(mr.repositoryId) };
+  });
+  app.post<{ Params: { id: string } }>("/api/mrs/:id/chat", async (req) => w.agentChat(req.params.id, z.object({ text: z.string().trim().min(1).max(4000) }).parse(req.body).text));
+  app.get<{ Params: { id: string } }>("/api/repos/:id/lessons", async (req) => m.agent.listLessons(req.params.id));
+  app.post<{ Params: { id: string } }>("/api/lessons/:id/approve", async (req) => m.agent.setLessonStatus(req.params.id, "active"));
+  app.post<{ Params: { id: string } }>("/api/lessons/:id/reject", async (req) => m.agent.setLessonStatus(req.params.id, "rejected"));
+  app.delete<{ Params: { id: string } }>("/api/lessons/:id", async (req, reply) => { await m.agent.removeLesson(req.params.id); return reply.status(204).send(); });
   app.post("/api/chat/command", async (req) => ({ reply: await w.chatCommand(z.object({ text: z.string(), user: z.string().optional() }).parse(req.body)) }));
 
   app.get<{ Querystring: { from?: string; to?: string; days?: string } }>("/api/reports/export.md", async (req, reply) => {

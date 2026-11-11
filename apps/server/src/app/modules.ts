@@ -1,3 +1,4 @@
+import type { AgentApi } from "../modules/agent/index.js";
 import type { AnalysisApi } from "../modules/analysis/index.js";
 import type { AnalyticsApi } from "../modules/analytics/index.js";
 import type { FrameworkApi } from "../modules/framework/index.js";
@@ -30,6 +31,7 @@ export interface Modules {
   reviews: ReviewsApi;
   analytics: AnalyticsApi;
   settings: SettingsApi;
+  agent: AgentApi;
   secrets: SecretsApi;
 }
 

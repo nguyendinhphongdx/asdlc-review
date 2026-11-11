@@ -76,6 +76,8 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       emit("analysis", "info", `Phân tích tĩnh: ${analysis.findings.length} finding`);
       const stats = { filesChanged: files.length, additions: files.reduce((s, f) => s + f.additions, 0), deletions: files.reduce((s, f) => s + f.deletions, 0) };
 
+      const notebook = await m.agent.notebook(repo.id);
+      if (notebook.length) emit("review", "info", `Áp dụng ${notebook.length} bài học trong sổ tay của repo`);
       const ai = await stage("review", () =>
         m.reviewer.review({
           provider, workdir: dir,
@@ -83,7 +85,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
           mr: { iid: mr.iid, title: mr.title, description: mr.description, author: mr.authorUsername, sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, webUrl: mr.webUrl },
           rubric: fw.rubric,
           harness: { files: harness.files, tree: harness.tree, discovered: harness.discovered.map((d) => d.path) },
-          diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, stats, staticFindings: analysis.findings,
+          diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, stats, staticFindings: analysis.findings, notebook,
         }),
       );
 

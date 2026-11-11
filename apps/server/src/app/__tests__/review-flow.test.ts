@@ -57,6 +57,7 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
     } as unknown as ScmApi;
     const reviewer: ReviewerApi = {
       providers: async () => [],
+      ask: async () => ({ text: "ok", costUsd: null }),
       review: async () => ({
         review: { summary: "Thêm hàm thanh toán", intent: "Thêm pay()", strengths: [], harnessUsed: ["CLAUDE.md"], checks: [{ ruleId: "ARC-01", status: "pass", note: "Đã đối chiếu cấu trúc thư mục" }], findings: [{ category: "conventions", ruleId: "CON-03", severity: "major", kind: "issue", title: "Dùng console.log thay vì logger", file: "src/pay.ts", lineStart: 3, lineEnd: null, why: "CLAUDE.md cấm console.log", evidence: null, suggestion: "Dùng logger", question: "Vì sao không dùng logger?", confidence: 0.9 }] },
         usage: { provider: "claude-cli", model: "fake", costUsd: 0.12, durationMs: 5 },

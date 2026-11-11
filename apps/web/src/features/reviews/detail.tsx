@@ -16,6 +16,7 @@ import { FileCoverage, HarnessLoad, RuleChecklist } from "./coverage.js";
 import { HarnessPanel } from "../../kernel/harness.js";
 import { getRun, listFrameworks, openRunStream, rerun, setFeedback } from "./api.js";
 import { ActivityLog } from "./live-log.js";
+import { AgentChat } from "./chat.js";
 import { STAGES, stageLabel } from "../../kernel/stages.js";
 
 const VERDICT: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
@@ -64,13 +65,11 @@ export function ReviewDetailPage() {
       <Pipeline r={r} retrying={re.isPending} retried={re.isSuccess} onRetry={() => re.mutate(r.mr.id)} />
       {re.error && <ErrorBox error={re.error} />}
 
-      {(active || r.activity.length > 0) && (
+      <AgentChat mrId={r.mr.id} live={live} active={active} connected={connected} />
+      {!active && r.activity.length > 0 && (
         <Card>
-          <CardHeader className="flex-row items-center justify-between gap-2">
-            <CardTitle>{active ? "Hoạt động trực tiếp" : "Nhật ký review"}</CardTitle>
-            {active && <Badge variant={connected ? "success" : "secondary"}>{connected ? "● Đang nhận trực tiếp" : "Đang kết nối…"}</Badge>}
-          </CardHeader>
-          <CardContent><ActivityLog entries={active ? live : r.activity} live={active} /></CardContent>
+          <CardHeader><CardTitle>Nhật ký review</CardTitle></CardHeader>
+          <CardContent><ActivityLog entries={r.activity} /></CardContent>
         </Card>
       )}
 

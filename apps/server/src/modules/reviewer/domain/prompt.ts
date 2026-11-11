@@ -61,6 +61,9 @@ export function buildUserPrompt(req: ReviewRequest, agentic: boolean): string {
   } else {
     parts.push(`# Repository harness (full content)\n${files.map((f) => fenced(`harness_file path="${f.path}" kind="${f.kind}"${f.truncated ? ' truncated="true"' : ""}`, f.content)).join("\n") || "(none found)"}`);
   }
+  if (req.notebook?.length) {
+    parts.push(`# Team lessons (approved by humans; apply them in addition to the rubric, they reflect past review feedback)\n${req.notebook.map((l) => `- ${l}`).join("\n")}`);
+  }
   parts.push(`# Repository layout (2 levels, file counts)\n${fenced("tree", req.harness.tree)}`);
 
   parts.push(`# Diff (base...head)\n${req.omittedFiles.length ? `Large files omitted from the diff${agentic ? " (open them with Read)" : ""}: ${req.omittedFiles.join(", ")}\n` : ""}${fenced("diff", req.diff)}`);

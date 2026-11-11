@@ -14,6 +14,14 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
   return {
     id: "claude-cli",
     agentic: true,
+    async ask({ system, user, workdir }) {
+      const args = ["-p", "--output-format", "json", "--tools", "", "--permission-mode", "dontAsk", "--no-session-persistence", "--append-system-prompt", system, ...(o.model ? ["--model", o.model] : [])];
+      const res = await run(o.bin, args, { cwd: workdir, input: user, timeoutMs: Math.min(o.timeoutMs, 180_000), allowFailure: true });
+      let out: Record<string, unknown> = {};
+      try { out = JSON.parse(res.stdout.trim().split("\n").filter(Boolean).pop() ?? "{}"); } catch { /* xử lý bên dưới */ }
+      if (out.is_error === true || typeof out.result !== "string") throw new ModuleError("reviewer", "upstream_error", `claude CLI lỗi (exit ${res.code}): ${String(out.result ?? (res.stderr || res.stdout)).slice(0, 300)}`);
+      return { text: out.result, costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null };
+    },
     async run({ system, user, workdir, onActivity }) {
       const args = [
         "-p", "--output-format", "stream-json", "--verbose",
