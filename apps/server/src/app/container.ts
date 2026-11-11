@@ -39,6 +39,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     defaults: {
       reviewProvider: config.REVIEW_PROVIDER, defaultFramework: "asdlc", publishComments: config.PUBLISH_COMMENTS,
       inlineMinSeverity: config.INLINE_MIN_SEVERITY, maxInlineComments: config.MAX_INLINE_COMMENTS, passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS,
+      triggerMode: "polling", pollIntervalMin: config.POLL_INTERVAL_MIN > 0 ? config.POLL_INTERVAL_MIN : 5,
     },
   });
   const identity = createIdentityModule({ db, events });
@@ -91,11 +92,15 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
       const r = await modules.secrets.load();
       if (r.failed.length) log.warn("không giải mã được secret (sai khoá?)", { keys: r.failed });
       modules.queue.process(REVIEW_QUEUE, workflows.reviewMergeRequest as never);
-      if (config.POLL_INTERVAL_MIN > 0) {
-        modules.queue.process(POLL_QUEUE, (async () => workflows.pollOpenMrs()) as never, { concurrency: 1 });
-        await modules.queue.repeat(POLL_QUEUE, "poll-open-mrs", {}, config.POLL_INTERVAL_MIN * 60_000);
-        log.info("bật poller MR", { everyMin: config.POLL_INTERVAL_MIN });
-      }
+      // Poller luôn được đăng ký (tick mỗi phút) để đổi chế độ/chu kỳ trên UI có hiệu lực ngay, không cần khởi động lại.
+      let lastPoll = 0;
+      modules.queue.process(POLL_QUEUE, (async () => {
+        const s = await settings.snapshot();
+        if (s.triggerMode !== "polling" || Date.now() - lastPoll < s.pollIntervalMin * 60_000 - 5_000) return;
+        lastPoll = Date.now();
+        await workflows.pollOpenMrs();
+      }) as never, { concurrency: 1 });
+      await modules.queue.repeat(POLL_QUEUE, "poll-open-mrs", {}, 60_000);
     },
     async stop() {
       await modules.queue.close();

@@ -10,6 +10,8 @@ export function createHandleScmEvent(m: Modules, requestReview: RequestReview, l
     switch (e.kind) {
       case "mr_opened":
       case "mr_updated":
+        // Chỉ nhận sự kiện MR từ webhook khi ở chế độ webhook; chế độ polling tự quét, manual không tự review.
+        if ((await m.settings.get("triggerMode")) !== "webhook") return { status: "ignored" };
         return requestReview({ platform: e.platform, projectPath: e.projectPath, iid: e.iid, trigger: "webhook", triggeredBy: e.actor, knownHeadSha: e.headSha });
       case "review_requested":
         return requestReview({ platform: e.platform, projectPath: e.projectPath, iid: e.iid, trigger: "comment", triggeredBy: e.actor, force: true });

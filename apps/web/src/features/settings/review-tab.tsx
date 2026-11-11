@@ -38,6 +38,12 @@ export function ReviewTab() {
         <Row label="Điểm đạt"><Input aria-label="Điểm đạt" className="w-24" type="number" min={0} max={100} key={`p${v.passScore}`} defaultValue={v.passScore} onBlur={(e) => num(e.target.value, 0, (n) => n !== v.passScore && save.mutate({ passScore: n }))} /></Row>
         {save.error && <div className="mt-3"><ErrorBox error={save.error} /></div>}
       </CardContent></Card>
+      <Card><CardHeader><CardTitle>Cách nhận MR mới</CardTitle><CardDescription>Quyết định khi nào app tự review. Chỉ áp dụng cho repo đã bật tự động review.</CardDescription></CardHeader><CardContent>
+        <Row label="Chế độ" hint={v.triggerMode === "polling" ? "App tự hỏi GitLab định kỳ. Chạy được trên máy cá nhân/sau NAT, không cần webhook." : v.triggerMode === "webhook" ? "GitLab gọi về app ngay khi có MR. Cần PUBLIC_URL truy cập được từ internet (server/tunnel); localhost thì GitLab không gọi được." : "Không tự review; chỉ review khi bạn bấm hoặc comment /review."}>
+          <Select aria-label="Chế độ nhận MR" value={v.triggerMode} onChange={(e) => save.mutate({ triggerMode: e.target.value as typeof v.triggerMode })}>
+            <option value="polling">Quét định kỳ (polling)</option><option value="webhook">Webhook</option><option value="manual">Thủ công</option></Select></Row>
+        {v.triggerMode === "polling" && <Row label="Chu kỳ quét (phút)" hint="Đừng đặt quá thấp để tránh bị GitLab giới hạn tốc độ (429)."><Input aria-label="Chu kỳ quét (phút)" className="w-24" type="number" min={1} max={120} key={`pm${v.pollIntervalMin}`} defaultValue={v.pollIntervalMin} onBlur={(e) => num(e.target.value, 1, (n) => n !== v.pollIntervalMin && n <= 120 && save.mutate({ pollIntervalMin: n }))} /></Row>}
+      </CardContent></Card>
       <Card><CardHeader><CardTitle>Giới hạn khi review</CardTitle><CardDescription>Kiểm soát chi phí và thời gian trên MR lớn.</CardDescription></CardHeader><CardContent>
         <Row label="Bỏ qua MR nháp (Draft/WIP)" hint="MR có tiền tố Draft:/WIP: sẽ không được review cho tới khi sẵn sàng."><Check label="Bỏ qua MR nháp" checked={v.skipDrafts} onChange={(c) => save.mutate({ skipDrafts: c })} /></Row>
         <Row label="Ngân sách diff (ký tự)" hint="Vượt mức này, file ưu tiên thấp bị bỏ qua."><Input aria-label="Ngân sách diff (ký tự)" className="w-32" type="number" min={1000} step={1000} key={`b${v.diffBudgetChars}`} defaultValue={v.diffBudgetChars} onBlur={(e) => num(e.target.value, 1000, (n) => n !== v.diffBudgetChars && save.mutate({ diffBudgetChars: n }))} /></Row>

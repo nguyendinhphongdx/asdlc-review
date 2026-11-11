@@ -10,6 +10,9 @@ export const SETTING_SCHEMAS = {
   passScore: z.number().min(0).max(100),
   skipDrafts: z.boolean(),
   diffBudgetChars: z.number().int().min(10_000).max(1_000_000),
+  /** Cách nhận MR mới: quét định kỳ (mặc định, chạy được sau NAT), webhook, hoặc chỉ review thủ công. */
+  triggerMode: z.enum(["polling", "webhook", "manual"]),
+  pollIntervalMin: z.number().int().min(1).max(120),
 } as const;
 
 export type SettingKey = keyof typeof SETTING_SCHEMAS;
