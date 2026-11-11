@@ -55,7 +55,15 @@ sh(`npx --yes @electron/packager@18 ${stage} "ASDLC Review" --platform=${mac ? "
 const outDir = readdirSync("out/app").map((d) => path.join("out/app", d))[0];
 const zip = `out/ASDLC-Review-${osName}-${arch}.zip`;
 if (mac) execFileSync("ditto", ["-c", "-k", "--keepParent", path.join(outDir, "ASDLC Review.app"), zip]);
-else execFileSync(process.env.SystemRoot ? path.join(process.env.SystemRoot, "System32", "tar.exe") : "tar", ["-a", "-c", "-f", zip, "-C", "out/app", path.basename(outDir)]);
+else {
+  // Windows: tar.exe của runner bị crash (0xC0000005) với cây node_modules lớn -> dùng 7-Zip (có sẵn trên runner), dự phòng PowerShell.
+  const abs = path.resolve(zip);
+  try {
+    execFileSync("7z", ["a", "-tzip", "-mx=5", "-bd", abs, path.basename(outDir)], { cwd: "out/app", stdio: "ignore" });
+  } catch {
+    execFileSync("powershell", ["-NoProfile", "-Command", `Compress-Archive -Path '${path.basename(outDir)}' -DestinationPath '${abs}' -Force`], { cwd: "out/app", stdio: "inherit" });
+  }
+}
 
 const hash = createHash("sha256");
 await new Promise((ok, err) => createReadStream(zip).on("data", (d) => hash.update(d)).on("end", ok).on("error", err));
