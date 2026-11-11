@@ -1,7 +1,8 @@
 import type { Db } from "../../kernel/db.js";
 import { ModuleError } from "../../kernel/errors.js";
 import type { EventBus } from "../../kernel/event-bus.js";
-import type { RegisterRepoInput, RepoDto, RepoPatch } from "./domain/types.js";
+import { summarize } from "./domain/webhook-status.js";
+import type { RegisterRepoInput, RepoDto, RepoPatch, WebhookEventInput, WebhookSummary } from "./domain/types.js";
 
 export interface ReposDeps {
   db: Db;
@@ -17,6 +18,11 @@ export interface ReposApi {
   update(id: string, patch: RepoPatch): Promise<RepoDto>;
   remove(id: string): Promise<void>;
   markPolled(id: string, at: Date): Promise<void>;
+  /** Ghi một sự kiện webhook (kể cả bị từ chối). Tự dọn, giữ 50 dòng gần nhất mỗi repo. */
+  logWebhook(repoKey: string, e: WebhookEventInput): Promise<void>;
+  webhookSummary(repoKey: string): Promise<WebhookSummary>;
+  /** Tóm tắt trạng thái webhook cho nhiều repo trong một lượt. */
+  webhookStatuses(repoKeys: string[]): Promise<Record<string, WebhookSummary>>;
 }
 
 export function createReposModule(deps: ReposDeps): ReposApi {
@@ -51,6 +57,20 @@ export function createReposModule(deps: ReposDeps): ReposApi {
     async remove(id) {
       await db.repository.delete({ where: { id } }).catch(() => undefined);
       changed(id);
+    },
+    async logWebhook(repoKey, e) {
+      await db.webhookEvent.create({ data: { repoKey, event: e.event, result: e.result, detail: e.detail ?? null } });
+      const old = await db.webhookEvent.findMany({ where: { repoKey }, orderBy: { at: "desc" }, skip: 50, select: { id: true } });
+      if (old.length) await db.webhookEvent.deleteMany({ where: { id: { in: old.map((o) => o.id) } } });
+    },
+    async webhookSummary(repoKey) {
+      const rows = await db.webhookEvent.findMany({ where: { repoKey }, orderBy: { at: "desc" }, take: 50 });
+      return summarize(rows.map((r) => ({ id: r.id, at: r.at, event: r.event, result: r.result as WebhookEventInput["result"], detail: r.detail })));
+    },
+    async webhookStatuses(repoKeys) {
+      const out: Record<string, WebhookSummary> = {};
+      for (const k of repoKeys) out[k] = await this.webhookSummary(k);
+      return out;
     },
     async markPolled(id, at) {
       await db.repository.update({ where: { id }, data: { lastPolledAt: at } });

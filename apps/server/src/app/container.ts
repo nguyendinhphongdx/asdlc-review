@@ -10,12 +10,15 @@ import { createReviewerModule } from "../modules/reviewer/index.js";
 import { createReviewsModule } from "../modules/reviews/index.js";
 import { createScmModule } from "../modules/scm/index.js";
 import { createScoringModule } from "../modules/scoring/index.js";
+import { createSecretsModule } from "../modules/secrets/index.js";
 import { createSettingsModule } from "../modules/settings/index.js";
 import { createWorkspaceModule } from "../modules/workspace/index.js";
 import type { Config } from "../kernel/config.js";
 import { createDb } from "../kernel/db.js";
 import { createEventBus } from "../kernel/event-bus.js";
 import type { Logger } from "../kernel/logger.js";
+import { createCredentials } from "./credentials.js";
+import { resolveMasterKey } from "./secret-key.js";
 import { memberDirectoryAdapter, paramsAdapter, runFactsAdapter } from "./adapters/analytics.js";
 import type { AppSettings, Modules } from "./modules.js";
 import { createChatCommand } from "./workflows/chat-command.js";
@@ -35,18 +38,19 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     db, events,
     defaults: {
       reviewProvider: config.REVIEW_PROVIDER, defaultFramework: "asdlc", publishComments: config.PUBLISH_COMMENTS,
-      inlineMinSeverity: config.INLINE_MIN_SEVERITY, maxInlineComments: config.MAX_INLINE_COMMENTS, passScore: 70,
+      inlineMinSeverity: config.INLINE_MIN_SEVERITY, maxInlineComments: config.MAX_INLINE_COMMENTS, passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS,
     },
   });
   const identity = createIdentityModule({ db, events });
   const reviews = createReviewsModule({ db, events });
 
+  const master = resolveMasterKey(config.MRD_SECRET_KEY, config.dataDir);
+  const secrets = createSecretsModule({ db, masterKey: master.key });
+  const credentials = createCredentials(config, secrets);
+
   const modules: Modules = {
-    scm: createScmModule({
-      gitlab: { baseUrl: config.GITLAB_URL, token: config.GITLAB_TOKEN, webhookSecret: config.GITLAB_WEBHOOK_SECRET },
-      github: { token: config.GITHUB_TOKEN, webhookSecret: config.GITHUB_WEBHOOK_SECRET },
-      botMention: config.BOT_MENTION,
-    }),
+    secrets,
+    scm: createScmModule({ gitlab: credentials.gitlab, github: credentials.github, botMention: config.BOT_MENTION }),
     workspace: createWorkspaceModule({ reposDir: config.reposDir, runsDir: config.runsDir, keepWorktrees: config.KEEP_WORKTREES }),
     harness: createHarnessModule(),
     framework: createFrameworkModule({ frameworksDir: config.frameworksDir }),
@@ -81,9 +85,11 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   };
 
   return {
-    modules, workflows, events, db,
+    modules, workflows, events, db, credentials, publicUrl: config.PUBLIC_URL,
     /** Bật worker xử lý hàng đợi và poller (nếu cấu hình). */
     async startWorkers() {
+      const r = await modules.secrets.load();
+      if (r.failed.length) log.warn("không giải mã được secret (sai khoá?)", { keys: r.failed });
       modules.queue.process(REVIEW_QUEUE, workflows.reviewMergeRequest as never);
       if (config.POLL_INTERVAL_MIN > 0) {
         modules.queue.process(POLL_QUEUE, (async () => workflows.pollOpenMrs()) as never, { concurrency: 1 });

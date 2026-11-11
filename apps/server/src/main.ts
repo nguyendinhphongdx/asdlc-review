@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { buildContainer } from "./app/container.js";
@@ -10,16 +11,24 @@ import { createLogger } from "./kernel/logger.js";
 const config = loadConfig();
 const log = createLogger("mrd", config.LOG_LEVEL);
 
+/** Đẩy schema khi DB chưa có hoặc schema đổi (so hash lưu cạnh DB): nâng cấp app không cần thao tác tay. */
 async function ensureDatabase() {
   await mkdir(config.dataDir, { recursive: true });
   const file = config.databaseUrl.replace(/^file:/, "");
-  if (existsSync(file)) return;
-  log.info("tạo cơ sở dữ liệu lần đầu", { file });
-  await run("npx", ["--no-install", "prisma", "db", "push", "--skip-generate", "--schema", path.join(ROOT_DIR, "apps/server/prisma/schema")], {
+  const schemaDir = path.join(ROOT_DIR, "apps/server/prisma/schema");
+  const hash = createHash("sha256");
+  for (const f of readdirSync(schemaDir).filter((n) => n.endsWith(".prisma")).sort()) hash.update(f).update(readFileSync(path.join(schemaDir, f)));
+  const digest = hash.digest("hex");
+  const stamp = path.join(config.dataDir, "schema.hash");
+  const current = existsSync(stamp) ? readFileSync(stamp, "utf8").trim() : "";
+  if (existsSync(file) && current === digest) return;
+  log.info(existsSync(file) ? "cập nhật cấu trúc cơ sở dữ liệu" : "tạo cơ sở dữ liệu lần đầu", { file });
+  await run("npx", ["--no-install", "prisma", "db", "push", "--skip-generate", "--schema", schemaDir], {
     cwd: path.join(ROOT_DIR, "apps/server"),
     env: { DATABASE_URL: config.databaseUrl },
     timeoutMs: 120_000,
   });
+  writeFileSync(stamp, digest);
 }
 
 await ensureDatabase();
@@ -29,7 +38,7 @@ const server = await buildServer(container, { webDist: config.webDist, log: log.
 await container.startWorkers();
 await server.listen({ port: config.PORT, host: config.HOST });
 log.info(`MR Dashboard chạy tại ${config.PUBLIC_URL}`, { queue: container.modules.queue.driver, provider: config.REVIEW_PROVIDER });
-if (!config.GITLAB_TOKEN && !config.GITHUB_TOKEN) log.warn("Chưa cấu hình GITLAB_TOKEN/GITHUB_TOKEN: chưa thể lấy MR để review");
+if (!container.modules.scm.isConfigured("gitlab") && !container.modules.scm.isConfigured("github")) log.warn("Chưa kết nối GitLab: mở Cài đặt → Kết nối để nhập URL và token");
 
 let stopping = false;
 const shutdown = async (sig: string) => {

@@ -87,6 +87,8 @@ export interface RunDetailDto extends RunSummaryDto {
   commits: number;
   commentUrl: string | null;
   stageTimings: Record<string, number>;
+  /** File bị bỏ qua vì diff vượt ngân sách (review một phần nếu khác rỗng). */
+  omittedFiles: string[];
   findings: FindingDto[];
   categoryScores: { category: string; name: string; weight: number; score: number; deduction: number; findings: number }[];
 }
@@ -117,6 +119,8 @@ export interface RepoDto {
   enabled: boolean;
   autoReview: boolean;
   lastPolledAt: string | null;
+  /** Tóm tắt webhook (null nếu chưa có dữ liệu). */
+  webhook?: { status: import("./connection.js").WebhookStatus; lastEventAt: string | null };
 }
 
 export interface SettingsDto {
@@ -126,6 +130,10 @@ export interface SettingsDto {
   inlineMinSeverity: "blocker" | "critical" | "major" | "minor" | "nit";
   maxInlineComments: number;
   passScore: number;
+  /** Bỏ qua MR nháp (Draft/WIP) khi review tự động. */
+  skipDrafts: boolean;
+  /** Ngân sách ký tự cho diff gửi AI; file ưu tiên thấp bị bỏ qua khi vượt. */
+  diffBudgetChars: number;
 }
 
 export interface ProviderInfoDto {

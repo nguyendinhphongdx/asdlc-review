@@ -14,6 +14,7 @@ import { registerReposRoutes } from "../../modules/repos/index.js";
 import { registerReviewsRoutes } from "../../modules/reviews/index.js";
 import { registerSettingsRoutes } from "../../modules/settings/index.js";
 import type { Container } from "../container.js";
+import { registerConnectionRoutes } from "./connection.js";
 import { REVIEW_QUEUE } from "../workflows/mappers.js";
 
 declare module "fastify" {
@@ -44,21 +45,61 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
   });
 
   // ---------- webhook ----------
+  /** Tên dự án trong payload: CHỈ để ghi nhật ký (dữ liệu không tin cậy, không dùng để quyết định). */
+  const projectOf = (body: unknown): string | null => {
+    const o = (body ?? {}) as { project?: { path_with_namespace?: unknown }; repository?: { full_name?: unknown } };
+    const v = o.project?.path_with_namespace ?? o.repository?.full_name;
+    return typeof v === "string" && v.length < 300 ? v : null;
+  };
+  const eventLabel = (headers: Record<string, unknown>, body: unknown): string => {
+    const kind = String(headers["x-gitlab-event"] ?? headers["x-github-event"] ?? "event").slice(0, 60);
+    const action = ((body ?? {}) as { object_attributes?: { action?: unknown }; action?: unknown }).object_attributes?.action ?? ((body ?? {}) as { action?: unknown }).action;
+    return typeof action === "string" ? `${kind} · ${action.slice(0, 30)}` : kind;
+  };
+  /** Chỉ ghi nhật ký cho repo đã đăng ký: tránh kẻ lạ làm phình DB bằng request giả. */
+  const logHook = async (platform: string, body: unknown, headers: Record<string, unknown>, result: "accepted" | "rejected" | "ignored" | "skipped", detail?: string) => {
+    const path = projectOf(body);
+    if (!path || !(await m.repos.find(platform, path))) return;
+    await m.repos.logWebhook(`${platform}/${path}`, { event: eventLabel(headers, body), result, detail }).catch(() => undefined);
+  };
   app.post<{ Params: { platform: string } }>("/webhooks/:platform", async (req, reply) => {
     const platform = req.params.platform;
     if (platform !== "gitlab" && platform !== "github") throw new ModuleError("http", "not_found", "Nền tảng không hỗ trợ");
-    if (!m.scm.webhookConfigured(platform)) throw new ModuleError("http", "not_configured", `Chưa đặt ${platform.toUpperCase()}_WEBHOOK_SECRET`);
-    if (!m.scm.verifyWebhook(platform, req.headers, req.rawBody ?? "")) throw new ModuleError("http", "unauthorized", "Sai chữ ký/secret webhook");
+    if (!m.scm.webhookConfigured(platform)) {
+      await logHook(platform, req.body, req.headers, "rejected", "Chưa cấu hình secret webhook trên server");
+      throw new ModuleError("http", "not_configured", "Chưa cấu hình secret webhook");
+    }
+    if (!m.scm.verifyWebhook(platform, req.headers, req.rawBody ?? "")) {
+      await logHook(platform, req.body, req.headers, "rejected", "Secret không khớp");
+      throw new ModuleError("http", "unauthorized", "Sai chữ ký/secret webhook");
+    }
     const event = m.scm.parseWebhook(platform, req.headers, req.body);
-    if (!event) return reply.status(200).send({ ok: true, ignored: true });
+    if (!event) {
+      await logHook(platform, req.body, req.headers, "ignored", "Loại sự kiện không liên quan");
+      return reply.status(200).send({ ok: true, ignored: true });
+    }
+    const key = `${platform}/${event.projectPath}`;
+    const label = eventLabel(req.headers, req.body);
+    const log = (result: "accepted" | "ignored" | "skipped", detail: string) => m.repos.find(platform, event.projectPath).then((r) => r && m.repos.logWebhook(key, { event: label, result, detail })).catch(() => undefined);
     // Trả lời nhanh (GitLab timeout 10s), xử lý nền.
-    void w.handleScmEvent(event).then((r) => opts.log.info("webhook xử lý xong", { kind: event.kind, iid: event.iid, result: r.status })).catch((err) => opts.log.error("webhook lỗi", { err: String(err).slice(0, 300) }));
+    void w.handleScmEvent(event)
+      .then(async (r) => {
+        opts.log.info("webhook xử lý xong", { kind: event.kind, iid: event.iid, result: r.status });
+        if (r.status === "skipped") await log("skipped", `!${event.iid} — ${r.reason}`);
+        else if (r.status === "ignored") await log("ignored", `!${event.iid} — chưa có review để đồng bộ`);
+        else await log("accepted", `!${event.iid} — ${r.status === "queued" ? "đã xếp hàng review" : r.status === "duplicate" ? "đã có trong hàng đợi" : r.status === "already_reviewed" ? "commit này đã review" : "đã đồng bộ trạng thái"}`);
+      })
+      .catch(async (err) => {
+        opts.log.error("webhook lỗi", { err: String(err).slice(0, 300) });
+        await log("skipped", `!${event.iid} — lỗi: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`);
+      });
     return reply.status(202).send({ ok: true });
   });
 
   // ---------- module routes ----------
   registerIdentityRoutes(app, m.identity);
   registerReposRoutes(app, m.repos);
+  registerConnectionRoutes(app, c, c.publicUrl);
   registerSettingsRoutes(app, m.settings);
   registerFrameworkRoutes(app, m.framework);
   registerReviewsRoutes(app, m.reviews);

@@ -44,7 +44,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
     try {
       const auth = m.scm.gitAuth(mr.platform);
       ws = await stage("clone", () =>
-        m.workspace.prepare({ repoKey: `${mr.platform}/${mr.projectPath}`, runId, cloneUrl: mr.cloneUrl, authHeader: auth.header, secrets: auth.secrets, targetBranch: mr.targetBranch, headRef: mr.headRef, headSha: mr.headSha, baseSha: mr.baseSha, diffBudgetChars: cfg.diffBudgetChars }),
+        m.workspace.prepare({ repoKey: `${mr.platform}/${mr.projectPath}`, runId, cloneUrl: mr.cloneUrl, authHeader: auth.header, secrets: auth.secrets, targetBranch: mr.targetBranch, headRef: mr.headRef, headSha: mr.headSha, baseSha: mr.baseSha, diffBudgetChars: settings.diffBudgetChars }),
       );
       const dir = ws.dir;
       const files = ws.numstat.map((n) => ({ path: n.file, additions: n.additions, deletions: n.deletions, binary: n.binary }));
@@ -77,6 +77,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         stats: { ...stats, durationSec: Math.round((Date.now() - started) / 1000) },
         harnessFiles: ai.review.harnessUsed.length ? ai.review.harnessUsed : harness.files.map((f) => f.path),
         frameworkLabel: `${fw.rubric.name} v${fw.rubric.version}`, provider, dashboardUrl: `${cfg.publicUrl}/reviews/${runId}`, language: fw.rubric.language,
+        omittedFiles: ws.omittedFiles,
       };
 
       let commentUrl: string | undefined;
@@ -103,7 +104,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       await m.reviews.completeRun(runId, {
         score: score.total, rawScore: score.rawTotal, grade: score.grade, verdict: score.verdict, gates: score.gates,
         summary, intent: ai.review.intent, strengths: ai.review.strengths, harnessFiles: report.harnessFiles, ...stats,
-        durationMs: Date.now() - started, costUsd: ai.usage.costUsd, model: ai.usage.model, commentUrl, stageTimings: timings,
+        durationMs: Date.now() - started, costUsd: ai.usage.costUsd, model: ai.usage.model, commentUrl, stageTimings: timings, omittedFiles: ws.omittedFiles,
         findings: scored.map((f) => ({ ...f })),
         categoryScores: score.categories,
       });

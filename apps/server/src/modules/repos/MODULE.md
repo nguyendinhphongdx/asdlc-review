@@ -5,12 +5,13 @@ Sổ đăng ký các repo được theo dõi và cấu hình theo từng repo (f
 
 ## API
 - `list`, `get`, `find(platform, fullPath)`, `register` (idempotent), `update`, `remove`, `markPolled`.
+- `logWebhook`, `webhookSummary`, `webhookStatuses`: nhật ký sự kiện webhook và trạng thái ok/none/bad.
 
 ## Sự kiện
 Phát `repos.repo.changed`. Không nhận.
 
 ## Dữ liệu
-`Repository` (prisma/schema/repos.prisma).
+`Repository`, `WebhookEvent` (prisma/schema/repos.prisma). `WebhookEvent` khoá theo `repoKey` chuỗi (không quan hệ), giữ 50 dòng gần nhất mỗi repo.
 
 ## Port
 Không cần port ngoài.

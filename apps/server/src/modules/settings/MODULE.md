@@ -16,5 +16,5 @@ Phát `settings.changed`. Không nhận.
 Không cần port ngoài.
 
 ## Quyết định
-- Chỉ cho phép các khoá khai báo trong `domain/keys.ts`. Secret (token, API key) không đi qua đây; chúng chỉ nằm trong env.
+- Chỉ cho phép các khoá khai báo trong `domain/keys.ts`. Secret (token, API key) không đi qua đây: chúng nằm trong module `secrets` (mã hoá) hoặc env.
 - Mặc định do app truyền vào (`deps.defaults`), module không đọc env.

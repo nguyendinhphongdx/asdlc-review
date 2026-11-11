@@ -41,7 +41,7 @@ export function createRequestReview(m: Modules, log: Logger) {
 
     const mr = await m.scm.getMergeRequest(input.platform, input.projectPath, input.iid);
     if (auto && mr.state !== "opened") return { status: "skipped", reason: "MR không còn mở" };
-    if (auto && mr.draft) return { status: "skipped", reason: "MR đang là draft" };
+    if (auto && mr.draft && (await m.settings.get("skipDrafts"))) return { status: "skipped", reason: "MR đang là draft" };
     const hit = await reviewed(mr.headSha);
     if (hit) return { status: "already_reviewed", runId: hit.id };
 

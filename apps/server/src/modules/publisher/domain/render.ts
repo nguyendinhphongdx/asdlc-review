@@ -32,6 +32,7 @@ export function renderSummary(r: ReviewReport): string {
   out.push(`| ${t.score} | ${t.grade} | |`, "|:--:|:--:|:--|", `| **${s.total}/100** | **${s.grade}** | ${t.verdict[s.verdict]} |`, "");
   if (r.summary) out.push(`### ${t.summary}`, r.summary, "");
   if (r.intent) out.push(`**${t.intent}:** ${r.intent}`, "");
+  if (r.omittedFiles?.length) out.push(`> ℹ️ ${t.partial(r.omittedFiles.length)}: ${r.omittedFiles.slice(0, 10).map((f) => `\`${f}\``).join(", ")}${r.omittedFiles.length > 10 ? ", …" : ""}`, "");
   if (s.gates.length) out.push(`> ⚠️ **${t.gates}:** ${s.gates.map((g) => `${g.reason} (≤ ${g.cap})`).join("; ")}`, "");
 
   out.push(`### ${t.categories}`, `| ${t.category} | ${t.score} | | ${t.weight} |`, "|:--|--:|:--|--:|");

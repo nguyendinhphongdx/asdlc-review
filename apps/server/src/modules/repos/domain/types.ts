@@ -22,3 +22,23 @@ export interface RepoPatch {
   enabled?: boolean;
   autoReview?: boolean;
 }
+
+export type WebhookResult = "accepted" | "rejected" | "ignored" | "skipped";
+export interface WebhookEventInput {
+  event: string;
+  result: WebhookResult;
+  detail?: string | null;
+}
+export interface WebhookEventRow {
+  id: string;
+  at: Date;
+  event: string;
+  result: WebhookResult;
+  detail: string | null;
+}
+export interface WebhookSummary {
+  status: "ok" | "none" | "bad";
+  lastEventAt: Date | null;
+  rejectedCount: number;
+  events: WebhookEventRow[];
+}

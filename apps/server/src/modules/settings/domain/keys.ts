@@ -8,6 +8,8 @@ export const SETTING_SCHEMAS = {
   inlineMinSeverity: z.enum(["blocker", "critical", "major", "minor", "nit"]),
   maxInlineComments: z.number().int().min(0).max(100),
   passScore: z.number().min(0).max(100),
+  skipDrafts: z.boolean(),
+  diffBudgetChars: z.number().int().min(10_000).max(1_000_000),
 } as const;
 
 export type SettingKey = keyof typeof SETTING_SCHEMAS;

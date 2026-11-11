@@ -74,3 +74,21 @@ export interface PlatformClient {
   reply(mr: MrInfo, body: string): Promise<void>;
   gitAuth(): GitAuth;
 }
+
+export type ProbeErrorCode = "not_configured" | "unreachable" | "unauthorized" | "missing_scope" | "expired" | "no_projects" | "unknown";
+export interface ConnectionProbe {
+  ok: boolean;
+  error?: { code: ProbeErrorCode; message: string };
+  user?: { username: string; name: string };
+  scopes?: string[];
+  expiresAt?: string | null;
+  projectCount?: number;
+}
+export interface ProjectProbe {
+  ok: boolean;
+  fullPath?: string;
+  webUrl?: string;
+  defaultBranch?: string | null;
+  canCreateWebhook?: boolean;
+  error?: string;
+}

@@ -14,3 +14,15 @@ model Repository {
 
   @@unique([platform, fullPath])
 }
+
+/// Nhật ký sự kiện webhook nhận được (để hiển thị trạng thái webhook). Giữ tối đa 50 dòng mỗi repo.
+model WebhookEvent {
+  id        String   @id @default(cuid())
+  repoKey   String // `${platform}/${fullPath}`: có thể chưa có Repository (sự kiện bị từ chối trước khi đăng ký)
+  at        DateTime @default(now())
+  event     String
+  result    String // accepted | rejected | ignored | skipped
+  detail    String?
+
+  @@index([repoKey, at])
+}

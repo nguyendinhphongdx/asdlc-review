@@ -49,4 +49,6 @@ export interface ReviewReport {
   provider: string;
   dashboardUrl?: string;
   language: string;
+  /** File bị bỏ qua vì diff vượt ngân sách (review một phần). */
+  omittedFiles?: string[];
 }

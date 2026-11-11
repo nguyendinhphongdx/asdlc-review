@@ -91,6 +91,7 @@ export interface RunResult {
   model?: string | null;
   commentUrl?: string | null;
   stageTimings?: Record<string, number>;
+  omittedFiles?: string[];
   findings: FindingRecord[];
   categoryScores: CategoryScoreRecord[];
 }
@@ -138,6 +139,7 @@ export interface RunDetail extends RunSummary {
   commits: number;
   commentUrl: string | null;
   stageTimings: Record<string, number>;
+  omittedFiles: string[];
   findings: FindingDto[];
   categoryScores: CategoryScoreRecord[];
 }

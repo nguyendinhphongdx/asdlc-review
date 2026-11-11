@@ -173,6 +173,7 @@ Quy ước: ngoài module, chỉ được `import … from "modules/<name>"` (t�
 | **reviews** | Lưu và truy vấn lịch sử MR/run/finding/điểm | `Review*` | `startRun`, `finishRun`, `getRun`, `listRuns`, `latestForMr`, `findingsOf`, `facts(range)` | `reviews.run.completed` | `Clock` |
 | **analytics** | Tính metric, leaderboard, báo cáo kỳ | cache tổng hợp (tuỳ) | `overview(range)`, `leaderboard(range)`, `report(range)`, `exportMd/Csv` | – | `RunFactsSource`, `MemberDirectory` |
 | **settings** | Lưu cấu hình runtime chỉnh từ UI | `Setting*` | `get`, `set`, `snapshot` | `settings.changed` | – |
+| **secrets** | Lưu secret nhập từ UI (token GitLab, secret webhook) mã hoá AES-256-GCM; khoá ngoài DB | `Secret` | `load`, `peek`, `hint`, `set`, `delete` | – | – |
 
 Ranh giới dễ nhầm:
 - **Quyết định "có review MR này không"** (draft, tắt auto-review, trùng commit) là chính sách điều phối → `app/workflows/request-review.ts` gọi `repos` + `reviews`, không để trong `scm` hay `queue`.

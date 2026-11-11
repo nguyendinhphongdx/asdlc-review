@@ -60,6 +60,7 @@ model ReviewRun {
   costUsd          Float?
   commentUrl       String?
   stageTimings     String          @default("{}")
+  omittedFiles     String          @default("[]") // file bị bỏ qua vì diff vượt ngân sách
   createdAt        DateTime        @default(now())
   startedAt        DateTime?
   finishedAt       DateTime?

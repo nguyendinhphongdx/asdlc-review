@@ -10,6 +10,7 @@ import type { ReviewerApi } from "../modules/reviewer/index.js";
 import type { ReviewsApi } from "../modules/reviews/index.js";
 import type { ScmApi } from "../modules/scm/index.js";
 import type { ScoringApi } from "../modules/scoring/index.js";
+import type { SecretsApi } from "../modules/secrets/index.js";
 import type { SettingsApi } from "../modules/settings/index.js";
 import type { WorkspaceApi } from "../modules/workspace/index.js";
 
@@ -29,6 +30,7 @@ export interface Modules {
   reviews: ReviewsApi;
   analytics: AnalyticsApi;
   settings: SettingsApi;
+  secrets: SecretsApi;
 }
 
 export interface AppSettings {

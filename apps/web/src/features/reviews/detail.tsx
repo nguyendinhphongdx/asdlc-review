@@ -1,5 +1,6 @@
+import type { RunDetailDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleAlert, ExternalLink } from "lucide-react";
+import { Check, CircleAlert, ExternalLink, Loader2, TriangleAlert, X } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, GradeBadge, SeverityBadge } from "@/components/ui/badge";
@@ -8,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { cn } from "@/lib/utils";
-import { fmtDate, fmtDur } from "../../kernel/format.js";
+import { fmtDate, fmtDur, fmtMs } from "../../kernel/format.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { getRun, rerun, setFeedback } from "./api.js";
+import { STAGES, stageLabel } from "./stages.js";
 
 const VERDICT: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
   approve: { label: "Có thể merge", variant: "success" }, comment: { label: "Cần góp ý", variant: "warning" }, request_changes: { label: "Yêu cầu sửa", variant: "danger" },
@@ -21,7 +23,7 @@ export function ReviewDetailPage() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["run", id], queryFn: () => getRun(id), refetchInterval: (s) => (s.state.data && ["queued", "running"].includes(s.state.data.status) ? 3000 : false) });
-  const re = useMutation({ mutationFn: (mrId: string) => rerun(mrId), onSuccess: () => qc.invalidateQueries({ queryKey: ["runs"] }) });
+  const re = useMutation({ mutationFn: (mrId: string) => rerun(mrId), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["runs"] }); void qc.invalidateQueries({ queryKey: ["run", id] }); } });
   const fb = useMutation({ mutationFn: (a: { id: string; v: keyof typeof FB | null }) => setFeedback(a.id, a.v), onSuccess: () => qc.invalidateQueries({ queryKey: ["run", id] }) });
   if (q.isLoading) return <Loading />;
   if (q.error) return <ErrorBox error={q.error} />;
@@ -39,7 +41,23 @@ export function ReviewDetailPage() {
         <span>Vòng {r.round} · {fmtDate(r.createdAt)}</span>
         <Link to="/reviews" className="hover:underline">← Danh sách</Link>
       </div>
-      {r.error && <ErrorBox error={r.error} />}
+      {r.error && !(r.status === "failed" && STAGES.some((x) => x.id === r.stage)) && <ErrorBox error={r.error} />}
+
+      <Pipeline r={r} retrying={re.isPending} retried={re.isSuccess} onRetry={() => re.mutate(r.mr.id)} />
+      {re.error && <ErrorBox error={re.error} />}
+
+      {r.omittedFiles.length > 0 && (
+        <section role="status" className="flex gap-3 rounded-xl border border-warning bg-warning-bg px-5 py-4 text-warning-fg">
+          <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+          <div className="min-w-0">
+            <div className="font-semibold">Diff lớn — chỉ review một phần</div>
+            <div className="mt-0.5 text-[13px]">Đã xem {Math.max(0, r.filesChanged - r.omittedFiles.length)}/{r.filesChanged} file. {r.omittedFiles.length} file bị bỏ qua do vượt ngân sách (xếp theo độ ưu tiên):{" "}
+              <span className="font-mono text-xs">{r.omittedFiles.slice(0, 3).join(" · ")}</span>{r.omittedFiles.length > 3 && ` · +${r.omittedFiles.length - 3} file`}</div>
+            {r.omittedFiles.length > 3 && <details className="mt-2 text-[13px]"><summary className="cursor-pointer font-medium">Xem toàn bộ file bị bỏ qua</summary><ul className="mt-1 list-disc pl-5 font-mono text-xs">{r.omittedFiles.map((f) => <li key={f} className="break-all">{f}</li>)}</ul></details>}
+            <div className="mt-1.5 text-[13px]">Điểm chỉ phản ánh phần đã xem. Chia nhỏ MR hoặc tăng ngân sách trong Cài đặt → Review.</div>
+          </div>
+        </section>
+      )}
 
       {r.score != null && (
         <Card className="flex flex-wrap items-center gap-8 p-6">
@@ -97,5 +115,51 @@ export function ReviewDetailPage() {
         ))}
       </Card>
     </>
+  );
+}
+
+type StageState = "done" | "failed" | "running" | "pending";
+
+function Pipeline({ r, retrying, retried, onRetry }: { r: RunDetailDto; retrying: boolean; retried: boolean; onRetry: () => void }) {
+  const known = STAGES.some((x) => x.id === r.stage);
+  const stateOf = (id: string): StageState => {
+    if (r.status === "failed" && r.stage === id) return "failed";
+    if ((r.status === "running" || r.status === "queued") && r.stage === id) return "running";
+    if (r.stageTimings[id] != null) return "done";
+    if (r.status === "succeeded") return "done";
+    return "pending";
+  };
+  const statusLabel = r.status === "failed" ? `Lỗi${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "running" ? `Đang chạy${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "succeeded" ? "Hoàn tất" : r.status === "skipped" ? "Bỏ qua" : "Đang chờ";
+  const variant = r.status === "failed" ? "danger" : r.status === "succeeded" ? "success" : r.status === "running" ? "info" : "secondary";
+  return (
+    <Card>
+      <CardHeader className="flex-row flex-wrap items-center justify-between gap-2"><CardTitle>Tiến trình review</CardTitle><Badge variant={variant}>{statusLabel}</Badge></CardHeader>
+      <CardContent>
+        {r.status === "skipped" && <p className="mb-3 text-sm text-muted-foreground">{r.error ?? "Lần review này bị bỏ qua."}</p>}
+        <ol className="flex flex-col">
+          {STAGES.map((st, i) => {
+            const s = stateOf(st.id);
+            const ms = r.stageTimings[st.id];
+            return (
+              <li key={st.id} className={cn("flex gap-3 border-t py-2.5 first:border-0", s === "pending" && "opacity-50")} aria-current={s === "running" ? "step" : undefined}>
+                <span className={cn("mt-0.5 flex size-5 flex-none items-center justify-center rounded-full text-[11px] font-semibold", s === "done" && "bg-success-bg text-success-fg", s === "failed" && "bg-danger-bg text-danger-fg", s === "running" && "bg-info-bg text-info-fg", s === "pending" && "bg-secondary text-muted-foreground")}>
+                  {s === "done" ? <Check className="size-3" aria-hidden="true" /> : s === "failed" ? <X className="size-3" aria-hidden="true" /> : s === "running" ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-baseline gap-x-3"><span className={cn("font-medium", s === "failed" && "text-danger-fg")}>{st.label}</span>
+                    <span className="text-xs tabular-nums text-muted-foreground">{s === "pending" ? "Chưa chạy" : s === "running" ? "Đang chạy…" : ms != null ? fmtMs(ms) : "—"}</span></div>
+                  {s === "failed" && (
+                    <div className="mt-2 flex flex-col gap-2.5">
+                      <p role="alert" className="text-[13px] text-danger-fg">{r.error ?? "Stage này đã lỗi."}</p>
+                      <div className="flex flex-wrap items-center gap-3"><Button size="sm" variant="outline" disabled={retrying} onClick={onRetry}>Thử lại</Button>{retried && <span className="text-xs text-muted-foreground">Đã xếp hàng lại.</span>}</div>
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </CardContent>
+    </Card>
   );
 }

@@ -90,7 +90,7 @@ docs/  tools/arch/   tài liệu, bộ kiểm luật kiến trúc
 ```bash
 git clone https://github.com/nguyendinhphongdx/asdlc-review.git
 cd asdlc-review
-cp .env.example .env     # điền GITLAB_TOKEN, GITLAB_WEBHOOK_SECRET…
+cp .env.example .env     # tuỳ chọn: token GitLab nhập được trên UI
 pnpm install
 pnpm redis               # tuỳ chọn: docker compose up -d redis
 pnpm db:push             # tạo SQLite (cũng tự chạy lần đầu)
@@ -107,8 +107,8 @@ pnpm desktop
 ## Cấu hình (`.env`)
 | Biến | Ý nghĩa |
 |---|---|
-| `GITLAB_URL`, `GITLAB_TOKEN` | URL GitLab và PAT (scope `api`, `read_repository`) |
-| `GITLAB_WEBHOOK_SECRET` | **Bắt buộc** để nhận webhook (không đặt → từ chối) |
+| `GITLAB_URL`, `GITLAB_TOKEN`, `GITLAB_WEBHOOK_SECRET` | Dự phòng; thường nhập trên UI (ưu tiên giá trị lưu trong DB). Webhook không có secret thì bị từ chối |
+| `MRD_SECRET_KEY` | Khoá mã hoá token trong DB (≥ 16 ký tự). Bỏ trống: tự tạo `data/secret.key` |
 | `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET` | Cho GitHub (đang phát triển) |
 | `BOT_MENTION` | Từ khoá trong comment để trigger review |
 | `REVIEW_PROVIDER` | `claude-cli` \| `codex-cli` \| `openai-compatible` |
@@ -121,9 +121,7 @@ pnpm desktop
 | `POLL_INTERVAL_MIN` | >0 bật poller (khi không nhận được webhook) |
 
 ## Kết nối GitLab
-1. Tạo token, điền `.env`, đăng ký repo ở trang **Repository**.
-2. Project → Settings → Webhooks: URL `https://<host>/webhooks/gitlab`, Secret token = `GITLAB_WEBHOOK_SECRET`, bật **Merge request events** và **Comments**.
-3. Mở MR hoặc comment `/review` để thử.
+Làm theo [docs/SETUP.md](docs/SETUP.md): nhập URL + token ở **Cài đặt → Kết nối** (token được mã hoá trong DB), bấm **Kiểm tra kết nối**, thêm repo ở **Repository** (có nút tạo webhook tự động), rồi dán link MR hoặc comment `/review`.
 
 ## Harness riêng của repo
 Repo có thể thêm `.asdlc.yml` (chọn framework, ghi đè trọng số, bỏ qua đường dẫn…). File được đọc từ **commit gốc của nhánh đích**, không phải nhánh MR, để tác giả không tự nới tiêu chí; sửa nó trong MR sẽ bị gắn cờ. Provider AI không chọn được qua file này.

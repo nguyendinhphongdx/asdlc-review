@@ -1,8 +1,10 @@
 // Vỏ Electron mỏng: chạy server, mở cửa sổ tới server. Không chứa logic nghiệp vụ.
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, Menu, Tray, nativeImage, shell } from "electron";
+import { app, BrowserWindow, Menu, Tray, nativeImage, safeStorage, shell } from "electron";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const port = process.env.PORT ?? "4319";
@@ -12,10 +14,25 @@ let win;
 let tray;
 let quitting = false;
 
+/** Khoá mã hoá secret trong DB: sinh một lần, cất bằng keychain hệ điều hành (safeStorage), không nằm cạnh DB. */
+function masterKey() {
+  if (process.env.MRD_SECRET_KEY || !safeStorage.isEncryptionAvailable()) return process.env.MRD_SECRET_KEY ?? "";
+  const file = path.join(app.getPath("userData"), "secret.key.enc");
+  try {
+    if (existsSync(file)) return safeStorage.decryptString(readFileSync(file));
+    const key = randomBytes(32).toString("hex");
+    writeFileSync(file, safeStorage.encryptString(key), { mode: 0o600 });
+    return key;
+  } catch (err) {
+    console.error("không dùng được keychain, server sẽ tự tạo khoá file:", err.message);
+    return "";
+  }
+}
+
 function startServer() {
   server = spawn(process.execPath, ["--import", "tsx", "--env-file-if-exists=../../.env", "src/main.ts"], {
     cwd: path.join(root, "apps/server"),
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", WEB_DIST: path.join(root, "apps/web/dist"), PORT: port },
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", WEB_DIST: path.join(root, "apps/web/dist"), PORT: port, MRD_SECRET_KEY: masterKey() },
     stdio: "inherit",
   });
   server.on("exit", (code) => { if (!quitting) console.error(`server thoát (${code})`); });

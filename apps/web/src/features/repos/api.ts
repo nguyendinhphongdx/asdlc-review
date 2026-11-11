@@ -1,6 +1,11 @@
-import type { RepoDto } from "@mrd/contracts";
+import type { ConnectionStatusDto, RepoCheckDto, RepoDto, RepoWebhookDto, WebhookSecretDto } from "@mrd/contracts";
 import { request } from "../../kernel/http.js";
 export const listRepos = () => request<RepoDto[]>("/api/repos");
 export const registerRepo = (url: string) => request<RepoDto>("/api/repos", { method: "POST", json: { url } });
+export const checkRepo = (url: string) => request<RepoCheckDto>("/api/repos/check", { method: "POST", json: { url } });
 export const patchRepo = (id: string, p: Partial<Pick<RepoDto, "enabled" | "autoReview" | "frameworkId" | "provider">>) => request<RepoDto>(`/api/repos/${id}`, { method: "PATCH", json: p });
 export const removeRepo = (id: string) => request<void>(`/api/repos/${id}`, { method: "DELETE" });
+export const getRepoWebhook = (id: string) => request<RepoWebhookDto>(`/api/repos/${id}/webhook`);
+export const createRepoWebhook = (id: string) => request<void>(`/api/repos/${id}/webhook/create`, { method: "POST", json: {} });
+export const getConnection = () => request<ConnectionStatusDto>("/api/connection");
+export const getWebhookSecret = () => request<WebhookSecretDto>("/api/connection/webhook-secret");

@@ -23,6 +23,8 @@ const EnvSchema = z.object({
   WEB_DIST: z.string().default("./apps/web/dist"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
+  /** Khoá mã hoá secret trong DB. Bỏ trống: app tự tạo file `secret.key` trong DATA_DIR (quyền 0600). */
+  MRD_SECRET_KEY: z.string().default(""),
   GITLAB_URL: z.string().default("https://gitlab.com"),
   GITLAB_TOKEN: z.string().default(""),
   GITLAB_WEBHOOK_SECRET: z.string().default(""),

@@ -12,7 +12,6 @@ export function createPollOpenMrs(m: Modules, requestReview: RequestReview, log:
       const started = new Date();
       try {
         for (const ref of await m.scm.listOpen(platform, repo.fullPath)) {
-          if (ref.draft) continue;
           const r = await requestReview({ platform, projectPath: repo.fullPath, iid: ref.iid, trigger: "poll", knownHeadSha: ref.headSha });
           if (r.status === "queued") queued++;
         }

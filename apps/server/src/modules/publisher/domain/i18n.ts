@@ -4,6 +4,7 @@ export interface Dict {
   strengths: string; minor: string; footer: string; none: string; severity: Record<string, string>; why: string;
   suggestion: string; ask: string; stats: string; files: string; harness: string; rescore: string; dashboard: string;
   leaderboard: string; status: string; noReview: string; rank: string; member: string; mrs: string; avg: string;
+  partial: (n: number) => string;
 }
 
 const vi: Dict = {
@@ -14,6 +15,7 @@ const vi: Dict = {
   none: "Không phát hiện vấn đề cần xử lý.", severity: { blocker: "🛑 Blocker", critical: "🔴 Critical", major: "🟠 Major", minor: "🟡 Minor", nit: "⚪ Nit" },
   why: "Vì sao", suggestion: "Gợi ý", ask: "Câu hỏi", stats: "Thống kê", files: "file", harness: "Harness đã nạp", rescore: "Push commit mới để được chấm lại.",
   dashboard: "Xem chi tiết", leaderboard: "Bảng xếp hạng", status: "Trạng thái review", noReview: "Chưa có review nào cho MR này.", rank: "Hạng", member: "Thành viên", mrs: "MR", avg: "Điểm TB",
+  partial: (n) => `Diff quá lớn: chỉ review một phần, ${n} file bị bỏ qua`,
 };
 const en: Dict = {
   title: "Automated MR review", score: "Score", grade: "Grade",
@@ -23,5 +25,6 @@ const en: Dict = {
   none: "No actionable issues found.", severity: { blocker: "🛑 Blocker", critical: "🔴 Critical", major: "🟠 Major", minor: "🟡 Minor", nit: "⚪ Nit" },
   why: "Why", suggestion: "Suggestion", ask: "Question", stats: "Stats", files: "files", harness: "Harness loaded", rescore: "Push a new commit to be re-scored.",
   dashboard: "View details", leaderboard: "Leaderboard", status: "Review status", noReview: "No review yet for this MR.", rank: "Rank", member: "Member", mrs: "MRs", avg: "Avg",
+  partial: (n) => `Large diff: partial review, ${n} file(s) skipped`,
 };
 export const dict = (lang: string): Dict => (lang.startsWith("en") ? en : vi);
