@@ -53,7 +53,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     scm: createScmModule({ gitlab: credentials.gitlab, github: credentials.github, botMention: config.BOT_MENTION }),
     workspace: createWorkspaceModule({ reposDir: config.reposDir, runsDir: config.runsDir, keepWorktrees: config.KEEP_WORKTREES }),
     harness: createHarnessModule(),
-    framework: createFrameworkModule({ frameworksDir: config.frameworksDir }),
+    framework: createFrameworkModule({ frameworksDir: config.frameworksDir, db }),
     analysis: createAnalysisModule(),
     reviewer: createReviewerModule({
       claude: { bin: config.CLAUDE_BIN, model: config.CLAUDE_MODEL, maxBudgetUsd: config.CLAUDE_MAX_BUDGET_USD },

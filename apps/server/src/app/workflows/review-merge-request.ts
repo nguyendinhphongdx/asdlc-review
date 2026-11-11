@@ -47,12 +47,18 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         m.workspace.prepare({ repoKey: `${mr.platform}/${mr.projectPath}`, runId, cloneUrl: mr.cloneUrl, authHeader: auth.header, secrets: auth.secrets, targetBranch: mr.targetBranch, headRef: mr.headRef, headSha: mr.headSha, baseSha: mr.baseSha, diffBudgetChars: settings.diffBudgetChars }),
       );
       const dir = ws.dir;
+      const repoConfigYaml = await m.harness.readRepoConfig(dir, { ref: ws.baseSha });
       const files = ws.numstat.map((n) => ({ path: n.file, additions: n.additions, deletions: n.deletions, binary: n.binary }));
 
       const fw = await stage("framework", async () =>
-        m.framework.resolve({ frameworkId: repo.frameworkId ?? settings.defaultFramework, repoConfigYaml: await m.harness.readRepoConfig(dir, { ref: ws!.baseSha }) }),
+        m.framework.resolve({ frameworkId: repo.frameworkId ?? settings.defaultFramework, repoConfigYaml }),
       );
       const harness = await stage("harness", () => m.harness.load(dir, { changedFiles: files.map((f) => f.path), budgetChars: cfg.contextBudgetChars, extraDocGlobs: fw.repoConfig?.docs }));
+      const harnessReport = m.harness.coverage({
+        discovered: harness.discovered,
+        contents: harness.files.map((f) => ({ path: f.path, kind: f.kind, content: f.content })),
+        repoConfig: { present: Boolean(repoConfigYaml?.trim()), valid: Boolean(repoConfigYaml?.trim()) && !fw.repoConfigError, error: fw.repoConfigError, hasDocs: Boolean(fw.repoConfig?.docs?.length), hasIgnore: Boolean(fw.repoConfig?.ignore?.length) },
+      });
       const analysis = await stage("analysis", () => m.analysis.analyze({ diff: ws!.diff, files, mrDescription: mr.description, ignore: fw.repoConfig?.ignore }));
       const stats = { filesChanged: files.length, additions: files.reduce((s, f) => s + f.additions, 0), deletions: files.reduce((s, f) => s + f.deletions, 0) };
 
@@ -104,7 +110,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       await m.reviews.completeRun(runId, {
         score: score.total, rawScore: score.rawTotal, grade: score.grade, verdict: score.verdict, gates: score.gates,
         summary, intent: ai.review.intent, strengths: ai.review.strengths, harnessFiles: report.harnessFiles, ...stats,
-        durationMs: Date.now() - started, costUsd: ai.usage.costUsd, model: ai.usage.model, commentUrl, stageTimings: timings, omittedFiles: ws.omittedFiles,
+        durationMs: Date.now() - started, costUsd: ai.usage.costUsd, model: ai.usage.model, commentUrl, stageTimings: timings, omittedFiles: ws.omittedFiles, harnessReport, frameworkId: fw.rubric.id, frameworkVersion: fw.rubric.version,
         findings: scored.map((f) => ({ ...f })),
         categoryScores: score.categories,
       });

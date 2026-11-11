@@ -7,12 +7,16 @@ const CriterionSchema = z.object({
   check: z.string(),
   why: z.string().default(""),
   defaultSeverity: SeveritySchema.default("minor"),
+  enabled: z.boolean().default(true),
+  /** Rule bảo mật nền: không tắt/hạ mức độ được (kể cả bằng `.asdlc.yml`). */
+  locked: z.boolean().default(false),
 });
 
 export const FrameworkFileSchema = z.object({
   id: z.string(),
   name: z.string(),
   version: z.string(),
+  kind: z.enum(["default", "template"]).optional(),
   language: z.string().default("vi"),
   severity: z.record(SeveritySchema, z.object({ deduction: z.number(), label: z.string(), description: z.string() })),
   gates: z
@@ -26,6 +30,7 @@ export const FrameworkFileSchema = z.object({
         }),
         capTotal: z.number(),
         reason: z.string(),
+        locked: z.boolean().default(false),
       }),
     )
     .default([]),

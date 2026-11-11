@@ -96,6 +96,10 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
     assert.ok(d.gates.some((g) => g.id === "secret-leak"));
     assert.deepEqual(d.stageTimings && Object.keys(d.stageTimings).sort(), ["analysis", "clone", "framework", "harness", "publish", "review", "score"]);
     assert.ok(d.harnessFiles.includes("CLAUDE.md"));
+    assert.equal(d.frameworkId, "asdlc");
+    assert.equal(d.frameworkVersion, "1.0.0");
+    assert.equal(typeof d.harnessReport?.score, "number");
+    assert.ok(d.harnessReport!.items.find((i) => i.id === "instructions")!.points > 0, "CLAUDE.md được tính vào độ phủ");
     assert.equal(d.filesChanged, 1);
     assert.equal(d.mr.firstScore, d.score);
     assert.equal(notes.length, 1);

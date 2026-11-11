@@ -1,0 +1,23 @@
+// Chủ sở hữu: modules/framework. Chỉ lưu framework tự tạo (fork); bản mặc định/mẫu nằm ở file YAML.
+model CustomFramework {
+  id             String             @id
+  name           String
+  baseId         String // id framework gốc (file YAML) lúc fork
+  currentVersion Int                @default(1)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  versions       FrameworkVersion[]
+}
+
+model FrameworkVersion {
+  id          String          @id @default(cuid())
+  frameworkId String
+  framework   CustomFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  version     Int
+  content     String // JSON của FrameworkFile
+  note        String          @default("")
+  author      String          @default("admin")
+  createdAt   DateTime        @default(now())
+
+  @@unique([frameworkId, version])
+}

@@ -8,6 +8,7 @@
 id: asdlc
 name: ASDLC Core Review Framework
 version: 1.0.0
+kind: default
 language: vi   # ngôn ngữ comment trả cho tác giả
 
 severity:
@@ -19,10 +20,12 @@ severity:
 
 gates:
   - id: secret-leak
+    locked: true
     when: { ruleIds: [SEC-01] }
     capTotal: 30
     reason: "Lộ secret/credential trong MR"
   - id: critical-security
+    locked: true
     when: { category: security, minSeverity: critical }
     capTotal: 49
     reason: "Có lỗ hổng bảo mật mức critical trở lên"
@@ -149,6 +152,7 @@ categories:
     weight: 16
     criteria:
       - id: SEC-01
+        locked: true
         title: Không lộ secret
         check: "Không commit API key, token, password, private key, connection string, .env."
         why: "Secret này đã bị đẩy lên remote — đã rotate chưa?"

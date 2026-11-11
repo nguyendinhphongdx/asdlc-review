@@ -1,0 +1,358 @@
+# Backend / API — mẫu dựng sẵn dẫn xuất từ ASDLC Core. Chỉ đọc: tạo bản fork trong ứng dụng để chỉnh sửa.
+id: backend
+name: Backend / API
+version: 1.0.0
+kind: template
+language: vi
+severity:
+  blocker:
+    deduction: 35
+    label: Blocker
+    description: Không được merge. Sai nghiệp vụ, mất dữ liệu, vỡ build, lỗ hổng nghiêm trọng.
+  critical:
+    deduction: 25
+    label: Critical
+    description: Rủi ro cao, gần như chắc chắn gây sự cố production.
+  major:
+    deduction: 12
+    label: Major
+    description: 'Phải sửa trước khi merge: vi phạm kiến trúc, convention bắt buộc, thiếu test cho logic quan trọng.'
+  minor:
+    deduction: 4
+    label: Minor
+    description: 'Nên sửa: đặt tên, cấu trúc nhỏ, thiếu xử lý edge case ít gặp.'
+  nit:
+    deduction: 1
+    label: Nit
+    description: Góp ý thẩm mỹ, không bắt buộc.
+gates:
+- id: secret-leak
+  locked: true
+  when:
+    ruleIds:
+    - SEC-01
+  capTotal: 30
+  reason: Lộ secret/credential trong MR
+- id: critical-security
+  locked: true
+  when:
+    category: security
+    minSeverity: critical
+  capTotal: 49
+  reason: Có lỗ hổng bảo mật mức critical trở lên
+- id: blocker
+  when:
+    minSeverity: blocker
+  capTotal: 59
+  reason: Có vấn đề blocker
+grades:
+- grade: A
+  min: 90
+- grade: B
+  min: 80
+- grade: C
+  min: 70
+- grade: D
+  min: 60
+- grade: F
+  min: 0
+sizeBaseline: 200
+categories:
+- id: scope
+  name: Mục tiêu & phạm vi MR
+  weight: 6
+  criteria:
+  - id: SCO-01
+    title: Mô tả MR rõ ràng
+    check: MR có mô tả mục tiêu, bối cảnh, cách test, link issue/ticket/spec.
+    why: Reviewer và người đọc sau 6 tháng có hiểu MR này giải quyết vấn đề gì không?
+    defaultSeverity: minor
+  - id: SCO-02
+    title: Một MR — một mục đích
+    check: MR không trộn feature + refactor + fix không liên quan.
+    why: Tại sao những thay đổi này phải đi chung một MR?
+    defaultSeverity: major
+  - id: SCO-03
+    title: Kích thước hợp lý
+    check: Thay đổi < ~400 dòng logic; nếu lớn hơn phải có lý do và được chia commit hợp lý.
+    why: Có thể tách MR này thành các bước nhỏ, merge độc lập không?
+    defaultSeverity: minor
+  - id: SCO-04
+    title: Không sửa file ngoài phạm vi
+    check: Không có thay đổi format/whitespace/rename ở file không liên quan (dấu hiệu AI sửa lan).
+    why: Tại sao file này bị thay đổi trong khi không liên quan tới mục tiêu MR?
+    defaultSeverity: minor
+  - id: SCO-05
+    title: Bám sát yêu cầu
+    check: 'Đối chiếu spec/issue/tài liệu tính năng: làm đủ, không làm thừa, không hiểu sai.'
+    why: Phần nào của yêu cầu chưa được đáp ứng, hoặc phần nào là tự thêm?
+    defaultSeverity: major
+- id: architecture
+  name: Kiến trúc & thiết kế
+  weight: 16
+  criteria:
+  - id: ARC-01
+    title: Đúng layer, đúng ranh giới module
+    check: Logic đặt đúng tầng (controller/service/repository/domain/UI...) theo kiến trúc repo mô tả.
+    why: Tại sao logic này đặt ở đây mà không phải ở tầng X như kiến trúc quy định?
+    defaultSeverity: major
+  - id: ARC-02
+    title: Chiều phụ thuộc đúng
+    check: Không import ngược tầng, không vòng lặp phụ thuộc, không phụ thuộc vào chi tiết implement của module khác.
+    why: Module này có cần biết về chi tiết của module kia không?
+    defaultSeverity: major
+  - id: ARC-03
+    title: Tái sử dụng thay vì viết lại
+    check: Dùng util/service/component sẵn có trong repo thay vì tạo bản sao (lỗi phổ biến của AI).
+    why: Repo đã có hàm/thành phần làm việc này chưa? Tại sao không dùng lại?
+    defaultSeverity: major
+  - id: ARC-04
+    title: Không over-engineering
+    check: Không thêm abstraction, factory, interface, config, generic khi chỉ có một trường hợp sử dụng.
+    why: Abstraction này giải quyết nhu cầu thực tế nào hiện tại?
+    defaultSeverity: minor
+  - id: ARC-05
+    title: Phù hợp ADR / quyết định kiến trúc
+    check: Tuân thủ ADR, tài liệu kiến trúc, pattern chuẩn (state management, data fetching, DI...) của repo.
+    why: Cách làm này có mâu thuẫn với quyết định kiến trúc nào đã ghi nhận không?
+    defaultSeverity: major
+  - id: ARC-06
+    title: Thiết kế dữ liệu & API contract
+    check: Schema/migration, API contract tương thích ngược, có versioning khi cần, không phá client cũ.
+    why: Thay đổi này có làm vỡ client/consumer hiện có không? Migration có rollback được không?
+    defaultSeverity: critical
+  - id: API-03
+    title: Hợp đồng API ổn định
+    check: Không đổi/xoá field response, mã lỗi hoặc ý nghĩa tham số mà không versioning hoặc kế hoạch migration.
+    why: Client cũ gọi API này sau thay đổi có còn chạy không?
+    defaultSeverity: major
+- id: correctness
+  name: Logic & tính đúng đắn
+  weight: 20
+  criteria:
+  - id: COR-01
+    title: Logic nghiệp vụ đúng
+    check: Đối chiếu với yêu cầu; kiểm tra điều kiện, phép tính, luồng trạng thái.
+    why: Với input X thì kết quả có đúng như nghiệp vụ mong đợi không?
+    defaultSeverity: blocker
+  - id: COR-02
+    title: Edge case & giá trị biên
+    check: null/undefined, rỗng, giá trị âm, overflow, timezone, unicode, phân trang, danh sách lớn.
+    why: Chuyện gì xảy ra khi dữ liệu rỗng, rất lớn hoặc sai định dạng?
+    defaultSeverity: major
+  - id: COR-03
+    title: Xử lý lỗi
+    check: Không nuốt lỗi, không catch-all im lặng, thông báo lỗi có ý nghĩa, rollback/cleanup khi lỗi.
+    why: Khi gọi này thất bại, người dùng/hệ thống nhận được gì?
+    defaultSeverity: major
+  - id: COR-04
+    title: Đồng thời & bất đồng bộ
+    check: Race condition, thiếu await, promise không xử lý, transaction, idempotency, retry.
+    why: Nếu hai request chạy song song thì có sai dữ liệu không?
+    defaultSeverity: critical
+  - id: COR-05
+    title: API/thư viện có thật và dùng đúng
+    check: Không gọi hàm/option/endpoint không tồn tại (AI hallucination), đúng version thư viện trong lockfile.
+    why: Hàm/option này có thật trong phiên bản thư viện repo đang dùng không?
+    defaultSeverity: blocker
+  - id: COR-06
+    title: Không còn code tạm / mock / stub
+    check: Không để dữ liệu giả, TODO thay cho logic thật, giá trị hard-code, feature flag bỏ quên.
+    why: Đoạn này là logic thật hay placeholder do AI sinh ra?
+    defaultSeverity: major
+  - id: API-01
+    title: Idempotency và retry an toàn
+    check: Endpoint ghi/thanh toán/queue xử lý lặp an toàn (idempotency key hoặc khử trùng); thao tác nhiều bước nằm trong
+      transaction.
+    why: Nếu client hoặc job retry thì dữ liệu có bị tạo/trừ hai lần không?
+    defaultSeverity: critical
+- id: security
+  name: Bảo mật
+  weight: 20
+  criteria:
+  - id: SEC-01
+    locked: true
+    title: Không lộ secret
+    check: Không commit API key, token, password, private key, connection string, .env.
+    why: Secret này đã bị đẩy lên remote — đã rotate chưa?
+    defaultSeverity: blocker
+  - id: SEC-02
+    title: Injection
+    check: SQL/NoSQL/command/LDAP/template injection, path traversal, deserialization không an toàn.
+    why: Input này đi từ đâu và đã được validate/escape/parameterize chưa?
+    defaultSeverity: critical
+  - id: SEC-03
+    title: Xác thực & phân quyền
+    check: Endpoint mới có auth, kiểm tra quyền sở hữu tài nguyên (IDOR), không tin dữ liệu từ client.
+    why: User A có thể truy cập dữ liệu của user B qua endpoint này không?
+    defaultSeverity: critical
+  - id: SEC-04
+    title: XSS / CSRF / CORS
+    check: Render HTML không escape, dangerouslySetInnerHTML, CORS *, thiếu CSRF token.
+    why: Dữ liệu người dùng có được hiển thị thô ra trình duyệt không?
+    defaultSeverity: critical
+  - id: SEC-05
+    title: Dữ liệu nhạy cảm & log
+    check: Không log PII/token/password, mã hoá dữ liệu nhạy cảm, tuân thủ quy định dữ liệu.
+    why: Log này có chứa thông tin cá nhân hoặc credential không?
+    defaultSeverity: major
+  - id: SEC-06
+    title: Dependency an toàn
+    check: Thư viện mới có lý do, được duy trì, không có CVE đã biết, không typosquatting.
+    why: Tại sao cần thêm dependency này? Đã có sẵn giải pháp trong repo chưa?
+    defaultSeverity: major
+  - id: API-02
+    title: Phân quyền ở mọi route
+    check: Mỗi route kiểm tra xác thực và quyền theo tài nguyên (chống IDOR), không chỉ ẩn nút ở UI.
+    why: Người dùng khác có gọi được endpoint này với ID của người khác không?
+    defaultSeverity: critical
+- id: conventions
+  name: Convention & đặt tên
+  weight: 8
+  criteria:
+  - id: CON-01
+    title: Đặt tên theo convention repo
+    check: Biến, hàm, class, file, thư mục, route, bảng/cột DB theo đúng quy ước (case, tiền tố, ngôn ngữ).
+    why: Tên này có diễn đạt đúng ý nghĩa nghiệp vụ và khớp quy ước của repo không?
+    defaultSeverity: minor
+  - id: CON-02
+    title: Cấu trúc thư mục & vị trí file
+    check: File mới đặt đúng nơi theo cấu trúc dự án, không tạo thư mục lạ.
+    why: Tại sao file này nằm ở đây thay vì thư mục quy định cho loại file này?
+    defaultSeverity: minor
+  - id: CON-03
+    title: Tuân thủ rule trong AGENTS.md / CLAUDE.md / rules
+    check: Mọi quy tắc bắt buộc trong harness của repo (MUST/NEVER/ALWAYS) đều được tuân thủ.
+    why: Quy tắc nào trong harness của repo bị vi phạm và tại sao?
+    defaultSeverity: major
+  - id: CON-04
+    title: Style nhất quán với codebase
+    check: Cách viết đồng nhất với code xung quanh (error handling, logging, import, pattern), không pha style lạ.
+    why: Code này có trông như được viết bởi cùng một team với phần còn lại không?
+    defaultSeverity: minor
+  - id: CON-05
+    title: Lint / format / type
+    check: Không vi phạm lint/prettier/tsconfig strict; không dùng any, ts-ignore, eslint-disable không lý do.
+    why: Tại sao cần tắt kiểm tra ở đây?
+    defaultSeverity: minor
+  - id: CON-06
+    title: Commit & branch convention
+    check: Tên branch, commit message theo quy ước (conventional commits, mã ticket...).
+    why: Commit history có kể lại được câu chuyện của thay đổi không?
+    defaultSeverity: nit
+- id: testing
+  name: Kiểm thử
+  weight: 14
+  criteria:
+  - id: TST-01
+    title: Có test cho logic mới/thay đổi
+    check: Logic nghiệp vụ mới có unit/integration test; fix bug có test tái hiện.
+    why: Làm sao biết thay đổi này đúng và không bị hồi quy về sau?
+    defaultSeverity: major
+  - id: TST-02
+    title: Test có giá trị thật
+    check: Test có assertion ý nghĩa, không assert tautology, không mock luôn đối tượng cần test, không snapshot vô nghĩa.
+    why: Nếu logic sai thì test này có fail không?
+    defaultSeverity: major
+  - id: TST-03
+    title: Bao phủ edge case & lỗi
+    check: Test nhánh lỗi, giá trị biên, không chỉ happy path.
+    why: Test nào chứng minh hệ thống xử lý đúng khi có lỗi?
+    defaultSeverity: minor
+  - id: TST-04
+    title: Không xoá/skip test
+    check: Không xoá, .skip, .only, nới lỏng assertion để test pass.
+    why: Tại sao test này bị tắt/sửa kỳ vọng?
+    defaultSeverity: critical
+- id: performance
+  name: Hiệu năng & tài nguyên
+  weight: 10
+  criteria:
+  - id: PRF-01
+    title: Truy vấn dữ liệu hiệu quả
+    check: Không N+1, có index cho truy vấn mới, phân trang, không load toàn bộ bảng.
+    why: Với 1 triệu bản ghi thì đoạn này chạy thế nào?
+    defaultSeverity: major
+  - id: PRF-02
+    title: Thuật toán & vòng lặp
+    check: Độ phức tạp hợp lý, không lặp lồng không cần, không tính toán lặp lại.
+    why: Có cách nào tránh vòng lặp lồng này không?
+    defaultSeverity: minor
+  - id: PRF-03
+    title: Tài nguyên & rò rỉ
+    check: Đóng connection/stream, huỷ listener/subscription/timer, không giữ bộ nhớ vô hạn.
+    why: Tài nguyên này được giải phóng ở đâu?
+    defaultSeverity: major
+  - id: PRF-04
+    title: Frontend render & bundle
+    check: Không re-render thừa, không import cả thư viện lớn, lazy load khi hợp lý.
+    why: Thay đổi này làm bundle/render nặng thêm bao nhiêu?
+    defaultSeverity: minor
+  - id: API-04
+    title: Migration và dữ liệu lớn
+    check: Migration chạy được trên bảng lớn (không khoá bảng lâu), có rollback, backfill theo lô.
+    why: Chạy migration này trên 10 triệu dòng thì sao?
+    defaultSeverity: major
+- id: maintainability
+  name: Khả năng bảo trì & chất lượng code
+  weight: 6
+  criteria:
+  - id: MNT-01
+    title: Độ phức tạp hợp lý
+    check: Hàm ngắn, ít nhánh lồng, một trách nhiệm; không hàm hàng trăm dòng.
+    why: Người mới có đọc hiểu hàm này trong 2 phút không?
+    defaultSeverity: minor
+  - id: MNT-02
+    title: Không trùng lặp
+    check: Không copy-paste khối code; không nhân bản logic đã có.
+    why: Khi nghiệp vụ đổi, phải sửa bao nhiêu chỗ?
+    defaultSeverity: minor
+  - id: MNT-03
+    title: Không code chết / debug
+    check: Không còn console.log, print, debugger, code comment-out, import thừa, biến không dùng.
+    why: Đoạn này còn cần thiết không?
+    defaultSeverity: minor
+  - id: MNT-04
+    title: Dấu hiệu AI slop
+    check: Comment thừa diễn giải hiển nhiên, comment kiểu 'Step 1/Step 2', file sinh thừa, xử lý phòng thủ vô nghĩa, code
+      không ai gọi.
+    why: Tác giả có hiểu và chủ động chọn từng dòng code này không?
+    defaultSeverity: minor
+  - id: MNT-05
+    title: Magic number & cấu hình
+    check: Hằng số có tên, cấu hình qua config/env thay vì hard-code.
+    why: Con số này có ý nghĩa gì và ai sẽ cần đổi nó?
+    defaultSeverity: nit
+- id: documentation
+  name: Tài liệu & giao tiếp
+  weight: 3
+  criteria:
+  - id: DOC-01
+    title: Cập nhật tài liệu tính năng
+    check: README, docs tính năng, API docs, changelog được cập nhật tương ứng.
+    why: Người dùng/dev khác biết tính năng thay đổi thế nào ở đâu?
+    defaultSeverity: minor
+  - id: DOC-02
+    title: Comment giải thích "tại sao"
+    check: Logic khó, workaround, quyết định không hiển nhiên có comment lý do (không diễn giải 'cái gì').
+    why: Tại sao chọn cách này mà không phải cách hiển nhiên hơn?
+    defaultSeverity: nit
+- id: harness
+  name: Tuân thủ quy trình ASDLC & harness
+  weight: 3
+  criteria:
+  - id: HAR-01
+    title: Theo đúng quy trình của repo
+    check: Các bước quy trình bắt buộc (spec → plan → implement → test, file plan/spec, checklist) có được thực hiện.
+    why: Bước nào của quy trình đã bị bỏ qua?
+    defaultSeverity: minor
+  - id: HAR-02
+    title: Cập nhật harness khi cần
+    check: Thay đổi kiến trúc/convention mới có cập nhật AGENTS.md/CLAUDE.md/skill tương ứng để agent sau làm đúng.
+    why: Agent lần sau có biết quy tắc mới này không?
+    defaultSeverity: nit
+  - id: HAR-03
+    title: Không sửa harness để lách quy tắc
+    check: Không nới lỏng rule trong AGENTS.md/CLAUDE.md/lint config/CI để code hiện tại qua được.
+    why: Tại sao quy tắc này bị thay đổi trong MR này?
+    defaultSeverity: major

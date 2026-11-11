@@ -55,7 +55,7 @@ export class ReviewRepository {
           status: "succeeded", stage: "done", score: res.score, rawScore: res.rawScore, grade: res.grade, verdict: res.verdict, gates: JSON.stringify(res.gates),
           summary: res.summary, intent: res.intent, strengths: JSON.stringify(res.strengths), harnessFiles: JSON.stringify(res.harnessFiles),
           filesChanged: res.filesChanged, additions: res.additions, deletions: res.deletions, durationMs: res.durationMs, costUsd: res.costUsd ?? null,
-          model: res.model ?? undefined, commentUrl: res.commentUrl ?? null, stageTimings: JSON.stringify(res.stageTimings ?? {}), omittedFiles: JSON.stringify(res.omittedFiles ?? []), finishedAt: now,
+          model: res.model ?? undefined, commentUrl: res.commentUrl ?? null, stageTimings: JSON.stringify(res.stageTimings ?? {}), omittedFiles: JSON.stringify(res.omittedFiles ?? []), harnessReport: res.harnessReport ? JSON.stringify(res.harnessReport) : null, ...(res.frameworkId ? { frameworkId: res.frameworkId, frameworkVersion: res.frameworkVersion ?? null } : {}), finishedAt: now,
         },
       });
       await tx.reviewFinding.createMany({
@@ -97,7 +97,7 @@ export class ReviewRepository {
       mr: toMrDto(r.mergeRequest),
       frameworkId: r.frameworkId, frameworkVersion: r.frameworkVersion, baseSha: r.baseSha, rawScore: r.rawScore,
       gates: parse(r.gates, []), summary: r.summary, intent: r.intent, strengths: parse(r.strengths, []), harnessFiles: parse(r.harnessFiles, []),
-      commits: r.commits, commentUrl: r.commentUrl, stageTimings: parse(r.stageTimings, {}), omittedFiles: parse(r.omittedFiles, []),
+      commits: r.commits, commentUrl: r.commentUrl, stageTimings: parse(r.stageTimings, {}), omittedFiles: parse(r.omittedFiles, []), harnessReport: parse(r.harnessReport, null),
       findings: r.findings.map((f): FindingDto => ({ ...f, source: f.source as FindingDto["source"] })),
       categoryScores: r.categoryScores.map((c) => ({ category: c.category, name: c.name, weight: c.weight, score: c.score, deduction: c.deduction, findings: c.findings })),
     };

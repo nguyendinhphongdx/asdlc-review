@@ -15,6 +15,7 @@ import { registerReviewsRoutes } from "../../modules/reviews/index.js";
 import { registerSettingsRoutes } from "../../modules/settings/index.js";
 import type { Container } from "../container.js";
 import { registerConnectionRoutes } from "./connection.js";
+import { registerFrameworkAppRoutes } from "./framework.js";
 import { REVIEW_QUEUE } from "../workflows/mappers.js";
 
 declare module "fastify" {
@@ -100,6 +101,7 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
   registerIdentityRoutes(app, m.identity);
   registerReposRoutes(app, m.repos);
   registerConnectionRoutes(app, c, c.publicUrl);
+  registerFrameworkAppRoutes(app, c);
   registerSettingsRoutes(app, m.settings);
   registerFrameworkRoutes(app, m.framework);
   registerReviewsRoutes(app, m.reviews);

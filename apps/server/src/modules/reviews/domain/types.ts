@@ -1,3 +1,4 @@
+import type { HarnessReportDto } from "@mrd/contracts";
 import type { Grade, RunStatus, ReviewTrigger, Verdict } from "@mrd/contracts";
 
 export interface MrSnapshot {
@@ -92,6 +93,9 @@ export interface RunResult {
   commentUrl?: string | null;
   stageTimings?: Record<string, number>;
   omittedFiles?: string[];
+  frameworkId?: string | null;
+  frameworkVersion?: string | null;
+  harnessReport?: unknown;
   findings: FindingRecord[];
   categoryScores: CategoryScoreRecord[];
 }
@@ -140,6 +144,7 @@ export interface RunDetail extends RunSummary {
   commentUrl: string | null;
   stageTimings: Record<string, number>;
   omittedFiles: string[];
+  harnessReport: HarnessReportDto | null;
   findings: FindingDto[];
   categoryScores: CategoryScoreRecord[];
 }

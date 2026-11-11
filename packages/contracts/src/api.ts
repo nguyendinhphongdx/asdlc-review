@@ -89,6 +89,8 @@ export interface RunDetailDto extends RunSummaryDto {
   stageTimings: Record<string, number>;
   /** File bị bỏ qua vì diff vượt ngân sách (review một phần nếu khác rỗng). */
   omittedFiles: string[];
+  /** Độ phủ harness của repo tại thời điểm review (null với review cũ). */
+  harnessReport: import("./framework.js").HarnessReportDto | null;
   findings: FindingDto[];
   categoryScores: { category: string; name: string; weight: number; score: number; deduction: number; findings: number }[];
 }
@@ -148,7 +150,13 @@ export interface FrameworkInfoDto {
   id: string;
   name: string;
   version: string;
+  kind: import("./framework.js").FrameworkKind;
+  baseId: string | null;
   categories: { id: string; name: string; weight: number; criteria: number }[];
+  ruleCount: number;
+  /** Số repo đang dùng (null = chưa tính). */
+  repoCount: number;
+  updatedAt: string | null;
 }
 
 export type RubricDto = Rubric;
