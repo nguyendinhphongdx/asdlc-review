@@ -166,5 +166,9 @@ function classify(err: unknown): NonNullable<ConnectionProbe["error"]> {
     if (err.code === "unauthorized") return { code: msg.includes("→ 403") ? "missing_scope" : "unauthorized", message: msg.includes("→ 403") ? "Token không đủ quyền (thiếu scope api?)" : "Token sai hoặc đã hết hạn" };
     if (msg.includes("unreachable:")) return { code: "unreachable", message: "Không kết nối được tới GitLab (kiểm tra URL/mạng)" };
   }
-  return { code: "unknown", message: "Lỗi không xác định từ GitLab" };
+  const status = msg.match(/→ (\d{3})/)?.[1];
+  if (status === "429") return { code: "unknown", message: "GitLab đang giới hạn tần suất (HTTP 429) — đợi vài phút rồi thử lại" };
+  if (status === "404") return { code: "unknown", message: "Không tìm thấy API GitLab (HTTP 404) — kiểm tra URL, chỉ nhập địa chỉ gốc như https://gitlab.com" };
+  if (status && status.startsWith("5")) return { code: "unknown", message: `GitLab báo lỗi máy chủ (HTTP ${status})` };
+  return { code: "unknown", message: status ? `GitLab trả về HTTP ${status}` : "Lỗi không xác định từ GitLab" };
 }
