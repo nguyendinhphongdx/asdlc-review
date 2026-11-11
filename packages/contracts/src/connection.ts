@@ -67,3 +67,24 @@ export interface RepoWebhookDto {
   rejectedCount: number;
   events: WebhookEventDto[];
 }
+
+/** Duyệt repo/MR của tài khoản đã kết nối (không cần dán link). */
+export interface DiscoverProjectDto {
+  path: string;
+  name: string;
+  webUrl: string;
+  lastActivityAt: string | null;
+  /** Đã thêm vào hệ thống chưa. */
+  registered: boolean;
+}
+export interface DiscoverMrDto {
+  iid: number;
+  title: string;
+  authorUsername: string;
+  webUrl: string;
+  sourceBranch: string;
+  targetBranch: string;
+  state: "opened" | "merged" | "closed";
+  draft: boolean;
+  updatedAt: string;
+}

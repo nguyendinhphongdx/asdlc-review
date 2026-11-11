@@ -1,5 +1,5 @@
 import { ModuleError } from "../../../kernel/errors.js";
-import type { ConnectionProbe, GitAuth, ProjectProbe, InlineComment, MrInfo, OpenMrRef, PlatformClient } from "../domain/types.js";
+import type { ConnectionProbe, DiscoverMr, DiscoverProject, GitAuth, ProjectProbe, InlineComment, MrInfo, OpenMrRef, PlatformClient } from "../domain/types.js";
 
 interface GlMr {
   iid: number; title: string; description: string | null; web_url: string; source_branch: string; target_branch: string;
@@ -74,6 +74,24 @@ export class GitLabClient implements PlatformClient {
     if (updatedAfter) qs.set("updated_after", updatedAfter.toISOString());
     const { data } = await this.api<GlMr[]>("GET", `/projects/${this.pid(projectPath)}/merge_requests?${qs}`);
     return data.map((m) => ({ iid: m.iid, headSha: m.sha, updatedAt: new Date(m.updated_at), draft: Boolean(m.draft ?? m.work_in_progress) }));
+  }
+
+  /** Repo mà token là thành viên, mới hoạt động trước; `search` lọc theo tên/đường dẫn. */
+  async searchProjects(search: string): Promise<DiscoverProject[]> {
+    const qs = new URLSearchParams({ membership: "true", simple: "true", order_by: "last_activity_at", sort: "desc", per_page: "20" });
+    if (search.trim()) qs.set("search", search.trim());
+    const { data } = await this.api<Array<{ path_with_namespace: string; name_with_namespace: string; web_url: string; last_activity_at?: string }>>("GET", `/projects?${qs}`);
+    return data.map((p) => ({ path: p.path_with_namespace, name: p.name_with_namespace, webUrl: p.web_url, lastActivityAt: p.last_activity_at ? new Date(p.last_activity_at) : null }));
+  }
+
+  async listMrs(projectPath: string, state: "opened" | "merged" | "all", search: string): Promise<DiscoverMr[]> {
+    const qs = new URLSearchParams({ state, per_page: "30", order_by: "updated_at", sort: "desc" });
+    if (search.trim()) qs.set("search", search.trim());
+    const { data } = await this.api<GlMr[]>("GET", `/projects/${this.pid(projectPath)}/merge_requests?${qs}`);
+    return data.map((m) => ({
+      iid: m.iid, title: m.title, authorUsername: m.author.username, webUrl: m.web_url, sourceBranch: m.source_branch, targetBranch: m.target_branch,
+      state: m.state === "merged" ? "merged" : m.state === "closed" ? "closed" : "opened", draft: Boolean(m.draft ?? m.work_in_progress), updatedAt: new Date(m.updated_at),
+    }));
   }
 
   async upsertSummaryNote(mr: MrInfo, body: string, marker: string) {

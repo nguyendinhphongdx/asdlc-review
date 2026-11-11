@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { fmtDate, fmtDur } from "../../kernel/format.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { listRuns, requestReview } from "./api.js";
+import { MrPicker } from "./picker.js";
 import { stageLabel } from "../../kernel/stages.js";
 
 const SEV_DOT: [string, string][] = [["blocker", "bg-danger"], ["critical", "bg-chart-4"], ["major", "bg-chart-3"], ["minor", "bg-chart-2"]];
@@ -31,7 +32,8 @@ export function ReviewsPage() {
   const items = (q.data?.items ?? []).filter((r) => !search || `${r.mr.title} ${r.mr.authorUsername}`.toLowerCase().includes(search.toLowerCase()));
   return (
     <>
-      <PageHeader title="Các lần review" description="Mỗi commit mới của MR tạo một vòng review. Dán link để review thủ công." />
+      <PageHeader title="Các lần review" description="Mỗi commit mới của MR tạo một vòng review. Chọn MR từ tài khoản GitLab hoặc dán link để review thủ công." />
+      <MrPicker />
       <Card className="p-4">
         <form className="flex flex-wrap gap-3" onSubmit={(e) => { e.preventDefault(); if (url.trim()) m.mutate(url.trim()); }}>
           <Input aria-label="Link MR" className="flex-[1_1_320px]" placeholder="https://gitlab.example.com/group/project/-/merge_requests/140" value={url} onChange={(e) => setUrl(e.target.value)} />

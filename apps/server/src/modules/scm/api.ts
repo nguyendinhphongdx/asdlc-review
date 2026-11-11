@@ -1,6 +1,6 @@
 import type { Platform } from "@mrd/contracts";
 import { ModuleError } from "../../kernel/errors.js";
-import type { ConnectionProbe, GitAuth, ProjectProbe, InlineComment, MrInfo, OpenMrRef, ParsedMrUrl, PlatformClient, ScmEvent } from "./domain/types.js";
+import type { ConnectionProbe, DiscoverMr, DiscoverProject, GitAuth, ProjectProbe, InlineComment, MrInfo, OpenMrRef, ParsedMrUrl, PlatformClient, ScmEvent } from "./domain/types.js";
 import { parseGitHubWebhook, parseGitLabWebhook, verifyGitHub, verifyGitLab } from "./domain/webhooks.js";
 import { GitHubClient } from "./infra/github.js";
 import { GitLabClient } from "./infra/gitlab.js";
@@ -37,6 +37,10 @@ export interface ScmApi {
   testConnection(platform: Platform): Promise<ConnectionProbe>;
   /** Kiểm tra token truy cập được repo và có đủ quyền tạo webhook không. */
   checkProject(platform: Platform, projectPath: string): Promise<ProjectProbe>;
+  /** Duyệt repo của tài khoản (GitLab): tìm theo tên. */
+  searchProjects(platform: Platform, search: string): Promise<DiscoverProject[]>;
+  /** Duyệt MR của một repo (GitLab). */
+  listMrs(platform: Platform, projectPath: string, state: "opened" | "merged" | "all", search: string): Promise<DiscoverMr[]>;
   /** Tạo (hoặc cập nhật nếu đã có hook cùng URL) webhook MR + comment. */
   createWebhook(platform: Platform, projectPath: string, url: string): Promise<void>;
 }
@@ -102,6 +106,8 @@ export function createScmModule(deps: ScmDeps): ScmApi {
     verifyWebhook: (p, headers, raw) => (p === "gitlab" ? verifyGitLab(headers, gl().webhookSecret) : verifyGitHub(headers, raw, gh().webhookSecret)),
     testConnection: (p) => glOnly(p).probe(),
     checkProject: (p, path) => glOnly(p).probeProject(path),
+    searchProjects: (p, q) => glOnly(p).searchProjects(q),
+    listMrs: (p, path, state, q) => glOnly(p).listMrs(path, state, q),
     createWebhook: (p, path, url) => glOnly(p).ensureWebhook(path, url, gl().webhookSecret),
     parseWebhook: (p, headers, payload) => (p === "gitlab" ? parseGitLabWebhook(headers, payload, deps.botMention) : parseGitHubWebhook(headers, payload, deps.botMention)),
   };

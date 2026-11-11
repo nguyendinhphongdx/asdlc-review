@@ -1,4 +1,4 @@
-import type { FrameworkInfoDto, Paged, RequestReviewResultDto, RunDetailDto, RunListItemDto } from "@mrd/contracts";
+import type { DiscoverMrDto, DiscoverProjectDto, FrameworkInfoDto, Paged, RequestReviewResultDto, RunDetailDto, RunListItemDto } from "@mrd/contracts";
 import { qs, request } from "../../kernel/http.js";
 export const listRuns = (p: { limit?: number; offset?: number; minScore?: number; maxScore?: number; status?: string }) =>
   request<Paged<RunListItemDto>>(`/api/reviews${qs(p)}`);
@@ -8,3 +8,5 @@ export const rerun = (mrId: string) => request<RequestReviewResultDto>(`/api/mrs
 export const setFeedback = (findingId: string, feedback: "agree" | "disagree" | "fixed" | null) =>
   request<void>(`/api/findings/${findingId}/feedback`, { method: "POST", json: { feedback } });
 export const listFrameworks = () => request<FrameworkInfoDto[]>("/api/frameworks");
+export const discoverProjects = (q: string) => request<DiscoverProjectDto[]>(`/api/discover/projects${qs({ q })}`);
+export const discoverMrs = (project: string, state: string, q: string) => request<DiscoverMrDto[]>(`/api/discover/mrs${qs({ project, state, q })}`);

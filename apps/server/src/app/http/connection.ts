@@ -1,4 +1,4 @@
-import type { ConnectionStatusDto, ConnectionTestDto, RepoCheckDto, RepoWebhookDto, WebhookSecretDto } from "@mrd/contracts";
+import type { ConnectionStatusDto, DiscoverMrDto, DiscoverProjectDto, ConnectionTestDto, RepoCheckDto, RepoWebhookDto, WebhookSecretDto } from "@mrd/contracts";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ModuleError } from "../../kernel/errors.js";
@@ -65,6 +65,19 @@ export function registerConnectionRoutes(app: FastifyInstance, c: Container, pub
   app.post("/api/connection/webhook-secret/regenerate", async (): Promise<WebhookSecretDto> => {
     if (!m.secrets.canStore) throw new ModuleError("http", "not_configured", "Chưa có khoá mã hoá nên không thể lưu secret");
     return { secret: await credentials.regenerateWebhookSecret() };
+  });
+
+  // ---------- duyệt repo / MR của tài khoản ----------
+  app.get("/api/discover/projects", async (req): Promise<DiscoverProjectDto[]> => {
+    const { q } = z.object({ q: z.string().max(100).optional() }).parse(req.query);
+    const [found, repos] = await Promise.all([m.scm.searchProjects("gitlab", q ?? ""), m.repos.list()]);
+    const have = new Set(repos.map((r) => `${r.platform}/${r.fullPath}`));
+    return found.map((p) => ({ path: p.path, name: p.name, webUrl: p.webUrl, lastActivityAt: p.lastActivityAt?.toISOString() ?? null, registered: have.has(`gitlab/${p.path}`) }));
+  });
+  app.get("/api/discover/mrs", async (req): Promise<DiscoverMrDto[]> => {
+    const q = z.object({ project: z.string().min(3).max(300), state: z.enum(["opened", "merged", "all"]).default("opened"), q: z.string().max(100).optional() }).parse(req.query);
+    const list = await m.scm.listMrs("gitlab", q.project, q.state, q.q ?? "");
+    return list.map((x) => ({ ...x, updatedAt: x.updatedAt.toISOString() }));
   });
 
   // ---------- repo ----------
