@@ -11,6 +11,7 @@ import { createReviewsModule } from "../modules/reviews/index.js";
 import { createScmModule } from "../modules/scm/index.js";
 import { createScoringModule } from "../modules/scoring/index.js";
 import { createSecretsModule } from "../modules/secrets/index.js";
+import path from "node:path";
 import { createSettingsModule } from "../modules/settings/index.js";
 import { createWorkspaceModule } from "../modules/workspace/index.js";
 import type { Config } from "../kernel/config.js";
@@ -39,9 +40,14 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     defaults: {
       reviewProvider: config.REVIEW_PROVIDER, defaultFramework: "asdlc", publishComments: config.PUBLISH_COMMENTS,
       inlineMinSeverity: config.INLINE_MIN_SEVERITY, maxInlineComments: config.MAX_INLINE_COMMENTS, passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS,
-      triggerMode: "polling", pollIntervalMin: config.POLL_INTERVAL_MIN > 0 ? config.POLL_INTERVAL_MIN : 5,
+      workDir: "", triggerMode: "polling", pollIntervalMin: config.POLL_INTERVAL_MIN > 0 ? config.POLL_INTERVAL_MIN : 5,
     },
   });
+  // Thư mục clone/làm việc: mặc định trong DATA_DIR, đổi được trên UI (cache cập nhật khi cài đặt đổi).
+  let workDir = "";
+  const dirs = () => (workDir ? { reposDir: path.join(workDir, "repos"), runsDir: path.join(workDir, "runs") } : { reposDir: config.reposDir, runsDir: config.runsDir });
+  const refreshDirs = () => settings.get("workDir").then((v) => { workDir = v; }).catch(() => undefined);
+  events.subscribe("settings.changed", () => void refreshDirs());
   const identity = createIdentityModule({ db, events });
   const reviews = createReviewsModule({ db, events });
 
@@ -52,7 +58,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   const modules: Modules = {
     secrets,
     scm: createScmModule({ gitlab: credentials.gitlab, github: credentials.github, botMention: config.BOT_MENTION }),
-    workspace: createWorkspaceModule({ reposDir: config.reposDir, runsDir: config.runsDir, keepWorktrees: config.KEEP_WORKTREES }),
+    workspace: createWorkspaceModule({ reposDir: () => dirs().reposDir, runsDir: () => dirs().runsDir, keepWorktrees: config.KEEP_WORKTREES }),
     harness: createHarnessModule(),
     framework: createFrameworkModule({ frameworksDir: config.frameworksDir, db }),
     analysis: createAnalysisModule(),
@@ -87,8 +93,10 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
 
   return {
     modules, workflows, events, db, credentials, publicUrl: config.PUBLIC_URL,
+    storage: { dirs, defaults: { dataDir: config.dataDir, reposDir: config.reposDir, runsDir: config.runsDir } },
     /** Bật worker xử lý hàng đợi và poller (nếu cấu hình). */
     async startWorkers() {
+      await refreshDirs();
       const r = await modules.secrets.load();
       if (r.failed.length) log.warn("không giải mã được secret (sai khoá?)", { keys: r.failed });
       modules.queue.process(REVIEW_QUEUE, workflows.reviewMergeRequest as never);

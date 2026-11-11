@@ -1,4 +1,4 @@
-import type { ConnectionStatusDto, ConnectionTestDto, FrameworkInfoDto, HealthDto, ProviderInfoDto, SaveGitlabConnectionInput, SettingsDto, WebhookSecretDto } from "@mrd/contracts";
+import type { StorageCheckDto, StorageDto, ConnectionStatusDto, ConnectionTestDto, FrameworkInfoDto, HealthDto, ProviderInfoDto, SaveGitlabConnectionInput, SettingsDto, WebhookSecretDto } from "@mrd/contracts";
 import { request } from "../../kernel/http.js";
 export const getSettings = () => request<SettingsDto>("/api/settings");
 export const saveSettings = (s: Partial<SettingsDto>) => request<SettingsDto>("/api/settings", { method: "PUT", json: s });
@@ -12,3 +12,5 @@ export const deleteGitlabConnection = () => request<void>("/api/connection/gitla
 export const testConnection = () => request<ConnectionTestDto>("/api/connection/test", { method: "POST", json: {} });
 export const getWebhookSecret = () => request<WebhookSecretDto>("/api/connection/webhook-secret");
 export const regenerateWebhookSecret = () => request<WebhookSecretDto>("/api/connection/webhook-secret/regenerate", { method: "POST", json: {} });
+export const getStorage = () => request<StorageDto>("/api/storage");
+export const checkStorage = (path: string) => request<StorageCheckDto>("/api/storage/check", { method: "POST", json: { path } });

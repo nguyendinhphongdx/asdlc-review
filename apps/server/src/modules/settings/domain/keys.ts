@@ -1,3 +1,4 @@
+import path from "node:path";
 import { z } from "zod";
 
 /** Các khoá cấu hình runtime được phép chỉnh từ UI, kèm kiểu và mặc định. */
@@ -11,6 +12,8 @@ export const SETTING_SCHEMAS = {
   skipDrafts: z.boolean(),
   diffBudgetChars: z.number().int().min(10_000).max(1_000_000),
   /** Cách nhận MR mới: quét định kỳ (mặc định, chạy được sau NAT), webhook, hoặc chỉ review thủ công. */
+  /** Thư mục lưu repo đã clone (repos/) và thư mục làm việc tạm (runs/). Rỗng = mặc định trong DATA_DIR. */
+  workDir: z.string().max(500).refine((v) => v === "" || path.isAbsolute(v), "Phải là đường dẫn tuyệt đối"),
   triggerMode: z.enum(["polling", "webhook", "manual"]),
   pollIntervalMin: z.number().int().min(1).max(120),
 } as const;

@@ -1,4 +1,6 @@
-import type { ConnectionStatusDto, DiscoverMrDto, DiscoverProjectDto, ConnectionTestDto, RepoCheckDto, RepoWebhookDto, WebhookSecretDto } from "@mrd/contracts";
+import { access, constants, mkdir, readdir, stat, statfs } from "node:fs/promises";
+import path from "node:path";
+import type { StorageCheckDto, StorageDto, ConnectionStatusDto, DiscoverMrDto, DiscoverProjectDto, ConnectionTestDto, RepoCheckDto, RepoWebhookDto, WebhookSecretDto } from "@mrd/contracts";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ModuleError } from "../../kernel/errors.js";
@@ -65,6 +67,34 @@ export function registerConnectionRoutes(app: FastifyInstance, c: Container, pub
   app.post("/api/connection/webhook-secret/regenerate", async (): Promise<WebhookSecretDto> => {
     if (!m.secrets.canStore) throw new ModuleError("http", "not_configured", "Chưa có khoá mã hoá nên không thể lưu secret");
     return { secret: await credentials.regenerateWebhookSecret() };
+  });
+
+  // ---------- thư mục lưu repo clone ----------
+  const dirSize = async (dir: string, depth = 0): Promise<number> => {
+    if (depth > 12) return 0;
+    let total = 0;
+    for (const e of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) total += await dirSize(p, depth + 1);
+      else if (e.isFile()) total += (await stat(p).catch(() => null))?.size ?? 0;
+    }
+    return total;
+  };
+  app.get("/api/storage", async (): Promise<StorageDto> => {
+    const { reposDir, runsDir } = c.storage.dirs();
+    return { reposDir, runsDir, dataDir: c.storage.defaults.dataDir, custom: reposDir !== c.storage.defaults.reposDir, reposBytes: await dirSize(reposDir) };
+  });
+  app.post("/api/storage/check", async (req): Promise<StorageCheckDto> => {
+    const { path: p } = z.object({ path: z.string().max(500) }).parse(req.body);
+    if (!path.isAbsolute(p)) return { ok: false, error: "Phải là đường dẫn tuyệt đối (vd: /Users/ban/asdlc hoặc D:\\asdlc)" };
+    try {
+      await mkdir(p, { recursive: true });
+      await access(p, constants.W_OK);
+      const fs = await statfs(p).catch(() => null);
+      return { ok: true, freeBytes: fs ? Number(fs.bavail) * Number(fs.bsize) : undefined };
+    } catch (e) {
+      return { ok: false, error: `Không ghi được vào thư mục này: ${e instanceof Error ? e.message : String(e)}` };
+    }
   });
 
   // ---------- duyệt repo / MR của tài khoản ----------

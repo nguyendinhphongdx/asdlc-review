@@ -68,6 +68,18 @@ export interface RepoWebhookDto {
   events: WebhookEventDto[];
 }
 
+export interface StorageDto {
+  /** Thư mục repo clone và thư mục làm việc tạm đang dùng. */
+  reposDir: string;
+  runsDir: string;
+  /** Thư mục dữ liệu mặc định (cơ sở dữ liệu, khoá, và nơi chứa repos/ runs/ nếu chưa tuỳ chỉnh). */
+  dataDir: string;
+  custom: boolean;
+  /** Dung lượng thư mục repos/ (byte). */
+  reposBytes: number;
+}
+export interface StorageCheckDto { ok: boolean; error?: string; freeBytes?: number }
+
 /** Duyệt repo/MR của tài khoản đã kết nối (không cần dán link). */
 export interface DiscoverProjectDto {
   path: string;

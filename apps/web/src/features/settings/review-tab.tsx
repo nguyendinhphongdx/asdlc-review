@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { ErrorBox, Loading } from "../../kernel/page.js";
-import { getFrameworks, getHealth, getProviders, getSettings, saveSettings } from "./api.js";
+import { checkStorage, getStorage, getFrameworks, getHealth, getProviders, getSettings, saveSettings } from "./api.js";
 
 const Row = ({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) => (
   <div className="flex items-center justify-between gap-4 border-t py-3 first:border-0 first:pt-0"><span className="min-w-0"><span className="block">{label}</span>{hint && <span className="block text-xs text-muted-foreground">{hint}</span>}</span>{children}</div>
@@ -12,6 +13,41 @@ const Row = ({ label, hint, children }: { label: string; hint?: string; children
 const Check = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
   <input aria-label={label} type="checkbox" className="size-4 flex-none accent-[var(--primary)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
 );
+
+const fmtBytes = (n: number) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : n >= 1e6 ? `${(n / 1e6).toFixed(0)} MB` : `${Math.round(n / 1e3)} KB`);
+
+function StorageCard({ workDir, save }: { workDir: string; save: (p: { workDir: string }) => Promise<unknown> }) {
+  const qc = useQueryClient();
+  const st = useQuery({ queryKey: ["storage"], queryFn: getStorage });
+  const [val, setVal] = useState(workDir);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const apply = useMutation({
+    mutationFn: async (path: string) => {
+      if (path.trim()) {
+        const c = await checkStorage(path.trim());
+        if (!c.ok) throw new Error(c.error ?? "Thư mục không dùng được");
+      }
+      await save({ workDir: path.trim() });
+    },
+    onSuccess: () => { setMsg({ ok: true, text: "Đã lưu. Repo clone từ lần review sau sẽ nằm ở thư mục mới (repo cũ không tự di chuyển)." }); void qc.invalidateQueries({ queryKey: ["storage"] }); },
+    onError: (e) => setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) }),
+  });
+  return (
+    <Card><CardHeader><CardTitle>Lưu trữ</CardTitle><CardDescription>Nơi app clone repo (bản bare, chỉ có lịch sử git) và dựng thư mục làm việc tạm khi review.</CardDescription></CardHeader><CardContent>
+      <Row label="Thư mục lưu repo" hint="Để trống = dùng thư mục dữ liệu mặc định. App tạo thư mục con repos/ và runs/ bên trong.">
+        <div className="flex gap-2"><Input aria-label="Thư mục lưu repo" className="w-80" placeholder={st.data?.dataDir ?? ""} value={val} onChange={(e) => { setVal(e.target.value); setMsg(null); }} />
+          <Button size="sm" disabled={apply.isPending || val.trim() === workDir} onClick={() => apply.mutate(val)}>Lưu</Button>
+          {workDir && <Button size="sm" variant="outline" disabled={apply.isPending} onClick={() => { setVal(""); apply.mutate(""); }}>Mặc định</Button>}</div>
+      </Row>
+      {msg && <p role="status" className={`pb-2 text-sm ${msg.ok ? "text-success-fg" : "text-danger-fg"}`}>{msg.text}</p>}
+      {st.data && <dl className="grid gap-1 border-t pt-3 text-xs text-muted-foreground">
+        <div>Repo clone: <code>{st.data.reposDir}</code> · {fmtBytes(st.data.reposBytes)}</div>
+        <div>Thư mục làm việc tạm: <code>{st.data.runsDir}</code></div>
+        <div>Dữ liệu app (cơ sở dữ liệu, khoá): <code>{st.data.dataDir}</code></div>
+      </dl>}
+    </CardContent></Card>
+  );
+}
 
 export function ReviewTab() {
   const qc = useQueryClient();
@@ -48,6 +84,7 @@ export function ReviewTab() {
         <Row label="Bỏ qua MR nháp (Draft/WIP)" hint="MR có tiền tố Draft:/WIP: sẽ không được review cho tới khi sẵn sàng."><Check label="Bỏ qua MR nháp" checked={v.skipDrafts} onChange={(c) => save.mutate({ skipDrafts: c })} /></Row>
         <Row label="Ngân sách diff (ký tự)" hint="Vượt mức này, file ưu tiên thấp bị bỏ qua."><Input aria-label="Ngân sách diff (ký tự)" className="w-32" type="number" min={1000} step={1000} key={`b${v.diffBudgetChars}`} defaultValue={v.diffBudgetChars} onBlur={(e) => num(e.target.value, 1000, (n) => n !== v.diffBudgetChars && save.mutate({ diffBudgetChars: n }))} /></Row>
       </CardContent></Card>
+      <StorageCard workDir={v.workDir} save={(p) => save.mutateAsync(p)} />
       <Card><CardHeader><CardTitle>Hệ thống</CardTitle></CardHeader><CardContent>
         {h.data && <div className="flex flex-wrap gap-2">
           <Badge>Queue: {h.data.queue}</Badge>

@@ -3,8 +3,9 @@ import { parseNumstat, safeName, truncateDiff, type NumstatEntry } from "./domai
 import { addWorktree, diffAgainstBase, ensureBare, gitRunner, removeWorktree, resolveBase, sanitizeWorktree } from "./infra/git.js";
 
 export interface WorkspaceDeps {
-  reposDir: string;
-  runsDir: string;
+  /** Chuỗi cố định hoặc hàm (để đổi thư mục lúc chạy mà không dựng lại module). */
+  reposDir: string | (() => string);
+  runsDir: string | (() => string);
   keepWorktrees?: boolean;
 }
 
@@ -46,8 +47,8 @@ export interface WorkspaceApi {
 export function createWorkspaceModule(deps: WorkspaceDeps): WorkspaceApi {
   return {
     async prepare(req) {
-      const bareDir = path.join(deps.reposDir, `${safeName(req.repoKey)}.git`);
-      const wtDir = path.join(deps.runsDir, req.runId);
+      const bareDir = path.join(typeof deps.reposDir === "function" ? deps.reposDir() : deps.reposDir, `${safeName(req.repoKey)}.git`);
+      const wtDir = path.join(typeof deps.runsDir === "function" ? deps.runsDir() : deps.runsDir, req.runId);
       const git = gitRunner({ auth: req.authHeader, secrets: req.secrets ?? [] });
 
       await ensureBare(git, bareDir, req.cloneUrl, [
