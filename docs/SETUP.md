@@ -79,7 +79,7 @@ Trạng thái webhook trên trang repo: **Hoạt động** (đã nhận sự ki�
 |---|---|---|
 | Bỏ qua MR nháp | bật | Draft/WIP không được review tự động (dán link thủ công vẫn chạy) |
 | Ngân sách diff | 120 000 ký tự | Diff lớn hơn: review phần ưu tiên, liệt kê file bị bỏ qua trong báo cáo và comment |
-| Ngưỡng inline, số inline tối đa, `PUBLISH_COMMENTS` | `major`, 15, bật | Điều khiển mức độ comment lên MR |
+| Ngưỡng inline, số inline tối đa, `PUBLISH_COMMENTS` | `major`, 15, tắt (không tự comment) | Điều khiển mức độ comment lên MR |
 
 ## 6. Xử lý sự cố
 | Triệu chứng | Nguyên nhân thường gặp |

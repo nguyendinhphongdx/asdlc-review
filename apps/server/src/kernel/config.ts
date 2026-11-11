@@ -62,7 +62,7 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env) {
   return {
     ...env,
     PUBLIC_URL: env.PUBLIC_URL ?? `http://localhost:${env.PORT}`,
-    PUBLISH_COMMENTS: env.PUBLISH_COMMENTS ?? true,
+    PUBLISH_COMMENTS: env.PUBLISH_COMMENTS ?? false,
     KEEP_WORKTREES: env.KEEP_WORKTREES ?? false,
     databaseUrl,
     dataDir,
