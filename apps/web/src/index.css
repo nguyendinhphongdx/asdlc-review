@@ -154,7 +154,9 @@
 .anim-bar { transform-origin: left; animation: grow-x 1s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .anim-glow { animation: glow 3.2s ease-in-out infinite; }
 .anim-shine::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28), transparent); animation: shine 3.6s ease-in-out infinite; }
-@media (prefers-reduced-motion: reduce) { .anim-rise, .anim-pop, .anim-float, .anim-fall, .anim-slide, .anim-bar, .anim-glow, .anim-shine::after { animation: none !important; } }
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+.anim-spin { animation: spin-slow 80s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .anim-spin, .anim-rise, .anim-pop, .anim-float, .anim-fall, .anim-slide, .anim-bar, .anim-glow, .anim-shine::after { animation: none !important; } }
 
 /* ?still=1 — tắt animation để chụp ảnh tĩnh */
 .still *, .still *::after { animation: none !important; }
