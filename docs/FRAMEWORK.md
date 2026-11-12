@@ -39,7 +39,7 @@ overview:
     - { id: what, title: MR này làm gì, kind: text, maxWords: 90, guide: "…", enabled: true }
     - { id: simpler, title: Có cách đơn giản hơn?, kind: verdict, verdicts: [Không, "Có, đáng thử trước", "Có, nên làm thay"], maxWords: 100, guide: "…" }
 mrDescription:
-  penalty: 5                            # mức phạt mỗi tài liệu bắt buộc thiếu (0–30): ≥8 → major, ≥3 → minor, còn lại nit; 0 = chỉ cảnh báo, không finding
+  penalty: 3                            # mức độ finding khi thiếu tài liệu bắt buộc: 0 = chỉ cảnh báo, 1 = nit, 3 = minor, 8 = major (giao diện chọn theo tên mức)
   docs:
     - { kind: Tài liệu thiết kế, required: true, pattern: "docs/.*\\.md|notion\\.so", hint: "Dán link thiết kế" }
 ```

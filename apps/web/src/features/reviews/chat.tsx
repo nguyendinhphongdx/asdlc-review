@@ -1,7 +1,8 @@
-import type { ActionDto, ChatImageDto, ChatStepDto, LessonDto } from "@mrd/contracts";
+import type { ActionDto, ChatImageDto, ChatStepDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Check, FileText, Minus, MessageSquare, Sparkles, Trash2, X } from "lucide-react";
+import { FileText, Minus, MessageSquare, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from "@/components/ai-elements/conversation";
@@ -13,46 +14,12 @@ import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-e
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
-import { readAttachmentText, approveAction, approveLesson, deleteLesson, dismissAction, getChat, rejectLesson, sendChat } from "./api.js";
+import { readAttachmentText, approveAction, dismissAction, getChat, sendChat } from "./api.js";
 
 const SUGGEST = ["Giải thích finding nghiêm trọng nhất", "Finding nào có thể là báo nhầm?", "Đọc code liên quan và kiểm tra lại", "Soạn comment cho finding quan trọng nhất", "nhớ: ", "review lại"];
 const TOOL_LABEL: Record<string, string> = { Read: "Đọc file", Grep: "Tìm trong code", Glob: "Liệt kê file", get_review: "Xem kết quả review", get_diff: "Xem diff MR", get_framework: "Xem framework", get_harness: "Xem harness", propose_comment: "Soạn comment", propose_rerun: "Đề xuất chạy lại" };
 const TEXT_EXT = /\.(txt|md|log|json|diff|patch|ya?ml|toml|csv|tsx?|jsx?|py|go|rs|java|kt|rb|php|sh|sql|html|css|xml)$/i;
 const MAX_TEXT = 24_000;
-
-function Lessons({ lessons, onChange }: { lessons: LessonDto[]; onChange: () => void }) {
-  const act = useMutation({ mutationFn: async (a: { id: string; op: "ok" | "no" | "del" }) => { if (a.op === "ok") await approveLesson(a.id); else if (a.op === "no") await rejectLesson(a.id); else await deleteLesson(a.id); }, onSuccess: onChange });
-  const proposed = lessons.filter((l) => l.status === "proposed");
-  const active = lessons.filter((l) => l.status === "active");
-  if (!lessons.length) return <p className="text-[13px] text-muted-foreground">Chưa có bài học nào. Gõ <span className="font-mono">nhớ: …</span> hoặc sửa lại agent khi nó sai để nó học.</p>;
-  return (
-    <div className="flex flex-col gap-3">
-      {proposed.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="text-[13px] font-medium">Đề xuất, chờ bạn duyệt</div>
-          {proposed.map((l) => (
-            <div key={l.id} className="flex items-start gap-2 rounded-lg border border-warning bg-warning-bg px-3 py-2 text-[13px] text-warning-fg">
-              <span className="min-w-0 flex-1">{l.text}</span>
-              <Button size="sm" variant="outline" aria-label="Duyệt bài học" onClick={() => act.mutate({ id: l.id, op: "ok" })}><Check />Duyệt</Button>
-              <Button size="sm" variant="outline" aria-label="Bỏ bài học" onClick={() => act.mutate({ id: l.id, op: "no" })}><X />Bỏ</Button>
-            </div>
-          ))}
-        </div>
-      )}
-      {active.length > 0 && (
-        <ul className="flex flex-col gap-1.5">
-          {active.map((l) => (
-            <li key={l.id} className="flex items-start gap-2 text-[13px]">
-              <Badge variant="success">đang áp dụng</Badge>
-              <span className="min-w-0 flex-1">{l.text}</span>
-              <button type="button" aria-label="Xoá bài học" className="text-muted-foreground hover:text-danger-fg" onClick={() => act.mutate({ id: l.id, op: "del" })}><Trash2 className="size-3.5" /></button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 function Steps({ steps, live }: { steps: ChatStepDto[]; live?: boolean }) {
   if (!steps.length) return null;
@@ -142,7 +109,6 @@ export function AgentChat({ mrId, active, connected }: { mrId: string; active: b
   const setMode = (m: Mode) => { setModeState(m); try { localStorage.setItem("mrd.chat.mode", m); } catch { /* không lưu được thì thôi */ } };
   const [pending, setPending] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [lessonsOpen, setLessonsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const q = useQuery({ queryKey: ["chat", mrId], queryFn: () => getChat(mrId), refetchInterval: busy ? 1200 : false });
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["chat", mrId] }); void qc.invalidateQueries({ queryKey: ["runs"] }); };
@@ -176,7 +142,6 @@ export function AgentChat({ mrId, active, connected }: { mrId: string; active: b
         {mode === "min" && waiting > 0 && <Badge variant="warning">{waiting} chờ duyệt</Badge>}
         {mode === "min" && busy && <Shimmer duration={1}>đang làm…</Shimmer>}
       </button>
-      <Button size="icon-sm" variant="ghost" aria-label="Sổ tay bài học" onClick={() => { setMode("open"); setLessonsOpen((v) => !v); }}><BookOpen /></Button>
       <Button size="icon-sm" variant="ghost" aria-label={mode === "min" ? "Mở rộng" : "Thu gọn"} onClick={() => setMode(mode === "min" ? "open" : "min")}>{mode === "min" ? <MessageSquare /> : <Minus />}</Button>
       <Button size="icon-sm" variant="ghost" aria-label="Đóng" onClick={() => setMode("closed")}><X /></Button>
     </div>
@@ -188,11 +153,8 @@ export function AgentChat({ mrId, active, connected }: { mrId: string; active: b
   return (
     <div className="fixed bottom-5 right-5 z-50 flex h-[min(680px,calc(100vh-6rem))] w-[min(440px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border bg-card shadow-xl" role="dialog" aria-label="Trợ lý review">
       {header}
-      {lessonsOpen && (
-        <div className="max-h-56 overflow-y-auto border-b bg-muted/30 p-3">
-          <div className="mb-2 text-[13px] font-medium">Sổ tay của repo</div>
-          <Lessons lessons={q.data?.lessons ?? []} onChange={refresh} />
-        </div>
+      {proposed > 0 && (
+        <div className="border-b bg-warning-bg px-3 py-2 text-[13px] text-warning-fg">AI đề xuất {proposed} mục cho bộ nhớ repo — duyệt ở <Link className="font-medium underline" to="/repos">Repository → Bộ nhớ</Link>.</div>
       )}
       <Conversation className="relative min-h-0 flex-1" aria-label="Hội thoại">
         <ConversationContent>

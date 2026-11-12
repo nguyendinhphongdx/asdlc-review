@@ -19,7 +19,7 @@ import { HarnessPanel } from "../../kernel/harness.js";
 import { addNote, deleteNote, getRun, listFrameworks, listNotes, openRunStream, setFeedback } from "./api.js";
 import { useReviewRequest } from "./use-review-request.js";
 import { LogTab } from "./log-tab.js";
-import { ProgressStrip, defaultLogStage } from "./strip.js";
+import { ProgressStrip } from "./strip.js";
 import { AgentChat } from "./chat.js";
 import { STAGES } from "../../kernel/stages.js";
 
@@ -88,7 +88,7 @@ export function ReviewDetailPage() {
       </div>
       {r.error && !(r.status === "failed" && STAGES.some((x) => x.id === r.stage)) && <ErrorBox error={r.error} />}
 
-      <ProgressStrip r={r} entries={entries} onPickStage={openLog} onViewLog={() => openLog(defaultLogStage(r, entries))} retrying={re.isPending} retried={re.isSuccess} onRetry={() => re.mutate({ mrId: r.mr.id })} />
+      <ProgressStrip r={r} entries={entries} onPickStage={openLog} retrying={re.isPending} retried={re.isSuccess} onRetry={() => re.mutate({ mrId: r.mr.id })} />
       {re.error && <ErrorBox error={re.error} />}
       {re.notice && !re.error && !re.isPending && <p role="status" className="text-[13px] text-muted-foreground">{re.notice}</p>}
 
@@ -151,23 +151,25 @@ function OverviewTab({ r, frameworkName }: { r: RunDetailDto; frameworkName?: st
         </Card>
       )}
 
-      {r.gates.map((g) => (
+      {[...r.gates].sort((a, b) => a.cap - b.cap).slice(0, 1).map((g) => (
         <section key={g.id} role="alert" className="flex gap-3 rounded-xl border border-danger bg-danger-bg px-5 py-4 text-danger-fg">
           <CircleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
-          <div><div className="font-semibold">Cổng chặn — điểm tối đa {g.cap}</div><div className="mt-0.5 text-[13px]">{g.reason}</div></div>
+          <div><div className="font-semibold">Cổng chặn — điểm tối đa {g.cap}</div><div className="mt-0.5 text-[13px]">{g.reason}{r.gates.length > 1 && ` (và ${r.gates.length - 1} cổng khác nhẹ hơn)`}</div></div>
         </section>
       ))}
 
-      {(r.strengths.length > 0 || r.intent) && (
+      {(r.strengths.length > 0 || (r.intent && !(r.overview ?? []).length)) && (
         <Card><CardHeader><CardTitle>Ghi nhận</CardTitle></CardHeader><CardContent className="flex flex-col gap-2 text-sm">
-          {r.intent && <p className="text-muted-foreground">Ý định MR: {r.intent}</p>}
+          {r.intent && !(r.overview ?? []).length && <p className="text-muted-foreground">Ý định MR: {r.intent}</p>}
           {r.strengths.length > 0 && <ul className="list-disc pl-5 text-success-fg">{r.strengths.map((s) => <li key={s}>{s}</li>)}</ul>}
         </CardContent></Card>
       )}
 
       {r.harnessReport && (
-        <Card><CardHeader className="flex-row flex-wrap items-baseline justify-between gap-2"><CardTitle>Độ phủ harness của repo</CardTitle><span className="text-xs text-muted-foreground">Chỉ để gợi ý, không ảnh hưởng điểm</span></CardHeader>
-          <CardContent><HarnessPanel report={r.harnessReport} compact /></CardContent></Card>
+        <Card className="gap-0 py-0"><details className="group">
+          <summary className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2 px-6 py-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="font-semibold">Độ phủ harness của repo · {Math.round(r.harnessReport.score)}/100</span><span className="text-xs text-muted-foreground">Chỉ để gợi ý, không ảnh hưởng điểm · bấm để xem</span></summary>
+          <div className="px-6 pb-5"><HarnessPanel report={r.harnessReport} compact /></div>
+        </details></Card>
       )}
 
       {r.categoryScores.length > 0 && (
@@ -182,7 +184,12 @@ function OverviewTab({ r, frameworkName }: { r: RunDetailDto; frameworkName?: st
           ))}
         </CardContent></Card>
       )}
-      <RuleChecklist checks={r.ruleChecks ?? []} />
+      {(r.ruleChecks ?? []).length > 0 && (
+        <details className="group rounded-xl">
+          <summary className="cursor-pointer rounded-xl border bg-card px-6 py-4 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring">Checklist theo rule ({r.ruleChecks.filter((c) => c.status !== "unchecked").length}/{r.ruleChecks.length} đã kiểm tra) · bấm để xem</summary>
+          <div className="mt-3"><RuleChecklist checks={r.ruleChecks} /></div>
+        </details>
+      )}
     </>
   );
 }

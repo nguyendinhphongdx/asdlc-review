@@ -10,6 +10,10 @@ const KIND_LABEL: Record<OverviewKind, string> = { text: "Đoạn văn", bullets
 const TEXTAREA = "w-full rounded-md border bg-transparent px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** Xem khung "Đánh giá tổng quan" (chỉ đọc). */
+/** Mức độ finding khi thiếu tài liệu bắt buộc; lưu dưới dạng số `penalty` (0 tắt, 1 nit, 3 minor, 8 major) để tương thích bản cũ. */
+const MISSING_LEVELS = [{ value: 0, label: "Chỉ cảnh báo" }, { value: 1, label: "nit" }, { value: 3, label: "minor" }, { value: 8, label: "major" }];
+const levelOf = (p: number) => (p >= 8 ? 8 : p >= 3 ? 3 : p > 0 ? 1 : 0);
+
 export function OverviewView({ overview, mrDescription }: { overview: OverviewSpec; mrDescription: MrDescriptionSpec }) {
   return (
     <>
@@ -39,7 +43,7 @@ export function OverviewView({ overview, mrDescription }: { overview: OverviewSp
 function MrDescriptionView({ spec }: { spec: MrDescriptionSpec }) {
   return (
     <Card>
-      <CardHeader><CardTitle>Chuẩn mô tả MR</CardTitle><CardDescription>Tài liệu cần gắn trong mô tả MR. Kết quả hiện ở khối “Mô tả MR” trên trang review.{spec.penalty > 0 ? ` Thiếu mục bắt buộc thành finding (điểm trừ ${spec.penalty}).` : " Hiện không tính vào điểm."}</CardDescription></CardHeader>
+      <CardHeader><CardTitle>Chuẩn mô tả MR</CardTitle><CardDescription>Tài liệu cần gắn trong mô tả MR. Kết quả hiện ở khối “Mô tả MR” trên trang review.{spec.penalty > 0 ? ` Thiếu mục bắt buộc thành finding mức ${MISSING_LEVELS.find((l) => l.value === levelOf(spec.penalty))?.label ?? "minor"}.` : " Hiện không tính vào điểm."}</CardDescription></CardHeader>
       <CardContent className="flex flex-col">
         {spec.docs.length === 0 && <p className="text-sm text-muted-foreground">Chưa khai báo loại tài liệu nào.</p>}
         {spec.docs.map((d) => (
@@ -107,7 +111,10 @@ export function OverviewEditor({ overview, mrDescription, onOverview, onMrDescri
         <CardHeader className="flex-row flex-wrap items-baseline justify-between gap-2"><div><CardTitle>Chuẩn mô tả MR</CardTitle><CardDescription>Loại tài liệu cần gắn trong mô tả MR. “Cách nhận diện” là biểu thức chính quy (không phân biệt hoa thường).</CardDescription></div>
           <Button type="button" size="sm" variant="outline" onClick={() => onMrDescription({ ...mrDescription, docs: [...mrDescription.docs, { kind: "Tài liệu mới", required: false, pattern: "", hint: "" }] })}><Plus />Thêm loại</Button></CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <label className="flex items-center justify-between gap-3 text-sm"><span>Điểm trừ khi thiếu tài liệu bắt buộc<span className="block text-xs text-muted-foreground">0 = không trừ. Từ 3 thành finding minor, từ 8 thành major.</span></span><Input aria-label="Điểm trừ khi thiếu tài liệu" type="number" min={0} max={30} className="w-20 text-right tabular-nums" value={mrDescription.penalty} onChange={(e) => onMrDescription({ ...mrDescription, penalty: Math.min(30, Math.max(0, Number(e.target.value) || 0)) })} /></label>
+          <label className="flex items-center justify-between gap-3 text-sm"><span>Khi thiếu tài liệu bắt buộc<span className="block text-xs text-muted-foreground">Tạo một finding ở mức này và chấm như finding thường; “Chỉ cảnh báo” thì không trừ điểm.</span></span>
+            <select aria-label="Mức độ khi thiếu tài liệu" className="h-9 rounded-md border border-input bg-transparent px-2 text-sm" value={levelOf(mrDescription.penalty)} onChange={(e) => onMrDescription({ ...mrDescription, penalty: Number(e.target.value) })}>
+              {MISSING_LEVELS.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
+            </select></label>
           {mrDescription.docs.map((d, i) => {
             const patchDoc = (p: Partial<typeof d>) => onMrDescription({ ...mrDescription, docs: mrDescription.docs.map((x, k) => (k === i ? { ...x, ...p } : x)) });
             let bad = false;

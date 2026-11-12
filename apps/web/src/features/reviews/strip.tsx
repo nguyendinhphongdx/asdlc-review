@@ -40,8 +40,8 @@ export function defaultLogStage(r: RunDetailDto, entries: RunActivityEntry[]): s
 const GRADE_TONE = "border-warning";
 
 /** Thanh tiến trình gọn, luôn nằm trên cùng trang review: trạng thái, 8 bước (bấm vào để xem log bước đó), điểm và chi phí. */
-export function ProgressStrip({ r, entries, onPickStage, onViewLog, onRetry, retrying, retried }: {
-  r: RunDetailDto; entries: RunActivityEntry[]; onPickStage: (id: string) => void; onViewLog: () => void;
+export function ProgressStrip({ r, entries, onPickStage, onRetry, retrying, retried }: {
+  r: RunDetailDto; entries: RunActivityEntry[]; onPickStage: (id: string) => void;
   onRetry: () => void; retrying: boolean; retried: boolean;
 }) {
   const live = r.status === "queued" || r.status === "running";
@@ -101,7 +101,6 @@ export function ProgressStrip({ r, entries, onPickStage, onViewLog, onRetry, ret
             {r.model && <div className="font-mono">{r.model}</div>}
             <div className="tabular-nums">{r.costUsd != null ? `$${r.costUsd.toFixed(2)}` : ""}</div>
           </div>
-          <Button size="sm" variant="outline" onClick={onViewLog}>Xem log</Button>
         </div>
       </div>
       <div className="h-[3px] bg-muted" aria-hidden="true"><div className={cn("h-full transition-all", r.status === "failed" ? "bg-danger" : r.status === "succeeded" ? "bg-success" : "bg-primary")} style={{ width: `${pct}%` }} /></div>
