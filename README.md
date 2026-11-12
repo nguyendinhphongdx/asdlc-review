@@ -84,7 +84,7 @@ docs/  tools/arch/   tài liệu, bộ kiểm luật kiến trúc
 | pnpm | 10+ |
 | git | có trong `PATH` |
 | AI | `claude` hoặc `codex` CLI đã đăng nhập, **hoặc** `OPENAI_API_KEY` |
-| Redis | tuỳ chọn; đặt `REDIS_URL=memory` để dùng hàng đợi trong process |
+| Redis | không bắt buộc: mặc định hàng đợi chạy trong process (`REDIS_URL=memory`); chỉ đặt `redis://…` khi cần hàng đợi bền hoặc nhiều server |
 
 ### Chạy từ mã nguồn
 ```bash

@@ -17,7 +17,8 @@ const EnvSchema = z.object({
   DATA_DIR: z.string().default("./data"),
   DATABASE_URL: z.string().optional(),
   /** "memory" = hàng đợi trong process (dev/test); còn lại là URL Redis cho BullMQ. */
-  REDIS_URL: z.string().default("redis://127.0.0.1:6379"),
+  /** "memory" = hàng đợi trong process (mặc định, không cần cài gì). Đặt redis://… nếu muốn hàng đợi bền qua khởi động lại / chạy nhiều server. */
+  REDIS_URL: z.string().default("memory"),
   REVIEW_CONCURRENCY: z.coerce.number().int().min(1).default(2),
   FRAMEWORKS_DIR: z.string().default("./frameworks"),
   WEB_DIST: z.string().default("./apps/web/dist"),

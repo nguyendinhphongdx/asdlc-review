@@ -17,6 +17,6 @@ Trạng thái job nằm trong Redis (BullMQ). Không có bảng SQLite.
 Không cần port.
 
 ## Quyết định
-- Hai driver sau cùng một interface: `bullmq` (Redis) và `memory` (dev/test, đặt `REDIS_URL=memory`).
+- Hai driver sau cùng một interface: `bullmq` (Redis) và `memory` (mặc định: không cần cài gì; job chưa chạy sẽ mất khi khởi động lại, poller/webhook tự xếp lại) và `bullmq` (Redis, tuỳ chọn khi cần bền/nhiều server).
 - jobId trùng khi job còn chờ/đang chạy thì bị bỏ qua (khử trùng); job đã xong thì được phép thêm lại.
 - Dấu ":" trong jobId được thay bằng "_" vì BullMQ không chấp nhận.
