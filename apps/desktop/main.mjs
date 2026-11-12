@@ -88,7 +88,10 @@ async function createWindow() {
   await win.loadURL((await waitReady()) ? url : `data:text/plain,Server không khởi động được`);
 }
 
+app.setName("ASDLC Review");
 app.whenReady().then(async () => {
+  // Chạy dev (`electron .`) thì Dock mặc định là icon Electron; bản đóng gói đã có icon riêng.
+  if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(path.join(path.dirname(fileURLToPath(import.meta.url)), "icon.png")));
   startServer();
   await createWindow();
   tray = new Tray(nativeImage.createEmpty());
