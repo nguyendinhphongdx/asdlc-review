@@ -50,15 +50,27 @@ function InboxTab() {
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[13px] text-muted-foreground" aria-live="polite">
-          {d ? <>Lần poll gần nhất: {ago(d.polledAt)} · {d.autoPolling ? "tự động poll và tự xếp hàng review cho repo bật tự động" : "chế độ thủ công/webhook: chỉ cập nhật danh sách, không tự review"}</> : "Đang tải…"}
+          {d ? <>Lần poll gần nhất: {ago(d.polledAt)} · đã quét {d.repos.polled}/{d.repos.enabled} repo, thấy {d.openMrs} MR đang mở · {d.autoPolling ? "tự động poll và tự xếp hàng review cho repo bật tự động" : "chế độ thủ công/webhook: chỉ cập nhật danh sách, không tự review"}</> : "Đang tải…"}
         </p>
         <Button variant="outline" disabled={refresh.isPending} onClick={() => refresh.mutate()}><RefreshCw className={cn(refresh.isPending && "animate-spin")} />{refresh.isPending ? "Đang poll…" : "Làm mới"}</Button>
       </div>
+      {d && !d.connected && (
+        <section role="alert" className="rounded-xl border border-danger bg-danger-bg px-5 py-4 text-danger-fg">
+          <div className="font-semibold">Chưa kết nối GitLab nên poller không lấy được MR nào</div>
+          <div className="mt-0.5 text-[13px]">Vào <Link className="font-medium underline" to="/settings">Cài đặt → Kết nối</Link> để nhập URL và token (nếu đã nhập mà vẫn báo thế này, token có thể không giải mã được: hãy nhập lại).</div>
+        </section>
+      )}
+      {d?.connected && d.repos.enabled === 0 && (
+        <section role="status" className="rounded-xl border border-warning bg-warning-bg px-5 py-4 text-warning-fg">
+          <div className="font-semibold">Chưa có repo nào được thêm</div>
+          <div className="mt-0.5 text-[13px]">Poller chỉ quét các repo đã thêm. Bấm “Tìm MR” và review một MR (repo sẽ tự được thêm), hoặc thêm ở trang <Link className="font-medium underline" to="/repos">Repository</Link>.</div>
+        </section>
+      )}
       {refresh.error && <ErrorBox error={refresh.error} />}
       {run.error && <ErrorBox error={run.error} />}
       {d?.errors.map((e) => <p key={e.repo} role="alert" className="text-[13px] text-danger-fg">Không lấy được MR của {e.repo}: {e.message}</p>)}
       {q.isLoading ? <Loading /> : q.error ? <ErrorBox error={q.error} /> : !d?.items.length ? (
-        <Empty>Không có MR nào đang chờ review. Bấm “Làm mới” để poll ngay, hoặc “Tìm MR” để chọn MR từ repo chưa thêm.</Empty>
+        <Empty>{d?.openMrs ? `Có ${d.openMrs} MR đang mở nhưng tất cả đã được review ở commit hiện tại (xem tab lịch sử).` : "Không có MR nào đang chờ review. Bấm “Làm mới” để poll ngay, hoặc “Tìm MR” để chọn MR từ repo chưa thêm."}</Empty>
       ) : (
         <Card className="overflow-hidden">
           <Table className="min-w-[860px]">

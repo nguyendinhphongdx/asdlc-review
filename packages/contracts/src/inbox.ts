@@ -22,4 +22,10 @@ export interface InboxDto {
   /** Poller tự chạy và tự xếp hàng review cho repo bật tự động. */
   autoPolling: boolean;
   errors: { repo: string; message: string }[];
+  /** GitLab đã có token chưa (chưa có thì poller không làm gì). */
+  connected: boolean;
+  /** Số repo đã thêm và đang bật / số repo poll thành công ở lần gần nhất. */
+  repos: { enabled: number; polled: number };
+  /** Tổng MR đang mở thấy được ở lần poll gần nhất (kể cả MR đã review). */
+  openMrs: number;
 }

@@ -15,11 +15,13 @@ export function createInbox(m: Modules, requestReview: RequestReview, log: Logge
   const cache = new Map<string, Cached>();
   let polledAt: Date | null = null;
   let errors: InboxDto["errors"] = [];
+  let polledRepos = 0;
   let inflight: Promise<{ queued: number }> | null = null;
 
   const run = async (review: boolean): Promise<{ queued: number }> => {
     let queued = 0;
     const errs: InboxDto["errors"] = [];
+    let ok = 0;
     for (const repo of await m.repos.list()) {
       const platform = repo.platform as "gitlab" | "github";
       if (!repo.enabled || !m.scm.isConfigured(platform) || platform !== "gitlab") continue;
@@ -34,12 +36,15 @@ export function createInbox(m: Modules, requestReview: RequestReview, log: Logge
           }
         }
         await m.repos.markPolled(repo.id, started);
+        ok++;
       } catch (err) {
         errs.push({ repo: repo.fullPath, message: String(err).slice(0, 200) });
         log.warn("poll repo lỗi", { repo: repo.fullPath, err: String(err).slice(0, 200) });
       }
     }
     errors = errs;
+    polledRepos = ok;
+    if (!m.scm.isConfigured("gitlab")) log.warn("poll: GitLab chưa có token, bỏ qua (Cài đặt → Kết nối)");
     polledAt = new Date();
     if (queued) log.info("poll: đã xếp hàng review", { queued });
     return { queued };
@@ -68,7 +73,9 @@ export function createInbox(m: Modules, requestReview: RequestReview, log: Logge
         }
       }
       items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-      return { items, polledAt: polledAt?.toISOString() ?? null, autoPolling, errors };
+      const enabled = [...repos.values()].filter((r) => r.enabled).length;
+      const openMrs = [...cache.values()].reduce((n, c) => n + c.mrs.length, 0);
+      return { items, polledAt: polledAt?.toISOString() ?? null, autoPolling, errors, connected: m.scm.isConfigured("gitlab"), repos: { enabled, polled: polledRepos }, openMrs };
     },
     get hasData() { return cache.size > 0; },
   };
