@@ -5,6 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkForUpdates } from "./updater.mjs";
 import { app, BrowserWindow, Menu, Tray, nativeImage, safeStorage, shell } from "electron";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -70,8 +71,11 @@ app.whenReady().then(async () => {
   await createWindow();
   tray = new Tray(nativeImage.createEmpty());
   tray.setTitle("MR");
-  tray.setContextMenu(Menu.buildFromTemplate([{ label: "Mở", click: () => win.show() }, { label: "Thoát", click: () => app.quit() }]));
+  const update = (manual) => checkForUpdates({ manual, win, onQuit: () => app.quit() });
+  tray.setContextMenu(Menu.buildFromTemplate([{ label: "Mở", click: () => win.show() }, { label: `Kiểm tra cập nhật (v${app.getVersion()})`, click: () => void update(true) }, { label: "Thoát", click: () => app.quit() }]));
   tray.on("click", () => win.show());
+  setTimeout(() => void update(false), 15_000);
+  setInterval(() => void update(false), 6 * 3600_000);
 });
 app.on("activate", () => win?.show());
 app.on("before-quit", () => { quitting = true; server?.kill("SIGTERM"); });
