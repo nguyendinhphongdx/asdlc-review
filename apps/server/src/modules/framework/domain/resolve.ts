@@ -1,6 +1,6 @@
 import YAML from "yaml";
 import type { Rubric } from "@mrd/contracts";
-import { RepoConfigSchema, type FrameworkFile, type RepoConfig } from "./schema.js";
+import { DEFAULT_MR_DESCRIPTION, DEFAULT_OVERVIEW, RepoConfigSchema, type FrameworkFile, type RepoConfig } from "./schema.js";
 
 export interface ParsedRepoConfig {
   config: RepoConfig | null;
@@ -73,6 +73,8 @@ export function buildRubric(base: FrameworkFile, repo: RepoConfig | null, versio
     sizeBaseline: fw.sizeBaseline,
     categories: fw.categories.map((c) => ({ ...c, criteria: c.criteria.map(({ enabled: _e, locked: _k, ...r }) => r) })),
     repoNotes: repo?.notes,
+    overview: fw.overview ?? DEFAULT_OVERVIEW,
+    mrDescription: fw.mrDescription ?? DEFAULT_MR_DESCRIPTION,
     publish: fw.publish, // chỉ framework quyết định; .asdlc.yml của repo không đổi được
   };
 }

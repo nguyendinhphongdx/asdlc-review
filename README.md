@@ -111,7 +111,7 @@ pnpm desktop
 | `MRD_SECRET_KEY` | Khoá mã hoá token trong DB (≥ 16 ký tự). Bỏ trống: tự tạo `data/secret.key` |
 | `GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET` | Cho GitHub (đang phát triển) |
 | `BOT_MENTION` | Từ khoá trong comment để trigger review |
-| `REVIEW_PROVIDER` | `claude-cli` \| `codex-cli` \| `openai-compatible` |
+| `REVIEW_PROVIDER` | `claude-cli` \| `codex-cli` \| `gemini-api` \| `openai-compatible` |
 | `CLAUDE_MODEL`, `CLAUDE_MAX_BUDGET_USD` | Model và trần chi phí mỗi review |
 | `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | Provider tương thích OpenAI |
 | `REDIS_URL` | `sqlite` (mặc định), `memory` hoặc `redis://…` |

@@ -12,6 +12,11 @@ const Edit = z.object({
   grades: z.array(z.object({ grade: z.enum(["A", "B", "C", "D", "F"]), min: z.number().min(0).max(100) })).min(1),
   sizeBaseline: z.number().min(1).max(100000),
   publish: z.object({ comments: z.boolean(), inlineMinSeverity: Severity, maxInline: z.number().int().min(0).max(100) }).optional(),
+  overview: z.object({
+    guide: z.string().max(4000),
+    sections: z.array(z.object({ id: z.string().min(1).max(40), title: z.string().max(120), enabled: z.boolean(), kind: z.enum(["text", "bullets", "verdict"]), maxWords: z.number().int().min(20).max(400), guide: z.string().max(2000), verdicts: z.array(z.string().max(60)).max(8) })).max(12),
+  }).optional(),
+  mrDescription: z.object({ docs: z.array(z.object({ kind: z.string().max(60), required: z.boolean(), pattern: z.string().max(300), hint: z.string().max(200) })).max(12), penalty: z.number().min(0).max(30) }).optional(),
   categories: z.array(z.object({
     id: z.string().max(40), name: z.string().max(120), weight: z.number().min(0).max(1000),
     criteria: z.array(z.object({ id: z.string().max(40), title: z.string().max(200), check: z.string().max(2000), why: z.string().max(1000).default(""), defaultSeverity: Severity, enabled: z.boolean() })).max(200),

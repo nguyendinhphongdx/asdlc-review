@@ -42,3 +42,13 @@ export interface MemberDirectory {
 export interface Params {
   passScore(): Promise<number>;
 }
+
+/** Một run (mọi trạng thái) với chi phí/token để thống kê usage. */
+export interface UsageRow {
+  runId: string; mrId: string; iid: number; title: string; repositoryId: string; repoName: string; createdAt: Date; status: string;
+  provider: string | null; model: string | null; frameworkId: string | null; costUsd: number | null; durationMs: number | null; score: number | null;
+  inputTokens: number | null; outputTokens: number | null; cacheReadTokens: number | null; cacheWriteTokens: number | null;
+}
+export interface UsageSource {
+  rows(range: { from: Date; to: Date }): Promise<UsageRow[]>;
+}

@@ -3,7 +3,7 @@ import { systemClock } from "../../kernel/clock.js";
 import type { Db } from "../../kernel/db.js";
 import { ModuleError } from "../../kernel/errors.js";
 import type { EventBus } from "../../kernel/event-bus.js";
-import type { MrDto, MrFact, MrSnapshot, RunDetail, RunFilter, RunListItem, RunResult, RunSummary, StartRunInput } from "./domain/types.js";
+import type { MrDto, MrFact, MrSnapshot, RunDetail, RunFilter, RunListItem, RunResult, RunSummary, StartRunInput, RuleStats, UsageRunRow } from "./domain/types.js";
 import { ReviewRepository } from "./infra/repository.js";
 
 export interface ReviewsDeps {
@@ -41,6 +41,11 @@ export interface ReviewsApi {
   getRun(id: string): Promise<RunDetail>;
   listRuns(filter: RunFilter): Promise<{ items: RunListItem[]; total: number }>;
   setFindingFeedback(findingId: string, feedback: "agree" | "disagree" | "fixed" | null): Promise<void>;
+
+  /** Mọi run đã kết thúc (thành công/lỗi) trong khoảng, kèm chi phí/token — cho thống kê usage. */
+  usageRows(range: { from: Date; to: Date }): Promise<UsageRunRow[]>;
+  /** Số finding theo rule + phản hồi của người dùng trên các run thành công gần nhất dùng framework này. */
+  ruleStats(frameworkId: string, limitRuns?: number): Promise<RuleStats>;
 
   /** Dữ kiện thô cho phân tích (module khác tự tính metric). */
   facts(range: { from: Date; to: Date }): Promise<MrFact[]>;
@@ -98,6 +103,8 @@ export function createReviewsModule(deps: ReviewsDeps): ReviewsApi {
     },
     listRuns: (f) => repo.listRuns(f),
     setFindingFeedback: (id, fb) => repo.setFeedback(id, fb),
+    usageRows: (r) => repo.usageRows(r.from, r.to),
+    ruleStats: (id, n = 50) => repo.ruleStats(id, n),
     facts: (range) => repo.facts(range.from, range.to),
   };
 }

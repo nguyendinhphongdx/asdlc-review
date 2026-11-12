@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Field, Modal, Switch } from "../../kernel/modal.js";
 import { updateFramework } from "./api.js";
 import { allowedSeverities, countChanges, SEVERITIES, toDraft, toInput, validateDraft, type Draft } from "./draft.js";
+import { OverviewEditor } from "./overview-editor.js";
 import { RuleDialog, type RuleDraft } from "./rule-dialog.js";
 import { LockedBadge } from "./view.js";
 
@@ -185,6 +186,8 @@ export function FrameworkEditor({ detail, repoCount, onCancel, onSaved, onDirty 
           </CardContent>
         </Card>
       </div>
+
+      <OverviewEditor overview={draft.overview} mrDescription={draft.mrDescription} onOverview={(overview) => setDraft((d) => ({ ...d, overview }))} onMrDescription={(mrDescription) => setDraft((d) => ({ ...d, mrDescription }))} />
 
       {ruleDlg && <RuleDialog editing={ruleDlg.rule} categoryId={ruleDlg.cat} categories={draft.categories} onSave={saveRule} onClose={() => setRuleDlg(null)} />}
       {saving && <SaveDialog d={detail} draft={draft} repoCount={repoCount} changes={changes} onClose={() => setSaving(false)} onSaved={onSaved} />}

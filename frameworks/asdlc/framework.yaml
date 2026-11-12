@@ -57,6 +57,55 @@ publish:
   inlineMinSeverity: major
   maxInline: 15
 
+# "Đánh giá tổng quan" trên trang review: framework quyết định có mục nào, thứ tự, AI được hướng dẫn viết gì.
+# kind: text (đoạn văn) | bullets (gạch đầu dòng) | verdict (một nhãn + giải thích). maxWords: trần độ dài mỗi mục.
+overview:
+  guide: >-
+    Viết như một kiến trúc sư đọc MR từ xa: nêu mục đích và đánh đổi trước, chi tiết dòng code sau.
+    Khách quan, có chính kiến, không khen xã giao. Câu ngắn. Mỗi nhận định phải dẫn được file, commit
+    hoặc tài liệu; không bịa số liệu.
+  sections:
+    - id: what
+      title: MR này làm gì
+      kind: text
+      maxWords: 90
+      guide: "Tóm tắt hành vi hệ thống thay đổi, không liệt kê file. Người chưa đọc code phải hiểu được: cái gì được thêm, bỏ, đổi."
+    - id: how
+      title: Cách giải quyết
+      kind: text
+      maxWords: 90
+      guide: "Mô tả cơ chế kỹ thuật chính và nó nằm ở tầng nào. Chỉ nói thiết kế, không bình luận chất lượng ở mục này."
+    - id: why
+      title: Vì sao chọn cách này
+      kind: bullets
+      maxWords: 120
+      guide: "Suy ra lý do từ mô tả MR và tài liệu liên kết. Liệt kê các đánh đổi tác giả đã chấp nhận. Không có căn cứ thì ghi rõ “không rõ lý do”."
+    - id: simpler
+      title: Có cách đơn giản hơn?
+      kind: verdict
+      maxWords: 100
+      verdicts: ["Không", "Có, đáng thử trước", "Có, nên làm thay"]
+      guide: "Đề xuất giải pháp ít thay đổi hơn mà đạt cùng mục tiêu; so sánh chi phí vận hành, độ phức tạp, rủi ro. Chọn “Không” nếu đây thật sự là cách gọn nhất."
+    - id: far
+      title: Nhìn từ xa
+      kind: bullets
+      maxWords: 120
+      guide: "Lùi khỏi diff: có hợp kiến trúc không, tạo phụ thuộc mới gì, rủi ro vận hành, ảnh hưởng module khác. Lấy quy tắc kiến trúc của repo làm chuẩn."
+    - id: next
+      title: Đề xuất
+      kind: bullets
+      maxWords: 60
+      enabled: false
+      guide: "Tối đa 3 việc, xếp theo tác động lên điểm. Mỗi việc một dòng, bắt đầu bằng động từ."
+
+# Chuẩn mô tả MR: tài liệu cần đính kèm. pattern là biểu thức chính quy (không phân biệt hoa thường) khớp với mô tả MR.
+# penalty > 0: mỗi tài liệu bắt buộc bị thiếu thành một finding (>=8 major, >=3 minor, còn lại nit). Mặc định không đòi gì.
+mrDescription:
+  penalty: 0
+  docs:
+    - { kind: Ticket, required: false, pattern: "(jira|linear|youtrack)[^\\s]*|\\b[A-Z]{2,}-\\d+\\b|#\\d+", hint: "Gắn mã ticket hoặc issue vào mô tả" }
+    - { kind: "Spec / PRD", required: false, pattern: "(confluence|notion\\.so|docs\\.google)[^\\s]*|docs/specs?/\\S+", hint: "Link tới yêu cầu gốc" }
+
 # Kích thước MR: minor/nit được chia cho hệ số sqrt(changedLines / sizeBaseline),
 # để MR lớn không bị phạt dồn vì nhiều lỗi vặt; blocker/critical/major giữ nguyên.
 sizeBaseline: 200

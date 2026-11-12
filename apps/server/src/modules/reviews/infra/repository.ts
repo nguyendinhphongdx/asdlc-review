@@ -1,10 +1,37 @@
 import type { Db } from "../../../kernel/db.js";
 import { fingerprint } from "../domain/fingerprint.js";
-import type { FindingDto, MrDto, MrFact, MrSnapshot, RunDetail, RunFilter, RunListItem, RunResult, RunSummary, StartRunInput } from "../domain/types.js";
+import type { FindingDto, MrDto, MrFact, MrSnapshot, RunDetail, RunFilter, RunListItem, RunResult, RunSummary, StartRunInput, RuleStat, RuleStats, UsageRunRow } from "../domain/types.js";
 import { parse, toMrDto, toRunSummary } from "./mappers.js";
 
 export class ReviewRepository {
   constructor(private db: Db) {}
+
+  async usageRows(from: Date, to: Date): Promise<UsageRunRow[]> {
+    const rows = await this.db.reviewRun.findMany({
+      where: { createdAt: { gte: from, lte: to }, status: { in: ["succeeded", "failed"] } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, createdAt: true, status: true, provider: true, model: true, frameworkId: true, costUsd: true, durationMs: true, score: true, inputTokens: true, outputTokens: true, cacheReadTokens: true, cacheWriteTokens: true, mergeRequest: { select: { id: true, iid: true, title: true, repositoryId: true } } },
+    });
+    return rows.map((r) => ({ runId: r.id, mrId: r.mergeRequest.id, iid: r.mergeRequest.iid, title: r.mergeRequest.title, repositoryId: r.mergeRequest.repositoryId, createdAt: r.createdAt, status: r.status, provider: r.provider, model: r.model, frameworkId: r.frameworkId, costUsd: r.costUsd, durationMs: r.durationMs, score: r.score, inputTokens: r.inputTokens, outputTokens: r.outputTokens, cacheReadTokens: r.cacheReadTokens, cacheWriteTokens: r.cacheWriteTokens }));
+  }
+
+  /** Thống kê finding theo rule trên các run thành công gần nhất của một framework (để cải thiện rule). */
+  async ruleStats(frameworkId: string, limitRuns: number): Promise<RuleStats> {
+    const runs = await this.db.reviewRun.findMany({ where: { frameworkId, status: "succeeded" }, orderBy: { createdAt: "desc" }, take: limitRuns, select: { id: true } });
+    const rows = runs.length ? await this.db.reviewFinding.findMany({ where: { runId: { in: runs.map((r) => r.id) } }, select: { ruleId: true, severity: true, feedback: true, source: true } }) : [];
+    const by = new Map<string, RuleStat>();
+    for (const f of rows) {
+      const id = f.ruleId ?? "(không gắn rule)";
+      const s = by.get(id) ?? { ruleId: id, count: 0, agree: 0, disagree: 0, fixed: 0, severities: {} };
+      s.count++;
+      if (f.feedback === "agree") s.agree++;
+      else if (f.feedback === "disagree") s.disagree++;
+      else if (f.feedback === "fixed") s.fixed++;
+      s.severities[f.severity] = (s.severities[f.severity] ?? 0) + 1;
+      by.set(id, s);
+    }
+    return { runs: runs.length, rules: [...by.values()].sort((a, b) => b.count - a.count) };
+  }
 
   async upsertMr(s: MrSnapshot): Promise<MrDto> {
     const data = {
@@ -68,8 +95,8 @@ export class ReviewRepository {
         data: {
           status: "succeeded", stage: "done", score: res.score, rawScore: res.rawScore, grade: res.grade, verdict: res.verdict, gates: JSON.stringify(res.gates),
           summary: res.summary, intent: res.intent, strengths: JSON.stringify(res.strengths), harnessFiles: JSON.stringify(res.harnessFiles),
-          filesChanged: res.filesChanged, additions: res.additions, deletions: res.deletions, durationMs: res.durationMs, costUsd: res.costUsd ?? null,
-          model: res.model ?? undefined, commentUrl: res.commentUrl ?? null, stageTimings: JSON.stringify(res.stageTimings ?? {}), omittedFiles: JSON.stringify(res.omittedFiles ?? []), ruleChecks: JSON.stringify(res.ruleChecks ?? []), activity: JSON.stringify(res.activity ?? []), harnessLoad: res.harnessLoad ? JSON.stringify(res.harnessLoad) : null, fileList: JSON.stringify(res.files ?? []), harnessReport: res.harnessReport ? JSON.stringify(res.harnessReport) : null, ...(res.frameworkId ? { frameworkId: res.frameworkId, frameworkVersion: res.frameworkVersion ?? null } : {}), finishedAt: now,
+          filesChanged: res.filesChanged, additions: res.additions, deletions: res.deletions, durationMs: res.durationMs, costUsd: res.costUsd ?? null, inputTokens: res.tokens?.inputTokens ?? null, outputTokens: res.tokens?.outputTokens ?? null, cacheReadTokens: res.tokens?.cacheReadTokens ?? null, cacheWriteTokens: res.tokens?.cacheWriteTokens ?? null,
+          model: res.model ?? undefined, commentUrl: res.commentUrl ?? null, stageTimings: JSON.stringify(res.stageTimings ?? {}), omittedFiles: JSON.stringify(res.omittedFiles ?? []), ruleChecks: JSON.stringify(res.ruleChecks ?? []), activity: JSON.stringify(res.activity ?? []), harnessLoad: res.harnessLoad ? JSON.stringify(res.harnessLoad) : null, overview: JSON.stringify(res.overview ?? []), mrContext: res.mrDescription ? JSON.stringify(res.mrDescription) : null, aiContext: res.aiContext ? JSON.stringify(res.aiContext) : null, fileList: JSON.stringify(res.files ?? []), harnessReport: res.harnessReport ? JSON.stringify(res.harnessReport) : null, ...(res.frameworkId ? { frameworkId: res.frameworkId, frameworkVersion: res.frameworkVersion ?? null } : {}), finishedAt: now,
         },
       });
       await tx.reviewFinding.createMany({
@@ -123,7 +150,7 @@ export class ReviewRepository {
       mr: toMrDto(r.mergeRequest),
       frameworkId: r.frameworkId, frameworkVersion: r.frameworkVersion, baseSha: r.baseSha, rawScore: r.rawScore,
       gates: parse(r.gates, []), summary: r.summary, intent: r.intent, strengths: parse(r.strengths, []), harnessFiles: parse(r.harnessFiles, []),
-      commits: r.commits, commentUrl: r.commentUrl, stageTimings: parse(r.stageTimings, {}), omittedFiles: parse(r.omittedFiles, []), harnessReport: parse(r.harnessReport, null), harnessLoad: parse(r.harnessLoad, null), activity: parse(r.activity, []), ruleChecks: parse(r.ruleChecks, []), files: parse(r.fileList, []),
+      commits: r.commits, commentUrl: r.commentUrl, stageTimings: parse(r.stageTimings, {}), omittedFiles: parse(r.omittedFiles, []), harnessReport: parse(r.harnessReport, null), harnessLoad: parse(r.harnessLoad, null), overview: parse(r.overview, []), mrDescription: parse(r.mrContext, null), aiContext: parse(r.aiContext, null), activity: parse(r.activity, []), ruleChecks: parse(r.ruleChecks, []), files: parse(r.fileList, []),
       findings: r.findings.map((f): FindingDto => ({ ...f, source: f.source as FindingDto["source"] })),
       categoryScores: r.categoryScores.map((c) => ({ category: c.category, name: c.name, weight: c.weight, score: c.score, deduction: c.deduction, findings: c.findings })),
     };

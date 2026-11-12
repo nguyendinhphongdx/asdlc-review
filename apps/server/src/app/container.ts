@@ -22,11 +22,13 @@ import { createEventBus } from "../kernel/event-bus.js";
 import type { Logger } from "../kernel/logger.js";
 import { createCredentials } from "./credentials.js";
 import { resolveMasterKey } from "./secret-key.js";
-import { memberDirectoryAdapter, paramsAdapter, runFactsAdapter } from "./adapters/analytics.js";
+import { memberDirectoryAdapter, paramsAdapter, runFactsAdapter, usageAdapter } from "./adapters/analytics.js";
 import type { AppSettings, Modules } from "./modules.js";
 import { createAgentChat } from "./workflows/agent-chat.js";
 import { createAgentActions } from "./workflows/agent-actions.js";
 import { createAgentTools } from "./agent-tools.js";
+import { createFrameworkTools } from "./framework-tools.js";
+import { createFrameworkChat } from "./workflows/framework-chat.js";
 import type { ChatStep } from "../modules/reviewer/index.js";
 import { createChatCommand } from "./workflows/chat-command.js";
 import { createHandleScmEvent } from "./workflows/handle-event.js";
@@ -46,7 +48,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     db, events,
     defaults: {
       reviewProvider: config.REVIEW_PROVIDER, defaultFramework: "asdlc",
-      claudeModel: config.CLAUDE_MODEL, codexModel: config.CODEX_MODEL, openaiModel: config.OPENAI_MODEL, chatModel: "",
+      claudeModel: config.CLAUDE_MODEL, codexModel: config.CODEX_MODEL, geminiModel: config.GEMINI_MODEL, openaiModel: config.OPENAI_MODEL, chatModel: "",
       passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS, maxBudgetUsd: config.CLAUDE_MAX_BUDGET_USD,
       workDir: "", triggerMode: "polling", pollIntervalMin: config.POLL_INTERVAL_MIN > 0 ? config.POLL_INTERVAL_MIN : 5,
     },
@@ -63,6 +65,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   const secrets = createSecretsModule({ db, masterKey: master.key });
   const credentials = createCredentials(config, secrets);
 
+  const repos = createReposModule({ db, events });
   const modules: Modules = {
     secrets,
     scm: createScmModule({ gitlab: credentials.gitlab, github: credentials.github, botMention: config.BOT_MENTION }),
@@ -73,6 +76,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     reviewer: createReviewerModule({
       claude: { bin: config.CLAUDE_BIN, model: config.CLAUDE_MODEL, maxBudgetUsd: config.CLAUDE_MAX_BUDGET_USD },
       codex: { bin: config.CODEX_BIN, model: config.CODEX_MODEL },
+      gemini: { apiKey: () => credentials.geminiKey(), baseUrl: config.GEMINI_BASE_URL, model: config.GEMINI_MODEL },
       openai: { baseUrl: config.OPENAI_BASE_URL, apiKey: config.OPENAI_API_KEY, model: config.OPENAI_MODEL },
       timeoutMs: config.REVIEW_TIMEOUT_MIN * 60_000,
       logger: log.child("reviewer"),
@@ -81,11 +85,11 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     publisher: createPublisherModule(),
     queue: createQueueModule({ redisUrl: config.REDIS_URL, db, concurrency: config.REVIEW_CONCURRENCY, logger: log.child("queue") }),
     identity,
-    repos: createReposModule({ db, events }),
+    repos,
     reviews,
     settings,
     agent: createAgentModule({ db }),
-    analytics: createAnalyticsModule({ facts: runFactsAdapter(reviews), members: memberDirectoryAdapter(identity), params: paramsAdapter(settings) }),
+    analytics: createAnalyticsModule({ facts: runFactsAdapter(reviews), members: memberDirectoryAdapter(identity), params: paramsAdapter(settings), usage: usageAdapter(reviews, repos) }),
     ...overrides, // dùng cho test: thay module thật bằng bản giả
   };
 
@@ -94,6 +98,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   const requestReview = createRequestReview(modules, log.child("request"), progress);
   const inbox = createInbox(modules, requestReview, log.child("poll"));
   const agentTools = createAgentTools(modules);
+  const frameworkTools = createFrameworkTools(modules);
   const chatLive = new Map<string, ChatStep[]>();
   const workflows = {
     requestReview,
@@ -103,10 +108,11 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     registerRepo: createRegisterRepo(modules),
     agentChat: createAgentChat(modules, requestReview, log.child("agent"), agentTools, `http://127.0.0.1:${config.PORT}`, chatLive),
     agentActions: createAgentActions(modules, requestReview, log.child("agent")),
+    frameworkChat: createFrameworkChat(modules, log.child("fw-chat"), frameworkTools, `http://127.0.0.1:${config.PORT}`, chatLive),
   };
 
   return {
-    modules, workflows, inbox, agentTools, chatLive, events, db, credentials, progress, publicUrl: config.PUBLIC_URL,
+    modules, workflows, inbox, agentTools, frameworkTools, chatLive, events, db, credentials, progress, publicUrl: config.PUBLIC_URL,
     storage: { dirs, defaults: { dataDir: config.dataDir, reposDir: config.reposDir, runsDir: config.runsDir } },
     /** Bật worker xử lý hàng đợi và poller (nếu cấu hình). */
     async startWorkers() {

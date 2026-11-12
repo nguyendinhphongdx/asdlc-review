@@ -8,7 +8,7 @@ export type ChatStep =
 export interface ChatTools { mcpUrl: string; mcpName: string }
 export interface ChatImage { mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; data: string }
 
-export type ProviderId = "claude-cli" | "codex-cli" | "openai-compatible";
+export type ProviderId = "claude-cli" | "codex-cli" | "gemini-api" | "openai-compatible";
 
 export interface ReviewHarnessFile {
   path: string;
@@ -34,13 +34,21 @@ export interface ReviewRequest {
   staticFindings: Finding[];
   /** Bài học đã duyệt của repo (sổ tay của agent) cần áp dụng thêm khi review. */
   notebook?: string[];
+  /** Ghi chú của người cho AI về MR này (tác giả/người review). */
+  notes?: { author: string; text: string }[];
+  /** Kết quả vòng review trước (nếu có) để AI kiểm tra lại thay vì bắt đầu từ đầu. */
+  previousRound?: { round: number; findings: { title: string; file: string | null; line: number | null; severity: string; status: "fixed" | "dismissed" | "open" }[] };
   /** Nhận hoạt động của AI theo thời gian thực (đọc file nào, đang suy luận…). */
   onActivity?: (a: ActivityEvent) => void;
 }
 
 export interface ActivityEvent { kind: "tool" | "ai"; message: string }
 
+/** Token đã dùng (nếu provider báo). */
+export interface TokenUsage { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number }
+
 export interface ReviewUsage {
+  tokens?: TokenUsage;
   provider: ProviderId;
   model: string;
   costUsd: number | null;
@@ -58,5 +66,5 @@ export interface Provider {
   readonly agentic: boolean;
   /** Hỏi đáp tự do, không công cụ (tuỳ chọn). */
   ask?(input: { model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
-  run(input: { model?: string; system: string; user: string; workdir: string; maxBudgetUsd?: number; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null }>;
+  run(input: { model?: string; system: string; user: string; workdir: string; maxBudgetUsd?: number; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null; tokens?: TokenUsage }>;
 }

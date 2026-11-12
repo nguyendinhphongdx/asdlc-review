@@ -1,12 +1,14 @@
-import type { DateRange, LeaderboardRow, OverviewStats, Report } from "@mrd/contracts";
+import type { DateRange, LeaderboardRow, OverviewStats, Report, UsageFilterDto, UsageReportDto } from "@mrd/contracts";
+import { applyFilter, computeUsage } from "./domain/usage.js";
 import { leaderboardCsv, reportMarkdown } from "./domain/export.js";
 import { computeByRepo, computeLeaderboard, computeOverview } from "./domain/metrics.js";
-import type { MemberDirectory, Params, RunFactsSource } from "./ports.js";
+import type { MemberDirectory, Params, RunFactsSource, UsageSource } from "./ports.js";
 
 export interface AnalyticsDeps {
   facts: RunFactsSource;
   members: MemberDirectory;
   params: Params;
+  usage: UsageSource;
 }
 
 export interface AnalyticsApi {
@@ -15,6 +17,8 @@ export interface AnalyticsApi {
   report(range: DateRange): Promise<Report>;
   exportMarkdown(range: DateRange, repoNames?: Record<string, string>): Promise<string>;
   exportCsv(range: DateRange): Promise<string>;
+  /** Chi phí/token các lượt review theo ngày, repo, model…; `filter` thu hẹp kết quả (tuỳ chọn bộ lọc luôn lấy từ toàn khoảng). */
+  usage(range: DateRange, filter?: UsageFilterDto): Promise<UsageReportDto>;
 }
 
 export function createAnalyticsModule(deps: AnalyticsDeps): AnalyticsApi {
@@ -41,6 +45,17 @@ export function createAnalyticsModule(deps: AnalyticsDeps): AnalyticsApi {
       return computeLeaderboard(mrs, members);
     },
     report,
+    async usage(range, filter = {}) {
+      const span = range.to.getTime() - range.from.getTime();
+      const rows = await deps.usage.rows({ from: new Date(range.from.getTime() - span), to: range.to });
+      const inRange = rows.filter((r) => r.createdAt >= range.from);
+      const uniq = (f: (r: (typeof rows)[number]) => string | null) => [...new Set(inRange.map(f).filter((v): v is string => !!v))].sort();
+      const options = {
+        repos: [...new Map(inRange.map((r) => [r.repositoryId, r.repoName])).entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
+        providers: uniq((r) => r.provider), models: uniq((r) => r.model), frameworks: uniq((r) => r.frameworkId),
+      };
+      return computeUsage(applyFilter(rows, filter), range, filter, options);
+    },
     exportMarkdown: async (range, names) => reportMarkdown(await report(range), names),
     exportCsv: async (range) => leaderboardCsv((await report(range)).leaderboard),
   };

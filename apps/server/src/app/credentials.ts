@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { SecretsApi } from "../modules/secrets/index.js";
 import type { Config } from "../kernel/config.js";
 
-export const KEY = { gitlabToken: "gitlab.token", gitlabUrl: "gitlab.url", gitlabWebhook: "gitlab.webhookSecret" } as const;
+export const KEY = { gitlabToken: "gitlab.token", gitlabUrl: "gitlab.url", gitlabWebhook: "gitlab.webhookSecret", geminiKey: "ai.gemini.apiKey" } as const;
 
 /**
  * Nguồn sự thật cho thông tin đăng nhập nền tảng: ưu tiên giá trị lưu trong DB (nhập từ UI),
@@ -17,6 +17,11 @@ export function createCredentials(config: Config, secrets: SecretsApi) {
   return {
     gitlab,
     github: () => ({ token: config.GITHUB_TOKEN, webhookSecret: config.GITHUB_WEBHOOK_SECRET }),
+    /** Gemini API key: ưu tiên khoá nhập ở UI (lưu mã hoá), dự phòng biến môi trường. */
+    geminiKey: (): string => secrets.peek(KEY.geminiKey) ?? config.GEMINI_API_KEY,
+    geminiSource: (): "db" | "env" | "none" => (secrets.peek(KEY.geminiKey) ? "db" : config.GEMINI_API_KEY ? "env" : "none"),
+    saveGeminiKey: (key: string) => secrets.set(KEY.geminiKey, key),
+    clearGeminiKey: () => secrets.delete(KEY.geminiKey),
     tokenSource: (): "db" | "env" | "none" => (secrets.peek(KEY.gitlabToken) ? "db" : config.GITLAB_TOKEN ? "env" : "none"),
     async saveGitlab(input: { baseUrl: string; token?: string }) {
       await secrets.set(KEY.gitlabUrl, input.baseUrl.replace(/\/+$/, ""));

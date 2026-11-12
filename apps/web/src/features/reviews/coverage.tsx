@@ -1,4 +1,4 @@
-import type { FileReviewDto, FindingDto, HarnessLoadDto, RuleCheckDto } from "@mrd/contracts";
+import type { HarnessLoadDto, RuleCheckDto } from "@mrd/contracts";
 import { Check, CircleHelp, Minus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge, SeverityBadge } from "@/components/ui/badge";
@@ -69,44 +69,6 @@ export function RuleChecklist({ checks }: { checks: RuleCheckDto[] }) {
           </section>
         ))}
         {groups.length === 0 && <p className="text-sm text-muted-foreground">Không có rule nào ở trạng thái này.</p>}
-      </CardContent>
-    </Card>
-  );
-}
-
-/** Mọi file MR đổi: file nào đã tới AI, file nào bị bỏ qua, và finding gắn theo file. */
-export function FileCoverage({ files, findings }: { files: FileReviewDto[]; findings: FindingDto[] }) {
-  const [onlyIssues, setOnlyIssues] = useState(false);
-  const byFile = useMemo(() => {
-    const m = new Map<string, FindingDto[]>();
-    for (const f of findings) if (f.file && f.kind === "issue") m.set(f.file, [...(m.get(f.file) ?? []), f]);
-    return m;
-  }, [findings]);
-  if (!files.length) return null;
-  const skipped = files.filter((f) => !f.reviewed).length;
-  const rows = [...files].sort((a, b) => Number(a.reviewed) - Number(b.reviewed) || (byFile.get(b.path)?.length ?? 0) - (byFile.get(a.path)?.length ?? 0) || b.additions + b.deletions - (a.additions + a.deletions))
-    .filter((f) => !onlyIssues || byFile.has(f.path) || !f.reviewed);
-  return (
-    <Card>
-      <CardHeader className="flex-row flex-wrap items-baseline justify-between gap-2">
-        <div><CardTitle>File trong MR <span className="font-normal text-muted-foreground">({files.length - skipped}/{files.length} đã gửi cho AI)</span></CardTitle>
-          <CardDescription>File bị bỏ qua (vượt ngân sách diff) không được AI xem trong diff; điểm không phản ánh chúng.</CardDescription></div>
-        <label className="flex items-center gap-2 text-sm"><input type="checkbox" className="size-4 accent-[var(--primary)]" checked={onlyIssues} onChange={(e) => setOnlyIssues(e.target.checked)} />Chỉ file có vấn đề / bị bỏ qua</label>
-      </CardHeader>
-      <CardContent>
-        <ul className="divide-y rounded-lg border">
-          {rows.map((f) => {
-            const fs = byFile.get(f.path) ?? [];
-            return (
-              <li key={f.path} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2 text-sm">
-                <span className="min-w-0 flex-1 break-all font-mono text-xs">{f.path}</span>
-                {!f.reviewed && <Badge variant="warning">Bị bỏ qua</Badge>}
-                {f.binary ? <span className="text-xs text-muted-foreground">binary</span> : <span className="font-mono text-xs tabular-nums"><span className="text-success-fg">+{f.additions}</span> <span className="text-danger-fg">−{f.deletions}</span></span>}
-                {fs.length > 0 && <span className="inline-flex gap-1">{fs.slice(0, 4).map((x) => <SeverityBadge key={x.id} severity={x.severity} />)}{fs.length > 4 && <span className="text-xs text-muted-foreground">+{fs.length - 4}</span>}</span>}
-              </li>
-            );
-          })}
-        </ul>
       </CardContent>
     </Card>
   );

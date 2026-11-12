@@ -1,15 +1,20 @@
+import type { FrameworkChangeDto, FrameworkOp } from "./framework.js";
 /** Hợp đồng chat với agent và sổ tay bài học (M2). */
 export type ChatStepDto =
   | { kind: "thinking"; text: string }
   | { kind: "tool"; id: string; name: string; input: Record<string, unknown>; output?: string; error?: boolean };
 export interface ChatMessageDto { id: string; role: "user" | "agent" | "system"; text: string; steps?: ChatStepDto[]; createdAt: string }
 export type LessonStatus = "proposed" | "active" | "rejected";
-export interface LessonDto { id: string; repoId: string; text: string; status: LessonStatus; source: "user" | "agent" | "feedback"; createdAt: string }
+export type LessonKind = "conv" | "arch" | "skip" | "term";
+/** Một mục trong bộ nhớ của repo (kiến thức bền, người duyệt mới nạp cho AI). `paths`: glob phân tách bằng phẩy, trống = mọi MR. */
+export interface LessonDto { id: string; repoId: string; text: string; status: LessonStatus; source: "user" | "agent" | "feedback"; kind: LessonKind; paths: string; createdAt: string }
+/** Ghi chú của người cho AI về một MR. */
+export interface NoteDto { id: string; mrId: string; author: string; text: string; createdAt: string }
 export interface ActionDto {
   id: string;
-  kind: "comment" | "rerun";
-  /** comment: file?, line?, body. rerun: reason. */
-  payload: { file?: string; line?: number; body?: string; reason?: string };
+  kind: "comment" | "rerun" | "framework_edit";
+  /** comment: file?, line?, body. rerun: reason. framework_edit: reason, ops, forkName? (bắt buộc khi framework đang chỉ đọc), changes (xem trước). */
+  payload: { file?: string; line?: number; body?: string; reason?: string; ops?: FrameworkOp[]; forkName?: string; changes?: FrameworkChangeDto[] };
   status: "pending" | "done" | "dismissed";
   createdAt: string;
 }

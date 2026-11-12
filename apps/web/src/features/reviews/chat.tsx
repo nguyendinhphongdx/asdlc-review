@@ -1,4 +1,4 @@
-import type { ActionDto, ChatImageDto, ChatStepDto, LessonDto, RunActivityEntry } from "@mrd/contracts";
+import type { ActionDto, ChatImageDto, ChatStepDto, LessonDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, Check, FileText, Minus, MessageSquare, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -14,7 +14,6 @@ import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import { readAttachmentText, approveAction, approveLesson, deleteLesson, dismissAction, getChat, rejectLesson, sendChat } from "./api.js";
-import { ActivityLog } from "./live-log.js";
 
 const SUGGEST = ["Giải thích finding nghiêm trọng nhất", "Finding nào có thể là báo nhầm?", "Đọc code liên quan và kiểm tra lại", "Soạn comment cho finding quan trọng nhất", "nhớ: ", "review lại"];
 const TOOL_LABEL: Record<string, string> = { Read: "Đọc file", Grep: "Tìm trong code", Glob: "Liệt kê file", get_review: "Xem kết quả review", get_diff: "Xem diff MR", get_framework: "Xem framework", get_harness: "Xem harness", propose_comment: "Soạn comment", propose_rerun: "Đề xuất chạy lại" };
@@ -137,7 +136,7 @@ const loadMode = (): Mode => { try { const v = localStorage.getItem("mrd.chat.mo
  * Trợ lý review dạng chat nổi (AI Elements): đóng/mở/thu gọn. Agent đọc kết quả review, diff, framework, harness và code repo
  * (Read/Grep/Glob), hiện suy luận và từng lệnh gọi tool; comment/chạy lại chỉ là đề xuất chờ bạn duyệt.
  */
-export function AgentChat({ mrId, live, active, connected }: { mrId: string; live: RunActivityEntry[]; active: boolean; connected: boolean }) {
+export function AgentChat({ mrId, active, connected }: { mrId: string; active: boolean; connected: boolean }) {
   const qc = useQueryClient();
   const [mode, setModeState] = useState<Mode>(loadMode);
   const setMode = (m: Mode) => { setModeState(m); try { localStorage.setItem("mrd.chat.mode", m); } catch { /* không lưu được thì thôi */ } };
@@ -195,7 +194,6 @@ export function AgentChat({ mrId, live, active, connected }: { mrId: string; liv
           <Lessons lessons={q.data?.lessons ?? []} onChange={refresh} />
         </div>
       )}
-      {active && <div className="max-h-40 overflow-y-auto border-b p-2"><ActivityLog entries={live} live /></div>}
       <Conversation className="relative min-h-0 flex-1" aria-label="Hội thoại">
         <ConversationContent>
           {msgs.length === 0 && !pending && <ConversationEmptyState title="Hỏi, nhờ hoặc dạy agent" description="Agent đọc được kết quả review, diff, code repo, framework và harness. Nó soạn comment / đề xuất chạy lại để bạn duyệt. Dán ảnh hoặc đính kèm file log/diff." />}

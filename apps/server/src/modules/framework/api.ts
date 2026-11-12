@@ -1,12 +1,13 @@
 import { randomBytes } from "node:crypto";
 import type {
-  ConfigPreviewDto, ConfigPreviewInput, FrameworkChangeDto, FrameworkDetailDto, FrameworkEditInput, FrameworkInfoDto, FrameworkKind, ForkFrameworkInput, Rubric,
+  ConfigPreviewDto, ConfigPreviewInput, FrameworkChangeDto, FrameworkOp, FrameworkPatchPreviewDto, FrameworkDetailDto, FrameworkEditInput, FrameworkInfoDto, FrameworkKind, ForkFrameworkInput, Rubric,
 } from "@mrd/contracts";
 import type { Db } from "../../kernel/db.js";
 import { ModuleError } from "../../kernel/errors.js";
 import { applyEdit, diffFrameworks, validateEdit } from "./domain/edit.js";
+import { applyOps } from "./domain/ops.js";
 import { buildRubric, checkRepoConfig, parseRepoConfig } from "./domain/resolve.js";
-import type { FrameworkFile, RepoConfig } from "./domain/schema.js";
+import { DEFAULT_MR_DESCRIPTION, DEFAULT_OVERVIEW, type FrameworkFile, type RepoConfig } from "./domain/schema.js";
 import { DbFrameworkStore } from "./infra/db-store.js";
 import { FsFrameworkSource } from "./infra/fs-source.js";
 
@@ -41,6 +42,10 @@ export interface FrameworkApi {
   fork(input: ForkFrameworkInput, author?: string): Promise<FrameworkDetailDto>;
   update(id: string, edit: FrameworkEditInput, author?: string): Promise<FrameworkDetailDto>;
   restore(id: string, version: number, author?: string): Promise<FrameworkDetailDto>;
+  /** Kiểm tra (không lưu) một danh sách thay đổi nhỏ: lỗi hợp lệ hoá + các thay đổi so với hiện tại. Dùng được cả cho bản chỉ đọc. */
+  previewPatch(id: string, ops: FrameworkOp[]): Promise<FrameworkPatchPreviewDto>;
+  /** Áp danh sách thay đổi thành phiên bản mới (chỉ bản tự tạo). */
+  patch(id: string, ops: FrameworkOp[], note: string, author?: string): Promise<FrameworkDetailDto>;
   remove(id: string): Promise<void>;
   /** Khác biệt giữa phiên bản hiện tại (hoặc `version`) và framework gốc lúc fork. */
   diffFromBase(id: string, version?: number): Promise<FrameworkChangeDto[]>;
@@ -76,6 +81,7 @@ export function createFrameworkModule(deps: FrameworkDeps): FrameworkApi {
       severity: file.severity as FrameworkDetailDto["severity"],
       gates: file.gates.map((g) => ({ id: g.id, reason: g.reason, capTotal: g.capTotal, when: g.when, locked: g.locked })),
       grades: [...file.grades].sort((a, b) => b.min - a.min), sizeBaseline: file.sizeBaseline, publish: file.publish,
+      overview: file.overview ?? DEFAULT_OVERVIEW, mrDescription: file.mrDescription ?? DEFAULT_MR_DESCRIPTION,
       categories: file.categories.map((c) => ({ id: c.id, name: c.name, weight: c.weight, criteria: c.criteria.map((r) => ({ id: r.id, title: r.title, check: r.check, why: r.why, defaultSeverity: r.defaultSeverity, enabled: r.enabled, locked: r.locked })) })),
       versions,
     };
@@ -86,6 +92,12 @@ export function createFrameworkModule(deps: FrameworkDeps): FrameworkApi {
     if (!meta) throw new ModuleError("framework", "invalid_input", "Bản mặc định và mẫu dựng sẵn chỉ đọc: hãy tạo bản chỉnh sửa (fork) trước");
     return meta;
   };
+  const toEdit = (f: FrameworkFile): FrameworkEditInput => ({
+    name: f.name, language: f.language, severity: f.severity as FrameworkEditInput["severity"],
+    gates: f.gates.map((g) => ({ id: g.id, reason: g.reason, capTotal: g.capTotal, when: g.when })),
+    grades: f.grades, sizeBaseline: f.sizeBaseline, publish: f.publish, overview: f.overview ?? DEFAULT_OVERVIEW, mrDescription: f.mrDescription ?? DEFAULT_MR_DESCRIPTION,
+    categories: f.categories.map((c) => ({ id: c.id, name: c.name, weight: c.weight, criteria: c.criteria.map((r) => ({ id: r.id, title: r.title, check: r.check, why: r.why, defaultSeverity: r.defaultSeverity, enabled: r.enabled })) })),
+  });
   const fail = (errors: string[]) => new ModuleError("framework", "invalid_input", errors.slice(0, 8).join("; "));
 
   return {
@@ -128,6 +140,19 @@ export function createFrameworkModule(deps: FrameworkDeps): FrameworkApi {
       if (!old) throw new ModuleError("framework", "not_found", "Không có phiên bản này");
       const v = await store!.addVersion(id, old.file, author, `Khôi phục từ v${version}`);
       return detailOf(id, v);
+    },
+    async previewPatch(id, ops) {
+      const cur = (await load(id)).file;
+      const { edit, errors } = applyOps(toEdit(cur), ops);
+      const all = [...errors, ...validateEdit(cur, edit)];
+      return { errors: all, changes: diffFrameworks(cur, applyEdit(cur, edit)) };
+    },
+    async patch(id, ops, note, author = "admin") {
+      await needCustom(id);
+      const cur = (await load(id)).file;
+      const { edit, errors } = applyOps(toEdit(cur), ops);
+      if (errors.length) throw fail(errors);
+      return this.update(id, { ...edit, ...(note.trim() ? { note: note.trim().slice(0, 200) } : {}) }, author);
     },
     async remove(id) {
       await needCustom(id);

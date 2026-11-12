@@ -6,7 +6,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, GradeBadge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { DataTable, type ColumnDef } from "@/components/data-table/data-table";
 import { fmtDate, fmtDur } from "../../kernel/format.js";
 import { ErrorBox, PageHeader } from "../../kernel/page.js";
@@ -78,9 +78,9 @@ function InboxTab() {
         {i.status === "running" ? <Badge variant="info"><Loader2 className="size-3 animate-spin" aria-hidden="true" />Đang review{i.stage && i.stage !== "start" ? ` · ${stageLabel(i.stage)}` : ""}</Badge> : i.status === "queued" ? <Badge variant="warning"><Clock className="size-3 animate-pulse" aria-hidden="true" />Đang chờ · hàng đợi</Badge> : i.status === "failed" ? <Badge variant="danger" title={i.error ?? ""}><AlertCircle className="size-3" aria-hidden="true" />Lỗi · bấm xem log</Badge> : i.status === "reviewed" ? <Badge variant="success"><CheckCircle2 className="size-3" aria-hidden="true" />Đã review</Badge> : <Badge variant="warning"><Clock className="size-3" aria-hidden="true" />Chờ review</Badge>}
         {i.draft && <Badge className="ml-1.5">Draft</Badge>}
       </>) },
-    { id: "review", header: () => <span className="sr-only">Review</span>, enableSorting: false, enableHiding: false, meta: { className: "w-24 text-right", headerClassName: "w-24" },
-      cell: ({ row: { original: i } }) => i.status === "failed" && i.runId ? <span className="inline-flex items-center gap-2"><Link to={`/reviews/${i.runId}`} className="text-sm font-medium hover:underline">Log</Link><Button size="sm" variant="outline" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>Review lại</Button></span>
-        : i.runId ? <Link to={`/reviews/${i.runId}`} className="text-sm font-medium hover:underline">Xem</Link>
+    { id: "review", header: () => <span className="sr-only">Review</span>, enableSorting: false, enableHiding: false, meta: { className: "w-52 text-right", headerClassName: "w-52" },
+      cell: ({ row: { original: i } }) => i.status === "failed" && i.runId ? <span className="inline-flex items-center gap-2"><Link to={`/reviews/${i.runId}`} className={buttonVariants({ size: "sm", variant: "outline" })}>Xem log</Link><Button size="sm" variant="outline" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>Review lại</Button></span>
+        : i.runId ? <Link to={`/reviews/${i.runId}`} className={buttonVariants({ size: "sm", variant: i.status === "reviewed" ? "outline" : "default" })}>{i.status === "reviewed" ? "Xem kết quả" : "Xem tiến trình"}</Link>
         : <Button size="sm" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>{run.isPending && run.variables === i.webUrl ? "Đang xếp hàng…" : "Review"}</Button> },
   ];
   return (

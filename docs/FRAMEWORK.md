@@ -30,6 +30,32 @@ categories:
 ```
 Điểm mỗi hạng mục bắt đầu 100, trừ theo `severity × độ tin cậy`; điểm tổng là trung bình có trọng số; sau đó áp gate. Chi tiết công thức: [SCORING.md](SCORING.md).
 
+## Đánh giá tổng quan (`overview`) và chuẩn mô tả MR (`mrDescription`)
+Hai phần này nằm trong framework nên tuỳ biến sâu theo đội; `.asdlc.yml` của repo không ghi đè được.
+```yaml
+overview:
+  guide: "Giọng văn chung cho cả phần tổng quan"
+  sections:
+    - { id: what, title: MR này làm gì, kind: text, maxWords: 90, guide: "…", enabled: true }
+    - { id: simpler, title: Có cách đơn giản hơn?, kind: verdict, verdicts: [Không, "Có, đáng thử trước", "Có, nên làm thay"], maxWords: 100, guide: "…" }
+mrDescription:
+  penalty: 5                            # mức phạt mỗi tài liệu bắt buộc thiếu (0–30): ≥8 → major, ≥3 → minor, còn lại nit; 0 = chỉ cảnh báo, không finding
+  docs:
+    - { kind: Tài liệu thiết kế, required: true, pattern: "docs/.*\\.md|notion\\.so", hint: "Dán link thiết kế" }
+```
+- **Overview**: mỗi mục có thứ tự, bật/tắt, kiểu (`text` đoạn văn, `bullets` gạch đầu dòng, `verdict` chọn một nhãn kèm lý do), giới hạn từ và hướng dẫn riêng. Mặc định có 5 mục (MR làm gì, cách giải quyết, vì sao chọn cách này, có cách đơn giản hơn không, nhìn từ xa) và một mục "Đề xuất" tắt sẵn. Sửa ở Framework → Chỉnh sửa.
+- **Chuẩn mô tả MR**: mỗi tài liệu có `pattern` (regex, không phân biệt hoa thường) dò trong phần mô tả MR. Thiếu tài liệu `required` thì (khi `penalty` > 0) sinh một finding tĩnh với mức độ suy từ `penalty`, rồi được chấm như finding thường; trang review hiện mô tả MR kèm trạng thái từng tài liệu. Mặc định không đòi tài liệu nào.
+
+## Bộ nhớ của AI
+AI không giữ phiên giữa các lần review. "Trí nhớ" đến từ ba tầng, đều nạp vào prompt và ghi lại ở tab **Ngữ cảnh AI** của từng review:
+| Tầng | Ở đâu | Nội dung |
+|---|---|---|
+| Framework | Framework | Tiêu chí, khung tổng quan, chuẩn mô tả MR (tuỳ biến toàn đội) |
+| Repo | Repository → **Bộ nhớ** | Quy ước, kiến trúc, thứ cần bỏ qua, thuật ngữ; có thể giới hạn theo path (glob). Chỉ mục **đã duyệt** mới nạp; AI đề xuất thì chờ bạn duyệt. Ngân sách tham khảo ~4k token. Mâu thuẫn với harness (AGENTS.md…) thì harness thắng |
+| MR | Review → **Ngữ cảnh AI** | Ghi chú của người về riêng MR đó, và danh sách góp ý vòng trước kèm trạng thái (đã xử lý / bỏ qua / còn mở) để vòng sau kiểm tra lại và không nêu lại mục đã bỏ qua |
+
+Điểm vẫn do code tính; bộ nhớ chỉ ảnh hưởng điều AI quan sát và báo.
+
 ## Đăng comment lên MR (`publish`)
 Mỗi framework có mục `publish`: `comments` (tự đăng comment tổng + inline lên MR), `inlineMinSeverity`, `maxInline`. **Mặc định tắt** ở mọi bản dựng sẵn: review chỉ chấm điểm và hiện trên dashboard. Muốn bật, tạo bản chỉnh sửa (fork) rồi bật ở Framework → Chỉnh sửa → "Đăng comment lên MR". `.asdlc.yml` của repo không bật được mục này.
 
@@ -62,4 +88,10 @@ Phần vi phạm (tắt rule locked, id trùng, hạng mục/rule không tồn t
 - **Một rule một ý.** Rule gộp nhiều ý sinh finding mơ hồ.
 - **`why` là câu hỏi cho tác giả**: "Nếu client retry thì giao dịch có bị tạo hai lần không?".
 - **Chọn mức độ theo hậu quả**: blocker/critical cho mất dữ liệu, bảo mật; major cho vi phạm bắt buộc; minor/nit cho gu.
-- Đừng thêm quá nhiều rule: AI ưu tiên ít finding giá trị cao. Thống kê tỉ lệ finding theo rule sẽ có ở M7.
+- Đừng thêm quá nhiều rule: AI ưu tiên ít finding giá trị cao. Số finding và tỉ lệ bị báo nhầm theo rule xem được qua chat AI ở trang Framework.
+
+## Chat AI cải thiện & xây framework
+Nút chat nổi ở trang **Framework** (cùng kiểu trợ lý ở trang MR). Agent (cần provider `claude-cli` để dùng tool; provider khác chỉ trả lời từ ngữ cảnh) có các tool: `get_framework`, `get_rule_stats` (finding/báo nhầm theo rule), `get_usage` (repo đang dùng + bài học của team), `preview_changes` (kiểm tra thử), `propose_edit`.
+- **Chỉ đề xuất**: `propose_edit` tạo thẻ chờ duyệt kèm diff; chỉ khi bấm **Áp dụng** server mới lưu thành phiên bản mới (ghi chú `AI: …`). Framework mặc định/mẫu (chỉ đọc) được fork thành bản chỉnh sửa tên do agent đề xuất.
+- **Luật bảo mật giữ nguyên**: thay đổi đi qua cùng `validateEdit` như khi sửa tay, nên không xoá/tắt/hạ rule locked (SEC-01) hay nới gate locked.
+- Điểm vẫn do code tính; agent không tự đổi điểm. Hội thoại lưu theo từng framework (`fw:<id>`).

@@ -1,9 +1,10 @@
+import { checkMrDescription, descriptionFindings } from "./mr-description.js";
 import type { Finding, ReviewJobData, ReviewReport } from "@mrd/contracts";
 import { ModuleError } from "../../kernel/errors.js";
 import type { ProgressHub } from "../progress.js";
 import type { Logger } from "../../kernel/logger.js";
 import type { Modules, AppSettings } from "../modules.js";
-import { toSnapshot } from "./mappers.js";
+import { providerModel, toSnapshot } from "./mappers.js";
 
 const RETRYABLE = new Set(["upstream_error", "timeout", "internal"]);
 
@@ -45,7 +46,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
 
     const settings = await m.settings.snapshot();
     const provider = (repo.provider ?? settings.reviewProvider) as typeof settings.reviewProvider;
-    const model = repo.model || (provider === "claude-cli" ? settings.claudeModel : provider === "codex-cli" ? settings.codexModel : settings.openaiModel);
+    const model = repo.model || providerModel(provider, settings);
     const previous = await m.reviews.latestSucceeded(rec.id);
     const runId = pre
       ? pre.runId
@@ -105,8 +106,25 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       emit("analysis", "info", `Phân tích tĩnh: ${analysis.findings.length} finding`);
       const stats = { filesChanged: files.length, additions: files.reduce((s, f) => s + f.additions, 0), deletions: files.reduce((s, f) => s + f.deletions, 0) };
 
-      const notebook = await m.agent.notebook(repo.id);
-      if (notebook.length) emit("review", "info", `Áp dụng ${notebook.length} bài học trong sổ tay của repo`);
+      const notebook = await m.agent.notebook(repo.id, files.map((f) => f.path));
+      if (notebook.length) emit("review", "info", `Áp dụng ${notebook.length} mục bộ nhớ của repo`);
+      const notes = (await m.agent.listNotes(rec.id)).map((n) => ({ author: n.author, text: n.text, createdAt: n.createdAt }));
+      if (notes.length) emit("review", "info", `Nạp ${notes.length} ghi chú của người cho MR này`);
+      const previousRound = previous
+        ? { round: previous.round, findings: previous.findings.map((f) => ({ title: f.title, file: f.file ?? null, line: f.lineStart ?? null, severity: f.severity, status: (f.feedback === "fixed" ? "fixed" : f.feedback === "disagree" ? "dismissed" : "open") as "fixed" | "dismissed" | "open" })) }
+        : null;
+      if (previousRound?.findings.length) emit("review", "info", `Nạp kết quả vòng ${previousRound.round}: ${previousRound.findings.length} góp ý để kiểm tra lại`);
+      const lessonObjs = (await m.agent.listLessons(repo.id, "active")).filter((l) => notebook.some((n) => n.endsWith(l.text)));
+      const aiContext = {
+        lessons: lessonObjs.map((l) => ({ kind: l.kind, paths: l.paths, text: l.text })),
+        notes,
+        previousRound: previousRound ? { ...previousRound, score: previous?.score ?? null } : null,
+        sources: [
+          { id: "memory", label: "Bộ nhớ repo", chars: notebook.join("\n").length },
+          { id: "notes", label: "Ghi chú MR", chars: notes.reduce((s, n) => s + n.text.length, 0) },
+          { id: "previous", label: "Vòng trước", chars: previousRound ? previousRound.findings.reduce((s, f) => s + f.title.length + 30, 0) : 0 },
+        ],
+      };
       const ai = await stage("review", () =>
         m.reviewer.review({
           provider, model, workdir: dir, maxBudgetUsd: settings.maxBudgetUsd,
@@ -114,11 +132,17 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
           mr: { iid: mr.iid, title: mr.title, description: mr.description, author: mr.authorUsername, sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, webUrl: mr.webUrl },
           rubric: fw.rubric,
           harness: { files: harness.files, tree: harness.tree, discovered: harness.discovered.map((d) => d.path) },
-          diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, stats, staticFindings: analysis.findings, notebook,
+          diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, stats, staticFindings: analysis.findings, notebook, notes, ...(previousRound?.findings.length ? { previousRound } : {}),
         }),
       );
 
-      const findings: Finding[] = [...analysis.findings, ...ai.review.findings.map((f): Finding => ({ ...f, source: "ai" }))];
+      const mrDescription = checkMrDescription({ title: mr.title, description: mr.description }, fw.rubric.mrDescription);
+      if (mrDescription.docs.length) emit("review", mrDescription.missingRequired ? "warn" : "info", mrDescription.missingRequired ? `Mô tả MR thiếu ${mrDescription.missingRequired} tài liệu bắt buộc: ${mrDescription.docs.filter((d) => d.required && !d.found).map((d) => d.kind).join(", ")}` : "Mô tả MR đủ tài liệu bắt buộc theo chuẩn của framework");
+      const overview = (fw.rubric.overview?.sections ?? []).filter((s) => s.enabled).flatMap((s) => {
+        const r = ai.review.overview.find((o) => o.id === s.id);
+        return r ? [{ id: s.id, title: s.title, kind: s.kind, text: r.text, bullets: r.bullets, verdict: s.kind === "verdict" ? (r.verdict ?? null) : null }] : [];
+      });
+      const findings: Finding[] = [...analysis.findings, ...descriptionFindings(mrDescription, fw.rubric.mrDescription, fw.rubric.categories[0]?.id ?? "scope"), ...ai.review.findings.map((f): Finding => ({ ...f, source: "ai" }))];
       const score = await stage("score", () => m.scoring.score({ rubric: fw.rubric, findings, changedLines: analysis.changedLines }));
       const scored = findings.map((f, i) => ({ ...f, deduction: score.deductions[i] ?? 0 }));
 
@@ -171,7 +195,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         activity: hub?.backlog(runId),
         score: score.total, rawScore: score.rawTotal, grade: score.grade, verdict: score.verdict, gates: score.gates,
         summary, intent: ai.review.intent, strengths: ai.review.strengths, harnessFiles: report.harnessFiles, ...stats,
-        durationMs: Date.now() - started, costUsd: ai.usage.costUsd, model: ai.usage.model, commentUrl, stageTimings: timings, omittedFiles: ws.omittedFiles, ruleChecks, harnessLoad, files: fileList, harnessReport, frameworkId: fw.rubric.id, frameworkVersion: fw.rubric.version,
+        durationMs: Date.now() - started, costUsd: ai.usage.costUsd, tokens: ai.usage.tokens ?? null, model: ai.usage.model, commentUrl, stageTimings: timings, omittedFiles: ws.omittedFiles, ruleChecks, harnessLoad, overview, mrDescription, aiContext, files: fileList, harnessReport, frameworkId: fw.rubric.id, frameworkVersion: fw.rubric.version,
         findings: scored.map((f) => ({ ...f })),
         categoryScores: score.categories,
       });

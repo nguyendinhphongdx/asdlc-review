@@ -103,7 +103,10 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
       }
       const payload = out.structured_output ?? out.result;
       const text = typeof payload === "string" ? payload : JSON.stringify(payload);
-      return { text, model: mdl || "claude", costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null };
+      const u = (out.usage ?? {}) as Record<string, unknown>;
+      const n = (k: string) => (typeof u[k] === "number" ? (u[k] as number) : 0);
+      const tokens = out.usage ? { inputTokens: n("input_tokens"), outputTokens: n("output_tokens"), cacheReadTokens: n("cache_read_input_tokens"), cacheWriteTokens: n("cache_creation_input_tokens") } : undefined;
+      return { text, model: mdl || "claude", costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null, ...(tokens ? { tokens } : {}) };
     },
   };
 }

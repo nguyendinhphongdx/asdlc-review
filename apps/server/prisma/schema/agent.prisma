@@ -17,17 +17,30 @@ model AgentLesson {
   status    String // proposed | active | rejected
   source    String // user | agent | feedback
   mrId      String?
+  kind      String   @default("conv") // conv (quy ước) | arch (kiến trúc) | skip (bỏ qua) | term (thuật ngữ)
+  paths     String   @default("") // glob đường dẫn, phân tách bằng dấu phẩy; trống = áp dụng mọi MR
   createdAt DateTime @default(now())
 
   @@index([repoId, status])
+}
+
+/// Ghi chú của người cho AI về MỘT MR (tác giả/người review); hết hiệu lực khi MR đóng.
+model AgentNote {
+  id        String   @id @default(cuid())
+  mrId      String
+  author    String
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([mrId, createdAt])
 }
 
 /// Đề xuất của agent chờ người duyệt: đăng comment lên MR hoặc chạy lại review.
 model AgentAction {
   id        String   @id @default(cuid())
   mrId      String
-  kind      String // comment | rerun
-  payload   String // JSON: { file?, line?, body?, reason? }
+  kind      String // comment | rerun | framework_edit
+  payload   String // JSON: { file?, line?, body?, reason?, ops?, forkName?, changes? }
   status    String // pending | done | dismissed
   createdAt DateTime @default(now())
 

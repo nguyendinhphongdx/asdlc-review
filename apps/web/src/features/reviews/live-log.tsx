@@ -1,6 +1,6 @@
 import type { RunActivityEntry } from "@mrd/contracts";
-import { Brain, CircleAlert, Check, FileSearch, Info } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Brain, ChevronDown, CircleAlert, Check, FileSearch, Info } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { stageLabel } from "../../kernel/stages.js";
 
@@ -28,5 +28,42 @@ export function ActivityLog({ entries, live }: { entries: RunActivityEntry[]; li
       })}
       <li ref={end} aria-hidden="true" />
     </ol>
+  );
+}
+
+/** Nhật ký của MỘT giai đoạn (không lặp tên giai đoạn). `live` tự cuộn xuống dòng mới nhất. */
+export function StageLog({ entries, live }: { entries: RunActivityEntry[]; live?: boolean }) {
+  const end = useRef<HTMLLIElement>(null);
+  useEffect(() => { if (live) end.current?.scrollIntoView({ block: "nearest" }); }, [entries.length, live]);
+  if (!entries.length) return <p className="py-1 text-xs text-muted-foreground">{live ? "Đang chờ tín hiệu đầu tiên…" : "Không có nhật ký cho giai đoạn này."}</p>;
+  return (
+    <ol aria-live={live ? "polite" : "off"} aria-label="Nhật ký giai đoạn" className="max-h-64 overflow-y-auto rounded-lg border bg-muted/30 p-2.5 font-mono text-xs leading-6">
+      {entries.map((e, i) => {
+        const Icon = ICON[e.level];
+        return (
+          <li key={`${e.at}-${i}`} className={cn("flex items-start gap-2", TONE[e.level])}>
+            <Icon className="mt-1.5 size-3 shrink-0" aria-hidden="true" />
+            <span className="shrink-0 tabular-nums text-muted-foreground">{time(e.at)}</span>
+            <span className="min-w-0 break-words">{e.message}</span>
+          </li>
+        );
+      })}
+      <li ref={end} aria-hidden="true" />
+    </ol>
+  );
+}
+
+/** Nút mở/đóng nhật ký của một giai đoạn. Mặc định mở khi `defaultOpen` (giai đoạn đang chạy/lỗi), người dùng bấm để đổi. */
+export function StageLogToggle({ entries, defaultOpen, live }: { entries: RunActivityEntry[]; defaultOpen: boolean; live?: boolean }) {
+  const [manual, setManual] = useState<boolean | null>(null);
+  const open = manual ?? defaultOpen;
+  if (!entries.length) return null;
+  return (
+    <div className="mt-1.5">
+      <button type="button" aria-expanded={open} onClick={() => setManual(!open)} className="inline-flex items-center gap-1 rounded text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+        <ChevronDown className={cn("size-3.5 transition-transform", !open && "-rotate-90")} aria-hidden="true" />Nhật ký ({entries.length})
+      </button>
+      {open && <div className="mt-1.5"><StageLog entries={entries} live={live} /></div>}
+    </div>
   );
 }

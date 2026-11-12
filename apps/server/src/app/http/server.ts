@@ -135,6 +135,19 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
     return c.inbox.list(auto);
   });
 
+  // Diff từng file của MR (lấy từ nền tảng, cache ngắn) cho trang chi tiết review kiểu "Changes".
+  const diffCache = new Map<string, { at: number; files: unknown }>();
+  app.get<{ Params: { id: string } }>("/api/mrs/:id/diff", async (req) => {
+    const hit = diffCache.get(req.params.id);
+    if (hit && Date.now() - hit.at < 120_000) return { files: hit.files };
+    const mr = await m.reviews.getMr(req.params.id);
+    const repo = await m.repos.get(mr.repositoryId);
+    const files = await m.scm.getDiffs(repo.platform as "gitlab" | "github", repo.fullPath, mr.iid);
+    diffCache.set(req.params.id, { at: Date.now(), files });
+    if (diffCache.size > 30) diffCache.delete(diffCache.keys().next().value as string);
+    return { files };
+  });
+
   // ---------- agent: chat theo MR + sổ tay bài học ----------
   app.get<{ Params: { id: string } }>("/api/mrs/:id/chat", async (req) => {
     const mr = await m.reviews.getMr(req.params.id);
@@ -151,6 +164,20 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
   app.get<{ Params: { id: string } }>("/api/repos/:id/lessons", async (req) => m.agent.listLessons(req.params.id));
   app.post<{ Params: { id: string } }>("/api/lessons/:id/approve", async (req) => m.agent.setLessonStatus(req.params.id, "active"));
   app.post<{ Params: { id: string } }>("/api/lessons/:id/reject", async (req) => m.agent.setLessonStatus(req.params.id, "rejected"));
+  const Kind = z.enum(["conv", "arch", "skip", "term"]);
+  app.get<{ Params: { id: string }; Querystring: { all?: string } }>("/api/repos/:id/memory", async (req) => m.agent.listLessons(req.params.id, undefined));
+  app.post<{ Params: { id: string } }>("/api/repos/:id/lessons", async (req, reply) => {
+    const b = z.object({ text: z.string().max(400), kind: Kind.default("conv"), paths: z.string().max(300).default("") }).parse(req.body);
+    const l = await m.agent.addLesson({ repoId: req.params.id, text: b.text, kind: b.kind, paths: b.paths, source: "user", status: "active" });
+    return reply.status(l ? 201 : 200).send(l);
+  });
+  app.put<{ Params: { id: string } }>("/api/lessons/:id", async (req) => m.agent.updateLesson(req.params.id, z.object({ text: z.string().max(400).optional(), kind: Kind.optional(), paths: z.string().max(300).optional() }).parse(req.body)));
+  app.get<{ Params: { id: string } }>("/api/mrs/:id/notes", async (req) => m.agent.listNotes(req.params.id));
+  app.post<{ Params: { id: string } }>("/api/mrs/:id/notes", async (req, reply) => {
+    const b = z.object({ text: z.string().max(1000), author: z.string().max(80).default("người dùng") }).parse(req.body);
+    return reply.status(201).send(await m.agent.addNote(req.params.id, b.author, b.text));
+  });
+  app.delete<{ Params: { id: string } }>("/api/notes/:id", async (req, reply) => { await m.agent.removeNote(req.params.id); return reply.status(204).send(); });
   app.delete<{ Params: { id: string } }>("/api/lessons/:id", async (req, reply) => { await m.agent.removeLesson(req.params.id); return reply.status(204).send(); });
   app.post("/api/chat/command", async (req) => ({ reply: await w.chatCommand(z.object({ text: z.string(), user: z.string().optional() }).parse(req.body)) }));
 

@@ -1,4 +1,4 @@
-import { BarChart3, FileText, FolderGit2, GitPullRequest, ListChecks, Moon, Settings, Sun, Trophy, Users, type LucideIcon } from "lucide-react";
+import { BarChart3, Coins, FileText, FolderGit2, GitPullRequest, ListChecks, Moon, Settings, Sun, Trophy, Users, type LucideIcon } from "lucide-react";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/use-theme";
@@ -9,6 +9,7 @@ import { OverviewPage } from "../features/overview/index.js";
 import { ReposPage } from "../features/repos/index.js";
 import { ReportsPage } from "../features/reports/index.js";
 import { ReviewDetailPage, ReviewsPage } from "../features/reviews/index.js";
+import { UsagePage } from "../features/usage/index.js";
 import { SettingsPage, useAppVersion } from "../features/settings/index.js";
 import { useUpdateAvailable } from "../kernel/desktop.js";
 import { RangePicker } from "../kernel/range.js";
@@ -19,6 +20,7 @@ const groups: { title: string; items: Item[] }[] = [
     { to: "/", label: "Tổng quan", icon: BarChart3, end: true, range: true },
     { to: "/reviews", label: "Review", icon: GitPullRequest },
     { to: "/leaderboard", label: "Xếp hạng", icon: Trophy, range: true },
+    { to: "/usage", label: "Usage", icon: Coins },
   ] },
   { title: "Quản lý", items: [
     { to: "/members", label: "Thành viên", icon: Users },
@@ -88,6 +90,7 @@ export function App() {
         <Route path="/reviews" element={<ReviewsPage />} />
         <Route path="/reviews/:id" element={<ReviewDetailPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/usage" element={<UsagePage />} />
         <Route path="/members" element={<MembersPage />} />
         <Route path="/repos" element={<ReposPage />} />
         <Route path="/framework" element={<FrameworkPage />} />

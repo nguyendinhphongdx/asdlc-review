@@ -1,5 +1,6 @@
-import type { MemberDirectory, Params, RunFactsSource } from "../../modules/analytics/index.js";
+import type { MemberDirectory, Params, RunFactsSource, UsageSource } from "../../modules/analytics/index.js";
 import type { IdentityApi } from "../../modules/identity/index.js";
+import type { ReposApi } from "../../modules/repos/index.js";
 import type { ReviewsApi } from "../../modules/reviews/index.js";
 import type { SettingsApi } from "../../modules/settings/index.js";
 
@@ -13,3 +14,11 @@ export const memberDirectoryAdapter = (identity: IdentityApi): MemberDirectory =
 });
 
 export const paramsAdapter = (settings: SettingsApi): Params => ({ passScore: () => settings.get("passScore") });
+
+export const usageAdapter = (reviews: ReviewsApi, repos: ReposApi): UsageSource => ({
+  async rows(range) {
+    const [rows, list] = await Promise.all([reviews.usageRows(range), repos.list()]);
+    const names = new Map(list.map((r) => [r.id, r.fullPath]));
+    return rows.map((r) => ({ ...r, repoName: names.get(r.repositoryId) ?? r.repositoryId }));
+  },
+});

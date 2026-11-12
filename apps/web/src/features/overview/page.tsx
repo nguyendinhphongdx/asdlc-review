@@ -1,13 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, CheckCircle2, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
-import { AreaChart } from "@/components/ui/area-chart";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/data-table/data-table";
 import { cn } from "@/lib/utils";
-import { fmtScore } from "../../kernel/format.js";
+import { fmtAgo, fmtScore } from "../../kernel/format.js";
 import { useRange } from "../../kernel/range.js";
 import { ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { getInbox, getOverview, listFailedRuns } from "./api.js";
@@ -58,7 +57,7 @@ export function OverviewPage() {
   const critical = (o.findingsBySeverity.blocker ?? 0) + (o.findingsBySeverity.critical ?? 0);
   const serious = critical + (o.findingsBySeverity.major ?? 0);
   const total = Object.values(o.findingsBySeverity).reduce((a, b) => a + b, 0);
-  const trend = o.trend.map((t) => ({ label: t.week.slice(8, 10) + "/" + t.week.slice(5, 7), value: t.avgScore }));
+  const waiting = (inbox.data?.items ?? []).filter((i) => i.status === "pending" || i.status === "queued" || i.status === "running");
   const attentionCount = awaiting + failedRecent + critical + o.secretLeaks;
 
   return (
@@ -106,11 +105,27 @@ export function OverviewPage() {
       </section>
 
       <section className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,420px),1fr))] gap-4">
-        <Card>
-          <CardHeader><CardTitle>Điểm trung bình theo tuần</CardTitle><CardDescription>Xu hướng chất lượng MR khi nộp</CardDescription></CardHeader>
-          <CardContent>
-            {trend.length >= 3 ? <AreaChart data={trend} min={40} /> : (
-              <div className="flex h-32 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">Chưa đủ dữ liệu (cần từ 3 tuần)</div>
+        <Card className="gap-0 overflow-hidden pb-0">
+          <CardHeader className="pb-3"><CardTitle>MR đang chờ review{waiting.length > 0 && <span className="ml-2 font-normal text-muted-foreground">({waiting.length})</span>}</CardTitle><CardDescription>MR đang mở chưa được review ở commit hiện tại, hoặc đang trong hàng đợi</CardDescription></CardHeader>
+          <CardContent className="p-0">
+            {waiting.length === 0 ? (
+              <div className="flex items-center gap-2 px-6 py-8 text-sm text-muted-foreground"><CheckCircle2 className="size-4 text-success" />Không có MR nào đang chờ.</div>
+            ) : (
+              <ul>
+                {waiting.slice(0, 6).map((i) => (
+                  <li key={`${i.repoId}-${i.iid}`} className="border-t first:border-0">
+                    <Link to="/reviews" className="flex items-center gap-3 px-6 py-2.5 hover:bg-muted/50">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium"><span className="text-muted-foreground">!{i.iid}</span> {i.title}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{i.repoPath} · {i.authorUsername} · cập nhật {fmtAgo(i.updatedAt)}</span>
+                      </span>
+                      {i.draft && <Badge variant="secondary">Draft</Badge>}
+                      <Badge variant={i.status === "running" ? "info" : i.status === "queued" ? "warning" : "secondary"}>{i.status === "running" ? "Đang review" : i.status === "queued" ? "Trong hàng đợi" : "Chờ review"}</Badge>
+                    </Link>
+                  </li>
+                ))}
+                {waiting.length > 6 && <li className="border-t"><Link to="/reviews" className="flex items-center justify-between px-6 py-2.5 text-xs text-muted-foreground hover:bg-muted/50">Xem thêm {waiting.length - 6} MR<ArrowRight className="size-3.5" /></Link></li>}
+              </ul>
             )}
           </CardContent>
         </Card>

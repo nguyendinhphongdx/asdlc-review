@@ -1,4 +1,4 @@
-import type { PublishPolicy, FrameworkCategoryDto, FrameworkDetailDto, FrameworkEditInput, FrameworkGateDto, FrameworkRuleDto, Grade, Severity } from "@mrd/contracts";
+import type { MrDescriptionSpec, OverviewSpec, PublishPolicy, FrameworkCategoryDto, FrameworkDetailDto, FrameworkEditInput, FrameworkGateDto, FrameworkRuleDto, Grade, Severity } from "@mrd/contracts";
 import { SEVERITY_RANK } from "@mrd/contracts";
 
 /** Bản nháp đang chỉnh: cùng hình dạng với phần nội dung của FrameworkDetailDto (giữ cờ locked để khoá UI; server vẫn kiểm lại). */
@@ -9,13 +9,15 @@ export interface Draft {
   grades: { grade: Grade; min: number }[];
   sizeBaseline: number;
   publish: PublishPolicy;
+  overview: OverviewSpec;
+  mrDescription: MrDescriptionSpec;
   categories: FrameworkCategoryDto[];
 }
 
 export const SEVERITIES: Severity[] = ["blocker", "critical", "major", "minor", "nit"];
 export const RULE_ID = /^[A-Za-z0-9_-]{2,24}$/;
 
-export const toDraft = (d: FrameworkDetailDto): Draft => structuredClone({ name: d.name, severity: d.severity, gates: d.gates, grades: d.grades, sizeBaseline: d.sizeBaseline, publish: d.publish, categories: d.categories });
+export const toDraft = (d: FrameworkDetailDto): Draft => structuredClone({ name: d.name, severity: d.severity, gates: d.gates, grades: d.grades, sizeBaseline: d.sizeBaseline, publish: d.publish, overview: d.overview, mrDescription: d.mrDescription, categories: d.categories });
 
 export const toInput = (d: Draft, note: string): FrameworkEditInput => ({
   name: d.name.trim(),
@@ -24,6 +26,8 @@ export const toInput = (d: Draft, note: string): FrameworkEditInput => ({
   grades: d.grades,
   sizeBaseline: d.sizeBaseline,
   publish: d.publish,
+  overview: d.overview,
+  mrDescription: d.mrDescription,
   categories: d.categories.map((c) => ({ id: c.id, name: c.name, weight: c.weight, criteria: c.criteria.map(({ locked: _l, ...r }) => r) })),
   ...(note.trim() ? { note: note.trim() } : {}),
 });
@@ -34,6 +38,9 @@ function flatten(d: Draft): Map<string, string> {
   m.set("Tên framework", d.name);
   m.set("Chuẩn kích thước MR", String(d.sizeBaseline));
   m.set("Đăng comment", JSON.stringify(d.publish));
+  m.set("Hướng dẫn chung đánh giá tổng quan", d.overview.guide);
+  d.overview.sections.forEach((s, i) => m.set(`Mục tổng quan ${s.id}`, JSON.stringify([i, s.title, s.enabled, s.kind, s.maxWords, s.guide, s.verdicts])));
+  m.set("Chuẩn mô tả MR", JSON.stringify(d.mrDescription));
   for (const k of SEVERITIES) m.set(`Điểm trừ ${k}`, String(d.severity[k].deduction));
   for (const g of d.grades) m.set(`Ngưỡng xếp loại ${g.grade}`, String(g.min));
   for (const g of d.gates) m.set(`Trần gate ${g.id}`, String(g.capTotal));
@@ -65,6 +72,20 @@ export function validateDraft(d: Draft): string[] {
   if (new Set(mins).size !== mins.length) errs.push("Các ngưỡng xếp loại không được trùng nhau");
   if (Math.min(...mins) !== 0) errs.push("Xếp loại thấp nhất phải bắt đầu từ 0");
   if (!(d.sizeBaseline >= 1)) errs.push("Chuẩn kích thước MR phải ≥ 1");
+  const sids = new Set<string>();
+  for (const s of d.overview.sections) {
+    if (!/^[a-z0-9-]{1,40}$/.test(s.id)) errs.push(`Mục tổng quan "${s.title}": mã chỉ gồm chữ thường, số, gạch ngang`);
+    if (sids.has(s.id)) errs.push(`Mã mục tổng quan ${s.id} bị trùng`);
+    sids.add(s.id);
+    if (!s.title.trim()) errs.push("Mục tổng quan không được để trống tiêu đề");
+    if (s.kind === "verdict" && s.verdicts.length < 2) errs.push(`Mục "${s.title}" kiểu nhãn cần ít nhất 2 nhãn kết luận`);
+  }
+  const kinds = new Set<string>();
+  for (const x of d.mrDescription.docs) {
+    if (!x.kind.trim()) errs.push("Loại tài liệu trong chuẩn mô tả MR không được để trống");
+    if (kinds.has(x.kind)) errs.push(`Loại tài liệu "${x.kind}" bị trùng`);
+    kinds.add(x.kind);
+  }
   return errs;
 }
 

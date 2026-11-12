@@ -5,10 +5,10 @@ Lưu và truy vấn lịch sử review: MR, từng lần chạy (run), finding v
 
 ## API
 - MR: `upsertMr`, `getMr`, `findMr`, `listMrs`.
-- Run: `startRun`, `queueRun`, `beginRun`, `setProvider`, `setStage`, `completeRun`, `failRun`, `findRunByHead`, `latestRunByHead`, `saveActivity`, `failStale`, `latestSucceeded`, `getRun`, `listRuns`, `setFindingFeedback`.
+- Run: `startRun`, `queueRun`, `beginRun`, `setProvider`, `setStage`, `completeRun`, `failRun`, `findRunByHead`, `latestRunByHead`, `saveActivity`, `failStale`, `latestSucceeded`, `getRun`, `listRuns`, `setFindingFeedback`, `ruleStats(frameworkId, limitRuns?)` (số finding + phản hồi agree/disagree/fixed theo rule trên các run thành công gần nhất của framework).
 - `facts({ from, to })` → `MrFact[]` (dữ kiện thô, không tính metric).
 
-Mỗi run lưu thêm `frameworkId`/`frameworkVersion` (chấm bằng bản nào), `omittedFiles`, `harnessReport` (JSON độ phủ harness lúc review).
+Mỗi run lưu thêm `frameworkId`/`frameworkVersion` (chấm bằng bản nào), `omittedFiles`, `harnessReport` (JSON độ phủ harness lúc review), `overview` ("Đánh giá tổng quan" theo khung framework), `mrContext` (tiêu đề/mô tả MR + kết quả kiểm tra tài liệu theo chuẩn → `mrDescription` ở DTO) và `aiContext` (bộ nhớ repo, ghi chú MR, kết quả vòng trước đã nạp cho AI + kích thước từng nguồn → để tab "Ngữ cảnh AI" giải thích AI "biết gì").
 
 ## Sự kiện
 Phát `reviews.run.status` (queued → running → từng stage), `reviews.run.completed`, `reviews.run.failed`. Không nhận.

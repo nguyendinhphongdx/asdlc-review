@@ -6,12 +6,21 @@ const nullable = (t: string) => ({ type: [t, "null"] });
 export const REVIEW_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "intent", "findings", "strengths", "harnessUsed", "checks"],
+  required: ["summary", "intent", "findings", "strengths", "harnessUsed", "checks", "overview"],
   properties: {
     summary: { type: "string" },
     intent: { type: "string" },
     strengths: { type: "array", items: { type: "string" } },
     harnessUsed: { type: "array", items: { type: "string" } },
+    overview: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "text", "bullets", "verdict"],
+        properties: { id: { type: "string" }, text: { type: "string" }, bullets: { type: "array", items: { type: "string" } }, verdict: nullable("string") },
+      },
+    },
     checks: {
       type: "array",
       items: {
@@ -63,8 +72,10 @@ export function normalizeReview(review: RawReview, rubric: Rubric): RawReview {
   const ruleCat = new Map<string, string>();
   for (const c of rubric.categories) for (const r of c.criteria) ruleCat.set(r.id, c.id);
   const cats = new Set(rubric.categories.map((c) => c.id));
+  const wanted = new Set((rubric.overview?.sections ?? []).filter((s) => s.enabled).map((s) => s.id));
   return {
     ...review,
+    overview: review.overview.filter((o) => wanted.has(o.id)),
     checks: review.checks.filter((c) => ruleCat.has(c.ruleId)),
     findings: review.findings.map((f) => {
       const ruleId = f.ruleId && ruleCat.has(f.ruleId) ? f.ruleId : null;

@@ -14,17 +14,41 @@ export interface AgentToolContext {
   mr: MrInfo;
 }
 
-interface ToolDef {
+export interface ToolDef<C = AgentToolContext> {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  run(ctx: AgentToolContext, args: Record<string, unknown>): Promise<string>;
+  run(ctx: C, args: Record<string, unknown>): Promise<string>;
 }
 
-const str = (v: unknown, max = 4000) => (typeof v === "string" ? v.slice(0, max) : "");
-const obj = (props: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties: props, required, additionalProperties: false });
+export const str = (v: unknown, max = 4000) => (typeof v === "string" ? v.slice(0, max) : "");
+export const obj = (props: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties: props, required, additionalProperties: false });
 
 export const MCP_NAME = "mrd";
+
+export interface RpcMsg { id?: unknown; method?: string; params?: Record<string, unknown> }
+
+/** Xử lý một yêu cầu JSON-RPC của MCP (initialize / tools/list / tools/call) cho một bộ tool. */
+export async function mcpRpc<C>(tools: ToolDef<C>[], ctx: C, msg: RpcMsg) {
+  const ok = (result: unknown) => ({ jsonrpc: "2.0", id: msg.id, result });
+  const err = (code: number, message: string) => ({ jsonrpc: "2.0", id: msg.id, error: { code, message } });
+  switch (msg.method) {
+    case "initialize": return ok({ protocolVersion: String(msg.params?.protocolVersion ?? "2025-03-26"), capabilities: { tools: {} }, serverInfo: { name: "asdlc-review", version: "1" } });
+    case "ping": return ok({});
+    case "tools/list": return ok({ tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
+    case "tools/call": {
+      const t = tools.find((x) => x.name === msg.params?.name);
+      if (!t) return err(-32602, "Tool không tồn tại");
+      try {
+        return ok({ content: [{ type: "text", text: await t.run(ctx, (msg.params?.arguments ?? {}) as Record<string, unknown>) }] });
+      } catch (e) {
+        return ok({ isError: true, content: [{ type: "text", text: `Lỗi: ${(e as Error).message}` }] });
+      }
+    }
+    default: return err(-32601, "Method không hỗ trợ");
+  }
+}
+
 
 /**
  * Tool nội bộ cho agent chat, phơi qua MCP (HTTP) trên chính server này, mỗi lượt chat một token dùng một lần.
@@ -104,25 +128,7 @@ export function createAgentTools(m: Modules) {
     },
   ];
 
-  const rpc = async (ctx: AgentToolContext, msg: { id?: unknown; method?: string; params?: Record<string, unknown> }) => {
-    const ok = (result: unknown) => ({ jsonrpc: "2.0", id: msg.id, result });
-    const err = (code: number, message: string) => ({ jsonrpc: "2.0", id: msg.id, error: { code, message } });
-    switch (msg.method) {
-      case "initialize": return ok({ protocolVersion: String(msg.params?.protocolVersion ?? "2025-03-26"), capabilities: { tools: {} }, serverInfo: { name: "asdlc-review", version: "1" } });
-      case "ping": return ok({});
-      case "tools/list": return ok({ tools: tools.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })) });
-      case "tools/call": {
-        const t = tools.find((x) => x.name === msg.params?.name);
-        if (!t) return err(-32602, "Tool không tồn tại");
-        try {
-          return ok({ content: [{ type: "text", text: await t.run(ctx, (msg.params?.arguments ?? {}) as Record<string, unknown>) }] });
-        } catch (e) {
-          return ok({ isError: true, content: [{ type: "text", text: `Lỗi: ${(e as Error).message}` }] });
-        }
-      }
-      default: return err(-32601, "Method không hỗ trợ");
-    }
-  };
+  const rpc = (ctx: AgentToolContext, msg: RpcMsg) => mcpRpc(tools, ctx, msg);
 
   return {
     /** Mở phiên tool cho một lượt chat; gọi `close()` khi xong. */

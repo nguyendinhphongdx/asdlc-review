@@ -26,10 +26,10 @@ export function openAiProvider(o: OpenAiOptions): Provider {
       let res = await call(mdl, system, user, true);
       if (res.status === 400) res = await call(mdl, system, user, false); // một số server không hỗ trợ response_format
       if (!res.ok) throw new ModuleError("reviewer", "upstream_error", `LLM API → ${res.status}: ${(await res.text()).slice(0, 400)}`);
-      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
       const text = data.choices?.[0]?.message?.content;
       if (!text) throw new ModuleError("reviewer", "upstream_error", "LLM API trả về rỗng");
-      return { text, model: mdl, costUsd: null };
+      return { text, model: mdl, costUsd: null, ...(data.usage ? { tokens: { inputTokens: data.usage.prompt_tokens ?? 0, outputTokens: data.usage.completion_tokens ?? 0, cacheReadTokens: 0, cacheWriteTokens: 0 } } : {}) };
     },
   };
 }

@@ -3,11 +3,12 @@ import { z } from "zod";
 
 /** Các khoá cấu hình runtime được phép chỉnh từ UI, kèm kiểu và mặc định. */
 export const SETTING_SCHEMAS = {
-  reviewProvider: z.enum(["claude-cli", "codex-cli", "openai-compatible"]),
+  reviewProvider: z.enum(["claude-cli", "codex-cli", "gemini-api", "openai-compatible"]),
   defaultFramework: z.string().min(1),
   /** Model cho từng provider ("" = mặc định của provider/CLI). Repo có thể ghi đè bằng model riêng. */
   claudeModel: z.string().max(120),
   codexModel: z.string().max(120),
+  geminiModel: z.string().max(120),
   openaiModel: z.string().max(120),
   /** Model riêng cho chat với agent ("" = dùng cùng model review). Nên chọn model rẻ/nhanh hơn. */
   chatModel: z.string().max(120),

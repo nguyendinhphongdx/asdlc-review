@@ -10,8 +10,10 @@ import { cn } from "@/lib/utils";
 import { InlineConfirm } from "../../kernel/confirm.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { deleteFramework, getFramework, listFrameworks, restoreFramework } from "./api.js";
+import { FrameworkChat } from "./chat.js";
 import { FrameworkEditor } from "./edit.js";
 import { ForkDialog } from "./fork-dialog.js";
+import { OverviewView } from "./overview-editor.js";
 import { RulesView, ScoringView } from "./view.js";
 import { DiffView, VersionsView } from "./versions.js";
 import { Workflow } from "./workflow.js";
@@ -20,7 +22,7 @@ const KIND: Record<FrameworkKind, { label: string; variant: "success" | "info" |
   default: { label: "Mặc định", variant: "success" }, template: { label: "Mẫu", variant: "info" }, custom: { label: "Đã chỉnh", variant: "secondary" },
 };
 const ORDER: Record<FrameworkKind, number> = { default: 0, template: 1, custom: 2 };
-const TABS = [{ id: "flow", label: "Quy trình" }, { id: "rules", label: "Hạng mục & rule" }, { id: "scoring", label: "Chấm điểm" }, { id: "versions", label: "Phiên bản" }] as const;
+const TABS = [{ id: "flow", label: "Quy trình" }, { id: "rules", label: "Hạng mục & rule" }, { id: "scoring", label: "Chấm điểm" }, { id: "overview", label: "Đánh giá tổng quan" }, { id: "versions", label: "Phiên bản" }] as const;
 type TabId = (typeof TABS)[number]["id"];
 
 function FrameworkList({ items, selected, onSelect, onCreate }: { items: FrameworkInfoDto[]; selected: string | undefined; onSelect: (id: string) => void; onCreate: () => void }) {
@@ -109,6 +111,7 @@ function Detail({ info, bases, onSelect, onDirty, onFork }: { info: FrameworkInf
             {tab === "flow" && <Workflow />}
             {tab === "rules" && <RulesView d={d} />}
             {tab === "scoring" && <ScoringView d={d} />}
+            {tab === "overview" && <OverviewView overview={d.overview} mrDescription={d.mrDescription} />}
             {tab === "versions" && <VersionsView d={d} viewing={version} onView={view} onRestore={setConfirmRestore} restoring={restore.isPending} />}
           </div>
         </>
@@ -119,6 +122,7 @@ function Detail({ info, bases, onSelect, onDirty, onFork }: { info: FrameworkInf
 
 export function FrameworkPage() {
   const [sp, setSp] = useSearchParams();
+  const qc = useQueryClient();
   const list = useQuery({ queryKey: ["frameworks"], queryFn: listFrameworks });
   const [dirty, setDirty] = useState(0);
   const [fork, setFork] = useState<string | null>(null);
@@ -140,6 +144,14 @@ export function FrameworkPage() {
           <FrameworkList items={items} selected={selected.id} onSelect={select} onCreate={() => setFork(bases.find((b) => b.kind === "default")?.id ?? bases[0]?.id ?? "")} />
           <Detail key={selected.id} info={selected} bases={bases} onSelect={select} onDirty={onDirty} onFork={setFork} />
         </div>
+      )}
+      {selected && (
+        <FrameworkChat key={selected.id} frameworkId={selected.id} name={selected.name} onApplied={(id) => {
+          void qc.invalidateQueries({ queryKey: ["frameworks"] });
+          void qc.invalidateQueries({ queryKey: ["framework"] });
+          void qc.invalidateQueries({ queryKey: ["framework-diff"] });
+          if (id !== selected.id) { setDirty(0); setSp({ id }, { replace: true }); }
+        }} />
       )}
       {fork !== null && bases.length > 0 && <ForkDialog bases={bases} initialBaseId={fork} onClose={() => setFork(null)} onDone={(d) => { setFork(null); setDirty(0); setSp({ id: d.id }, { replace: true }); void list.refetch(); }} />}
     </>

@@ -6,10 +6,11 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { FrameworkPicker } from "./framework-picker.js";
 import { HarnessTab } from "./harness-tab.js";
+import { MemoryTab } from "./memory-tab.js";
 import { RepoSettings } from "./settings-tab.js";
 import { WebhookLog } from "./webhook-log.js";
 
-const TABS = [{ id: "settings", label: "Cài đặt" }, { id: "framework", label: "Framework" }, { id: "harness", label: "Harness" }, { id: "webhook", label: "Webhook" }] as const;
+const TABS = [{ id: "settings", label: "Cài đặt" }, { id: "framework", label: "Framework" }, { id: "harness", label: "Harness" }, { id: "memory", label: "Bộ nhớ" }, { id: "webhook", label: "Webhook" }] as const;
 type TabId = (typeof TABS)[number]["id"];
 
 /** Khung chi tiết repo: framework áp dụng, độ phủ harness và nhật ký webhook. */
@@ -32,6 +33,7 @@ export function RepoDetail({ repo, onClose }: { repo: RepoDto; onClose: () => vo
         {tab === "settings" && <RepoSettings repo={repo} />}
         {tab === "framework" && <FrameworkPicker repo={repo} />}
         {tab === "harness" && <HarnessTab repo={repo} />}
+        {tab === "memory" && <MemoryTab repo={repo} />}
         {tab === "webhook" && <Card className="overflow-hidden"><WebhookLog id={repo.id} fullPath={repo.fullPath} /></Card>}
       </div>
     </div>

@@ -67,6 +67,8 @@ export function applyEdit(current: FrameworkFile, edit: FrameworkEditInput): Fra
     severity: edit.severity,
     sizeBaseline: edit.sizeBaseline,
     publish: edit.publish ?? current.publish,
+    overview: edit.overview ?? current.overview,
+    mrDescription: edit.mrDescription ?? current.mrDescription,
     grades: edit.grades,
     gates: edit.gates.map((g) => ({ ...g, locked: lockedGates.has(g.id) })),
     categories: edit.categories.map((c) => ({
@@ -87,6 +89,17 @@ export function diffFrameworks(a: FrameworkFile, b: FrameworkFile): FrameworkCha
   push("publish.comments", a.publish?.comments, b.publish?.comments);
   push("publish.inlineMinSeverity", a.publish?.inlineMinSeverity, b.publish?.inlineMinSeverity);
   push("publish.maxInline", a.publish?.maxInline, b.publish?.maxInline);
+  push("overview.guide", a.overview?.guide, b.overview?.guide);
+  const ao = new Map((a.overview?.sections ?? []).map((s) => [s.id, s]));
+  for (const s of b.overview?.sections ?? []) {
+    const o = ao.get(s.id);
+    push(`overview.${s.id}.enabled`, o?.enabled, s.enabled);
+    push(`overview.${s.id}.kind`, o?.kind, s.kind);
+    push(`overview.${s.id}.guide`, o?.guide, s.guide);
+    push(`overview.${s.id}.maxWords`, o?.maxWords, s.maxWords);
+  }
+  for (const s of a.overview?.sections ?? []) if (!(b.overview?.sections ?? []).some((x) => x.id === s.id)) push(`overview.${s.id}`, s.title, undefined);
+  push("mrDescription", a.mrDescription, b.mrDescription);
   for (const [k, v] of Object.entries(b.severity)) push(`severity.${k}.deduction`, (a.severity as Record<string, { deduction: number }>)[k]?.deduction, v.deduction);
   for (const g of b.grades) push(`grade.${g.grade}.min`, a.grades.find((x) => x.grade === g.grade)?.min, g.min);
   const ag = new Map(a.gates.map((g) => [g.id, g]));

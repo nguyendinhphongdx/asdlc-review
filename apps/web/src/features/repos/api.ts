@@ -14,3 +14,10 @@ export const getRepoHarness = (id: string) => request<{ report: HarnessReportDto
 export const previewConfig = (yaml: string, frameworkId?: string) => request<ConfigPreviewDto>("/api/framework-config/preview", { method: "POST", json: { yaml, ...(frameworkId ? { frameworkId } : {}) } });
 export const getSettings = () => request<SettingsDto>("/api/settings");
 export const discoverProjects = (q: string) => request<DiscoverProjectDto[]>(`/api/discover/projects${qs({ q })}`);
+
+export const listMemory = (repoId: string) => request<import("@mrd/contracts").LessonDto[]>(`/api/repos/${repoId}/memory`);
+export const addMemory = (repoId: string, b: { text: string; kind: import("@mrd/contracts").LessonKind; paths: string }) => request<import("@mrd/contracts").LessonDto | null>(`/api/repos/${repoId}/lessons`, { method: "POST", json: b });
+export const updateMemory = (id: string, b: { text?: string; kind?: import("@mrd/contracts").LessonKind; paths?: string }) => request<import("@mrd/contracts").LessonDto>(`/api/lessons/${id}`, { method: "PUT", json: b });
+export const approveMemory = (id: string) => request<unknown>(`/api/lessons/${id}/approve`, { method: "POST", json: {} });
+export const rejectMemory = (id: string) => request<unknown>(`/api/lessons/${id}/reject`, { method: "POST", json: {} });
+export const deleteMemory = (id: string) => request<void>(`/api/lessons/${id}`, { method: "DELETE" });

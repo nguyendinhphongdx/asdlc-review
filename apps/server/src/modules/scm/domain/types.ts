@@ -65,6 +65,9 @@ export interface GitAuth {
 }
 
 /** Hợp đồng mà mỗi nền tảng phải hiện thực. */
+import type { MrFileDiffDto as FileDiff } from "@mrd/contracts";
+export type { FileDiff };
+
 export interface PlatformClient {
   isConfigured(): boolean;
   getMergeRequest(projectPath: string, iid: number): Promise<MrInfo>;
@@ -73,6 +76,8 @@ export interface PlatformClient {
   postInline(mr: MrInfo, c: InlineComment): Promise<boolean>;
   reply(mr: MrInfo, body: string): Promise<void>;
   gitAuth(): GitAuth;
+  /** Diff từng file của MR (để UI hiển thị như trang Changes). */
+  getDiffs(projectPath: string, iid: number): Promise<FileDiff[]>;
 }
 
 export type ProbeErrorCode = "not_configured" | "unreachable" | "unauthorized" | "missing_scope" | "expired" | "no_projects" | "unknown";

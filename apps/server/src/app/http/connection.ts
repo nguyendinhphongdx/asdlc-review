@@ -1,6 +1,6 @@
 import { access, constants, mkdir, readdir, stat, statfs } from "node:fs/promises";
 import path from "node:path";
-import type { StorageCheckDto, StorageDto, ConnectionStatusDto, DiscoverMrDto, DiscoverProjectDto, ConnectionTestDto, RepoCheckDto, RepoWebhookDto, WebhookSecretDto } from "@mrd/contracts";
+import type { AiKeyStatusDto, StorageCheckDto, StorageDto, ConnectionStatusDto, DiscoverMrDto, DiscoverProjectDto, ConnectionTestDto, RepoCheckDto, RepoWebhookDto, WebhookSecretDto } from "@mrd/contracts";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ModuleError } from "../../kernel/errors.js";
@@ -29,6 +29,22 @@ export function registerConnectionRoutes(app: FastifyInstance, c: Container, pub
   };
 
   app.get("/api/connection", () => status());
+
+  // Khoá API AI cloud (Gemini): lưu mã hoá trong DB, không route nào trả lại khoá.
+  const geminiStatus = (): AiKeyStatusDto => {
+    const key = credentials.geminiKey();
+    return { configured: Boolean(key), source: credentials.geminiSource(), hint: m.secrets.hint(KEY.geminiKey) ?? (key ? key.slice(-4) : null), canStore: m.secrets.canStore };
+  };
+  app.get("/api/ai-keys/gemini", () => geminiStatus());
+  app.put("/api/ai-keys/gemini", async (req) => {
+    const { apiKey } = z.object({ apiKey: z.string().trim().min(8).max(300) }).parse(req.body);
+    await credentials.saveGeminiKey(apiKey);
+    return geminiStatus();
+  });
+  app.delete("/api/ai-keys/gemini", async (_req, reply) => {
+    await credentials.clearGeminiKey();
+    return reply.status(204).send();
+  });
 
   app.put("/api/connection/gitlab", async (req) => {
     const body = Save.parse(req.body);

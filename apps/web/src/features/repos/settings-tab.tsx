@@ -51,7 +51,7 @@ export function RepoSettings({ repo }: { repo: RepoDto }) {
         </Row>
         <Row label="Provider AI" hint="Công cụ AI dùng để review repo này.">
           <select aria-label="Provider AI" className={SELECT} value={repo.provider ?? ""} onChange={(e) => save.mutate({ provider: (e.target.value || null) as Patch["provider"] })}>
-            <option value="">Theo cài đặt chung</option><option value="claude-cli">Claude Code CLI</option><option value="codex-cli">Codex CLI</option><option value="openai-compatible">OpenAI-compatible API</option>
+            <option value="">Theo cài đặt chung</option><option value="claude-cli">Claude Code CLI</option><option value="codex-cli">Codex CLI</option><option value="gemini-api">Gemini API (Google cloud)</option><option value="openai-compatible">OpenAI-compatible API</option>
           </select>
         </Row>
         <Row label="Model" hint="Model dùng review và chat cho repo này. Để trống = theo cài đặt chung của provider.">

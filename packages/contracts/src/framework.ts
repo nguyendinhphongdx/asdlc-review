@@ -1,5 +1,5 @@
 import type { Severity } from "./finding.js";
-import type { Grade, PublishPolicy } from "./rubric.js";
+import type { Grade, MrDescriptionSpec, OverviewSpec, PublishPolicy } from "./rubric.js";
 
 /** Hợp đồng API framework (M1). */
 
@@ -52,6 +52,8 @@ export interface FrameworkDetailDto {
   grades: { grade: Grade; min: number }[];
   sizeBaseline: number;
   publish: PublishPolicy;
+  overview: OverviewSpec;
+  mrDescription: MrDescriptionSpec;
   categories: FrameworkCategoryDto[];
   /** Lịch sử (mới nhất trước); rỗng với bản chỉ đọc. */
   versions: FrameworkVersionDto[];
@@ -66,6 +68,8 @@ export interface FrameworkEditInput {
   grades: { grade: Grade; min: number }[];
   sizeBaseline: number;
   publish?: PublishPolicy;
+  overview?: OverviewSpec;
+  mrDescription?: MrDescriptionSpec;
   categories: { id: string; name: string; weight: number; criteria: Omit<FrameworkRuleDto, "locked">[] }[];
   note?: string;
 }
@@ -112,3 +116,17 @@ export interface HarnessReportDto {
   repoConfig: { present: boolean; valid: boolean; error?: string };
   scannedAt: string;
 }
+
+/** Một thay đổi nhỏ lên framework (chat AI đề xuất; server hợp lệ hoá và áp thành phiên bản mới). */
+export type FrameworkOp =
+  | { op: "add_rule"; category: string; id: string; title: string; check: string; why?: string; severity: Severity; enabled?: boolean }
+  | { op: "update_rule"; id: string; title?: string; check?: string; why?: string; severity?: Severity; enabled?: boolean; category?: string }
+  | { op: "remove_rule"; id: string }
+  | { op: "add_category"; id: string; name: string; weight: number }
+  | { op: "update_category"; id: string; name?: string; weight?: number }
+  | { op: "remove_category"; id: string }
+  | { op: "set_deduction"; severity: Severity; deduction: number }
+  | { op: "set_gate_cap"; id: string; capTotal: number }
+  | { op: "set_grade_min"; grade: Grade; min: number };
+
+export interface FrameworkPatchPreviewDto { errors: string[]; changes: FrameworkChangeDto[] }

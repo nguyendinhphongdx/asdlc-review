@@ -10,6 +10,7 @@ export const MODEL_SUGGESTIONS: Record<string, { value: string; label: string }[
     { value: "claude-fable-5-2", label: "Claude Fable 5.2" },
   ],
   "codex-cli": [{ value: "gpt-5-codex", label: "GPT-5 Codex" }, { value: "gpt-5", label: "GPT-5" }],
+  "gemini-api": [{ value: "gemini-2.5-pro", label: "Gemini 2.5 Pro (mạnh nhất)" }, { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (nhanh, rẻ)" }],
   "openai-compatible": [{ value: "gpt-5", label: "GPT-5" }, { value: "gpt-5-mini", label: "GPT-5 mini" }, { value: "gpt-4.1", label: "GPT-4.1" }],
 };
 

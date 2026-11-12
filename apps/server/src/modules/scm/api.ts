@@ -1,6 +1,6 @@
 import type { Platform } from "@mrd/contracts";
 import { ModuleError } from "../../kernel/errors.js";
-import type { ConnectionProbe, DiscoverMr, DiscoverProject, GitAuth, ProjectProbe, InlineComment, MrInfo, OpenMrRef, ParsedMrUrl, PlatformClient, ScmEvent } from "./domain/types.js";
+import type { FileDiff, ConnectionProbe, DiscoverMr, DiscoverProject, GitAuth, ProjectProbe, InlineComment, MrInfo, OpenMrRef, ParsedMrUrl, PlatformClient, ScmEvent } from "./domain/types.js";
 import { parseGitHubWebhook, parseGitLabWebhook, verifyGitHub, verifyGitLab } from "./domain/webhooks.js";
 import { GitHubClient } from "./infra/github.js";
 import { GitLabClient } from "./infra/gitlab.js";
@@ -29,6 +29,8 @@ export interface ScmApi {
   /** Trả false nếu dòng không nằm trong diff (caller gộp vào comment tổng). */
   postInline(mr: MrInfo, comment: InlineComment): Promise<boolean>;
   reply(mr: MrInfo, body: string): Promise<void>;
+  /** Diff từng file của MR (hiển thị như trang Changes của GitLab). */
+  getDiffs(platform: Platform, projectPath: string, iid: number): Promise<FileDiff[]>;
   gitAuth(platform: Platform): GitAuth;
   verifyWebhook(platform: Platform, headers: Headers, rawBody: string | Buffer): boolean;
   webhookConfigured(platform: Platform): boolean;
@@ -101,6 +103,7 @@ export function createScmModule(deps: ScmDeps): ScmApi {
     upsertSummaryNote: (mr, body, marker) => client(mr.platform).upsertSummaryNote(mr, body, marker),
     postInline: (mr, c) => client(mr.platform).postInline(mr, c),
     reply: (mr, body) => client(mr.platform).reply(mr, body),
+    getDiffs: (platform, projectPath, iid) => client(platform).getDiffs(projectPath, iid),
     gitAuth: (p) => client(p).gitAuth(),
     webhookConfigured: (p) => Boolean(p === "gitlab" ? gl().webhookSecret : gh().webhookSecret),
     verifyWebhook: (p, headers, raw) => (p === "gitlab" ? verifyGitLab(headers, gl().webhookSecret) : verifyGitHub(headers, raw, gh().webhookSecret)),

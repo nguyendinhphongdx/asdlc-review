@@ -6,6 +6,8 @@ Giữ các bộ tiêu chí (rubric): bản mặc định + mẫu từ file YAML 
 ## API
 - `list()`, `detail(id, version?)`, `get(id)` (rubric hiện hành đã lọc rule tắt).
 - `fork({baseId, name})`, `update(id, edit)` (tạo phiên bản mới), `restore(id, version)`, `remove(id)`, `diffFromBase(id)`.
+- `previewPatch(id, ops)` (kiểm tra thử, không lưu; dùng được cho bản chỉ đọc) và `patch(id, ops, note)` (áp danh sách thay đổi nhỏ `FrameworkOp[]` thành phiên bản mới, qua cùng `validateEdit` nên rule/gate locked vẫn được giữ). Dùng bởi chat AI cải thiện framework.
+- Rubric có thêm `overview` (khung "Đánh giá tổng quan": hướng dẫn chung + các mục có thứ tự, kiểu text/bullets/verdict, số từ tối đa, hướng dẫn từng mục, nhãn verdict) và `mrDescription` (chuẩn mô tả MR: danh sách tài liệu bắt buộc/không bắt buộc theo `pattern`, điểm phạt). Thiếu thì dùng `DEFAULT_OVERVIEW`/`DEFAULT_MR_DESCRIPTION`. `.asdlc.yml` không ghi đè được hai phần này.
 - `previewConfig({yaml, frameworkId?})` → hợp lệ/lỗi/thay đổi.
 - `resolve({ frameworkId?, repoConfigYaml? })` → `{ rubric, repoConfig, repoConfigError? }`; `rubric.version` là nhãn phiên bản dùng để chấm.
 

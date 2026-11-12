@@ -58,6 +58,10 @@ model ReviewRun {
   commits          Int             @default(0)
   durationMs       Int?
   costUsd          Float?
+  inputTokens      Int?
+  outputTokens     Int?
+  cacheReadTokens  Int?
+  cacheWriteTokens Int?
   commentUrl       String?
   stageTimings     String          @default("{}")
   harnessReport    String? // JSON HarnessReportDto: độ phủ harness lúc review
@@ -66,6 +70,9 @@ model ReviewRun {
   harnessLoad      String? // JSON HarnessLoadDto: harness đã nạp (từng file)
   ruleChecks       String          @default("[]") // JSON RuleCheckDto[]: checklist theo rule
   fileList         String          @default("[]") // JSON FileReviewDto[]: file đổi + trạng thái review
+  overview         String          @default("[]") // JSON OverviewSectionDto[]: "Đánh giá tổng quan" theo khung của framework
+  aiContext        String? // JSON AiContextDto: bộ nhớ, ghi chú MR, vòng trước đã nạp cho AI
+  mrContext        String? // JSON MrDescriptionDto: tiêu đề/mô tả MR và kết quả kiểm tra tài liệu theo chuẩn
   createdAt        DateTime        @default(now())
   startedAt        DateTime?
   finishedAt       DateTime?

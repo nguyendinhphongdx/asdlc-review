@@ -1,5 +1,6 @@
 import { ModuleError } from "../../../kernel/errors.js";
-import type { ConnectionProbe, DiscoverMr, DiscoverProject, GitAuth, ProjectProbe, InlineComment, MrInfo, OpenMrRef, PlatformClient } from "../domain/types.js";
+import { countDiff } from "../domain/diff.js";
+import type { FileDiff, ConnectionProbe, DiscoverMr, DiscoverProject, GitAuth, ProjectProbe, InlineComment, MrInfo, OpenMrRef, PlatformClient } from "../domain/types.js";
 
 interface GlMr {
   iid: number; title: string; description: string | null; web_url: string; source_branch: string; target_branch: string;
@@ -67,6 +68,18 @@ export class GitLabClient implements PlatformClient {
       headRef: `refs/merge-requests/${mr.iid}/head`,
       commits: Number(commits.headers.get("x-total")) || commits.data.length,
     };
+  }
+
+  async getDiffs(projectPath: string, iid: number): Promise<FileDiff[]> {
+    type D = { old_path: string; new_path: string; new_file: boolean; renamed_file: boolean; deleted_file: boolean; diff: string; too_large?: boolean; collapsed?: boolean };
+    const pid = this.pid(projectPath);
+    const all: D[] = [];
+    for (let page = 1; page <= 10; page++) {
+      const { data } = await this.api<D[]>("GET", `/projects/${pid}/merge_requests/${iid}/diffs?per_page=100&page=${page}`);
+      all.push(...data);
+      if (data.length < 100) break;
+    }
+    return all.map((d) => countDiff({ path: d.new_path, oldPath: d.renamed_file ? d.old_path : null, status: d.new_file ? "added" : d.deleted_file ? "deleted" : d.renamed_file ? "renamed" : "modified", diff: d.diff ?? "", truncated: Boolean(d.too_large || d.collapsed) && !d.diff }));
   }
 
   async listOpen(projectPath: string, updatedAfter?: Date): Promise<OpenMrRef[]> {

@@ -5,12 +5,14 @@ import { normalizeReview, parseReviewText } from "./domain/schema.js";
 import type { ChatImage, ChatStep, ChatTools, Provider, ProviderId, ReviewRequest, ReviewResponse } from "./domain/types.js";
 import { claudeCliProvider } from "./infra/claude-cli.js";
 import { codexCliProvider } from "./infra/codex-cli.js";
+import { geminiApiProvider } from "./infra/gemini-api.js";
 import { openAiProvider } from "./infra/openai.js";
 import { binAvailable } from "./infra/probe.js";
 
 export interface ReviewerDeps {
   claude: { bin: string; model: string; maxBudgetUsd: number };
   codex: { bin: string; model: string };
+  gemini: { apiKey: () => string; baseUrl: string; model: string };
   openai: { baseUrl: string; apiKey: string; model: string };
   timeoutMs: number;
   logger?: Logger;
@@ -35,6 +37,7 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
   const providers: Record<ProviderId, Provider> = {
     "claude-cli": claudeCliProvider({ ...deps.claude, timeoutMs: deps.timeoutMs }),
     "codex-cli": codexCliProvider({ ...deps.codex, timeoutMs: deps.timeoutMs }),
+    "gemini-api": geminiApiProvider({ ...deps.gemini, timeoutMs: deps.timeoutMs }),
     "openai-compatible": openAiProvider({ ...deps.openai, timeoutMs: deps.timeoutMs }),
   };
 
@@ -59,7 +62,7 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
             onActivity: req.onActivity,
           });
           const review = normalizeReview(parseReviewText(out.text), req.rubric);
-          return { review, usage: { provider: provider.id, model: out.model, costUsd: out.costUsd, durationMs: Date.now() - started } };
+          return { review, usage: { provider: provider.id, model: out.model, costUsd: out.costUsd, ...(out.tokens ? { tokens: out.tokens } : {}), durationMs: Date.now() - started } };
         } catch (err) {
           lastErr = err;
           if (err instanceof ModuleError) throw err; // lỗi hạ tầng không thử lại ở đây
@@ -80,6 +83,7 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
       return [
         { id: "claude-cli", label: "Claude Code CLI", agentic: true, model: deps.claude.model, available: await binAvailable(deps.claude.bin) },
         { id: "codex-cli", label: "Codex CLI", agentic: true, model: deps.codex.model || "(mặc định)", available: await binAvailable(deps.codex.bin) },
+        { id: "gemini-api", label: "Gemini API (Google cloud)", agentic: false, model: deps.gemini.model, available: Boolean(deps.gemini.apiKey()) },
         { id: "openai-compatible", label: "OpenAI-compatible API", agentic: false, model: deps.openai.model, available: Boolean(deps.openai.model) },
       ];
     },

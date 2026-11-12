@@ -1,4 +1,4 @@
-import type { RunActivityEntry, FileReviewDto, HarnessLoadDto, HarnessReportDto, RuleCheckDto } from "@mrd/contracts";
+import type { RunActivityEntry, FileReviewDto, HarnessLoadDto, HarnessReportDto, AiContextDto, MrDescriptionDto, OverviewSectionDto, RuleCheckDto } from "@mrd/contracts";
 import type { Grade, RunStatus, ReviewTrigger, Verdict } from "@mrd/contracts";
 
 export interface MrSnapshot {
@@ -89,6 +89,7 @@ export interface RunResult {
   deletions: number;
   durationMs: number;
   costUsd?: number | null;
+  tokens?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number } | null;
   model?: string | null;
   commentUrl?: string | null;
   stageTimings?: Record<string, number>;
@@ -98,6 +99,9 @@ export interface RunResult {
   harnessReport?: unknown;
   ruleChecks?: RuleCheckDto[];
   harnessLoad?: HarnessLoadDto | null;
+  overview?: OverviewSectionDto[];
+  mrDescription?: MrDescriptionDto | null;
+  aiContext?: AiContextDto | null;
   activity?: RunActivityEntry[];
   files?: FileReviewDto[];
   findings: FindingRecord[];
@@ -150,6 +154,9 @@ export interface RunDetail extends RunSummary {
   omittedFiles: string[];
   harnessReport: HarnessReportDto | null;
   harnessLoad: HarnessLoadDto | null;
+  overview: OverviewSectionDto[];
+  mrDescription: MrDescriptionDto | null;
+  aiContext: AiContextDto | null;
   activity: RunActivityEntry[];
   ruleChecks: RuleCheckDto[];
   files: FileReviewDto[];
@@ -196,3 +203,13 @@ export interface MrFact {
     findings: { category: string; ruleId: string | null; severity: string; kind: string; title: string }[];
   }[];
 }
+
+/** Một run (mọi trạng thái) cho thống kê usage. */
+export interface UsageRunRow {
+  runId: string; mrId: string; iid: number; title: string; repositoryId: string; createdAt: Date; status: string;
+  provider: string | null; model: string | null; frameworkId: string | null; costUsd: number | null; durationMs: number | null; score: number | null;
+  inputTokens: number | null; outputTokens: number | null; cacheReadTokens: number | null; cacheWriteTokens: number | null;
+}
+
+export interface RuleStat { ruleId: string; count: number; agree: number; disagree: number; fixed: number; severities: Record<string, number> }
+export interface RuleStats { runs: number; rules: RuleStat[] }

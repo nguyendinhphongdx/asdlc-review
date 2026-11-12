@@ -97,6 +97,12 @@ export interface RunDetailDto extends RunSummaryDto {
   /** Nhật ký hoạt động của lần review (rỗng với review cũ). */
   activity: import("./events.js").RunActivityEntry[];
   ruleChecks: import("./review.js").RuleCheckDto[];
+  /** "Đánh giá tổng quan" theo khung framework (rỗng với review cũ hoặc framework tắt). */
+  overview: import("./review.js").OverviewSectionDto[];
+  /** Mô tả MR + kiểm tra tài liệu theo chuẩn (null với review cũ). */
+  mrDescription: import("./review.js").MrDescriptionDto | null;
+  /** Bộ nhớ/ghi chú/vòng trước đã nạp cho AI (null với review cũ). */
+  aiContext: import("./review.js").AiContextDto | null;
   /** Danh sách file đổi và trạng thái được review (rỗng với review cũ). */
   files: import("./review.js").FileReviewDto[];
   findings: FindingDto[];
@@ -143,10 +149,11 @@ export interface RepoDto {
 }
 
 export interface SettingsDto {
-  reviewProvider: "claude-cli" | "codex-cli" | "openai-compatible";
+  reviewProvider: "claude-cli" | "codex-cli" | "gemini-api" | "openai-compatible";
   defaultFramework: string;
   claudeModel: string;
   codexModel: string;
+  geminiModel: string;
   openaiModel: string;
   chatModel: string;
   passScore: number;

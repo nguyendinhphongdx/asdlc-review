@@ -14,6 +14,17 @@ export interface ConnectionStatusDto {
   canStoreSecrets: boolean;
 }
 
+/** Trạng thái khoá API của một AI provider cloud. Khoá KHÔNG bao giờ nằm trong DTO. */
+export interface AiKeyStatusDto {
+  configured: boolean;
+  /** Nguồn khoá đang dùng: lưu trong DB (UI), biến môi trường, hoặc chưa có. */
+  source: "db" | "env" | "none";
+  /** 4 ký tự cuối của khoá; null nếu chưa có. */
+  hint: string | null;
+  /** Khoá mã hoá đã sẵn sàng (nếu false thì không thể lưu khoá từ UI). */
+  canStore: boolean;
+}
+
 export interface SaveGitlabConnectionInput {
   baseUrl: string;
   /** Bỏ trống = giữ token hiện tại. */

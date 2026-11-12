@@ -1,7 +1,7 @@
 // Vỏ Electron mỏng: chạy server, mở cửa sổ tới server. Không chứa logic nghiệp vụ.
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +13,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 /** App GUI không thừa hưởng PATH của shell: bổ sung các nơi thường cài claude/codex/git/node. */
 function richPath() {
   const home = os.homedir();
-  const extra = [path.join(home, ".local/bin"), path.join(home, ".claude/local"), path.join(home, ".npm-global/bin"), "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
+  // CLI cài bằng npm thường nằm trong thư mục của trình quản lý phiên bản Node (nvm, volta, asdf…) hoặc npm global của Windows.
+  const nvmDir = path.join(process.env.NVM_DIR ?? path.join(home, ".nvm"), "versions/node");
+  const nvmBins = existsSync(nvmDir) ? readdirSync(nvmDir).sort().reverse().map((v) => path.join(nvmDir, v, "bin")) : [];
+  const win = process.platform === "win32" ? [path.join(process.env.APPDATA ?? path.join(home, "AppData/Roaming"), "npm")] : [];
+  const extra = [path.join(home, ".local/bin"), path.join(home, ".claude/local"), path.join(home, ".npm-global/bin"), ...nvmBins, path.join(home, ".volta/bin"), path.join(home, ".asdf/shims"), path.join(home, ".bun/bin"), path.join(home, "Library/pnpm"), ...win, "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
   return [...new Set([...extra, ...(process.env.PATH ?? "").split(path.delimiter)])].filter(Boolean).join(path.delimiter);
 }
 const port = process.env.PORT ?? "4319";

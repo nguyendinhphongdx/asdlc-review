@@ -1,5 +1,6 @@
 import { ModuleError } from "../../../kernel/errors.js";
-import type { GitAuth, InlineComment, MrInfo, OpenMrRef, PlatformClient } from "../domain/types.js";
+import { countDiff } from "../domain/diff.js";
+import type { FileDiff, GitAuth, InlineComment, MrInfo, OpenMrRef, PlatformClient } from "../domain/types.js";
 
 interface GhPr {
   number: number; title: string; body: string | null; html_url: string; state: string; draft: boolean;
@@ -37,6 +38,17 @@ export class GitHubClient implements PlatformClient {
       createdAt: new Date(pr.created_at), mergedAt: pr.merged_at ? new Date(pr.merged_at) : null, closedAt: pr.closed_at ? new Date(pr.closed_at) : null,
       headSha: pr.head.sha, baseSha: pr.base.sha, startSha: pr.base.sha, headRef: `refs/pull/${pr.number}/head`, commits: pr.commits,
     };
+  }
+
+  async getDiffs(projectPath: string, iid: number): Promise<FileDiff[]> {
+    type F = { filename: string; previous_filename?: string; status: string; patch?: string };
+    const all: F[] = [];
+    for (let page = 1; page <= 10; page++) {
+      const data = await this.api<F[]>("GET", `/repos/${projectPath}/pulls/${iid}/files?per_page=100&page=${page}`);
+      all.push(...data);
+      if (data.length < 100) break;
+    }
+    return all.map((f) => countDiff({ path: f.filename, oldPath: f.status === "renamed" ? (f.previous_filename ?? null) : null, status: f.status === "added" ? "added" : f.status === "removed" ? "deleted" : f.status === "renamed" ? "renamed" : "modified", diff: f.patch ?? "", truncated: !f.patch }));
   }
 
   async listOpen(projectPath: string, updatedAfter?: Date): Promise<OpenMrRef[]> {

@@ -3,6 +3,7 @@ import type { Logger } from "../../kernel/logger.js";
 import type { ChatImage, ChatStep } from "../../modules/reviewer/index.js";
 import { MCP_NAME, type AgentTools } from "../agent-tools.js";
 import type { Modules } from "../modules.js";
+import { providerModel } from "./mappers.js";
 import type { RequestReview } from "./request-review.js";
 
 const SYSTEM = `You are the ASDLC Review agent talking with a developer or reviewer about one merge request.
@@ -53,7 +54,7 @@ export function createAgentChat(m: Modules, requestReview: RequestReview, log: L
 
     const settings = await m.settings.snapshot();
     const provider = (repo.provider ?? settings.reviewProvider) as typeof settings.reviewProvider;
-    const reviewModel = repo.model || (provider === "claude-cli" ? settings.claudeModel : provider === "codex-cli" ? settings.codexModel : settings.openaiModel);
+    const reviewModel = repo.model || providerModel(provider, settings);
     const model = settings.chatModel || reviewModel;
     let raw: string;
     let steps: ChatStep[] = [];
