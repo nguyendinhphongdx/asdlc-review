@@ -126,6 +126,8 @@ export interface RepoDto {
   defaultBranch: string | null;
   frameworkId: string | null;
   provider: string | null;
+  /** Model riêng của repo; null = theo cài đặt chung của provider. */
+  model: string | null;
   enabled: boolean;
   autoReview: boolean;
   /** null = theo cài đặt chung. */
@@ -143,6 +145,10 @@ export interface RepoDto {
 export interface SettingsDto {
   reviewProvider: "claude-cli" | "codex-cli" | "openai-compatible";
   defaultFramework: string;
+  claudeModel: string;
+  codexModel: string;
+  openaiModel: string;
+  chatModel: string;
   passScore: number;
   /** Bỏ qua MR nháp (Draft/WIP) khi review tự động. */
   skipDrafts: boolean;

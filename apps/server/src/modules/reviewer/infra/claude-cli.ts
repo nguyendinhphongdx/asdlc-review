@@ -14,11 +14,12 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
   return {
     id: "claude-cli",
     agentic: true,
-    async ask({ system, user, workdir, images, tools, onStep }) {
+    async ask({ model, system, user, workdir, images, tools, onStep }) {
+      const mdl = model || o.model;
       const withImages = Boolean(images?.length);
       const stream = withImages || Boolean(tools);
       // Ảnh đi qua stdin dạng stream-json (khối image base64). Khi có tool, dùng stream-json để lấy từng bước (suy luận, gọi tool).
-      const args = ["-p", ...(stream ? ["--input-format", "stream-json", "--output-format", "stream-json", "--verbose"] : ["--output-format", "json"]), ...(tools ? ["--tools", "Read,Grep,Glob", "--allowedTools", `mcp__${tools.mcpName}__*`, "--mcp-config", JSON.stringify({ mcpServers: { [tools.mcpName]: { type: "http", url: tools.mcpUrl } } }), "--strict-mcp-config", "--setting-sources", "project"] : ["--tools", ""]), "--permission-mode", "dontAsk", "--no-session-persistence", "--append-system-prompt", system, ...(o.model ? ["--model", o.model] : [])];
+      const args = ["-p", ...(stream ? ["--input-format", "stream-json", "--output-format", "stream-json", "--verbose"] : ["--output-format", "json"]), ...(tools ? ["--tools", "Read,Grep,Glob", "--allowedTools", `mcp__${tools.mcpName}__*`, "--mcp-config", JSON.stringify({ mcpServers: { [tools.mcpName]: { type: "http", url: tools.mcpUrl } } }), "--strict-mcp-config", "--setting-sources", "project"] : ["--tools", ""]), "--permission-mode", "dontAsk", "--no-session-persistence", "--append-system-prompt", system, ...(mdl ? ["--model", mdl] : [])];
       const steps: ChatStep[] = [];
       const byId = new Map<string, Extract<ChatStep, { kind: "tool" }>>();
       const rel = (v: unknown): unknown => (typeof v === "string" ? v.replace(`${workdir}/`, "") : v);
@@ -47,7 +48,8 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
       if (out.is_error === true || typeof out.result !== "string") throw new ModuleError("reviewer", "upstream_error", `claude CLI lỗi (exit ${res.code}): ${String(out.result ?? (res.stderr || res.stdout)).slice(0, 300)}`);
       return { text: out.result, costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null, steps };
     },
-    async run({ system, user, workdir, onActivity }) {
+    async run({ model, system, user, workdir, onActivity }) {
+      const mdl = model || o.model;
       const args = [
         "-p", "--output-format", "stream-json", "--verbose",
         "--json-schema", JSON.stringify(REVIEW_JSON_SCHEMA),
@@ -56,7 +58,7 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
         "--setting-sources", "project",
         "--no-session-persistence",
         "--append-system-prompt", system,
-        ...(o.model ? ["--model", o.model] : []),
+        ...(mdl ? ["--model", mdl] : []),
         ...(o.maxBudgetUsd > 0 ? ["--max-budget-usd", String(o.maxBudgetUsd)] : []),
       ];
       let final: Record<string, unknown> | undefined;
@@ -91,7 +93,7 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
       }
       const payload = out.structured_output ?? out.result;
       const text = typeof payload === "string" ? payload : JSON.stringify(payload);
-      return { text, model: o.model || "claude", costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null };
+      return { text, model: mdl || "claude", costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null };
     },
   };
 }

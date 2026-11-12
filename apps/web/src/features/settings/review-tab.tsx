@@ -1,3 +1,4 @@
+import { ModelInput } from "../../kernel/model-input.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +66,11 @@ export function ReviewTab() {
       <Card><CardHeader><CardTitle>Review</CardTitle></CardHeader><CardContent>
         <Row label="AI provider"><Select aria-label="AI provider" value={v.reviewProvider} onChange={(e) => save.mutate({ reviewProvider: e.target.value as typeof v.reviewProvider })}>
           {(p.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.label}{x.available ? "" : " (chưa sẵn sàng)"}</option>)}</Select></Row>
+        <Row label="Model" hint={v.reviewProvider === "claude-cli" ? "Model Claude dùng để review (vd claude-opus-5-5). Repo có thể chọn model riêng." : v.reviewProvider === "codex-cli" ? "Để trống = model mặc định của Codex CLI." : "Bắt buộc với OpenAI-compatible (tên model của server)."}>
+          <ModelInput provider={v.reviewProvider} label="Model review" placeholder="(mặc định của provider)"
+            value={v.reviewProvider === "claude-cli" ? v.claudeModel : v.reviewProvider === "codex-cli" ? v.codexModel : v.openaiModel}
+            onCommit={(m) => save.mutate(v.reviewProvider === "claude-cli" ? { claudeModel: m } : v.reviewProvider === "codex-cli" ? { codexModel: m } : { openaiModel: m })} /></Row>
+        <Row label="Model cho chat" hint="Model riêng cho trợ lý chat (nên rẻ/nhanh hơn model review). Để trống = dùng model review."><ModelInput provider={v.reviewProvider} label="Model chat" placeholder="(dùng model review)" value={v.chatModel} onCommit={(m) => save.mutate({ chatModel: m })} /></Row>
         <Row label="Framework mặc định"><Select aria-label="Framework mặc định" value={v.defaultFramework} onChange={(e) => save.mutate({ defaultFramework: e.target.value })}>
           {(f.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name} v{x.version}</option>)}</Select></Row>
         <Row label="Điểm đạt"><Input aria-label="Điểm đạt" className="w-24" type="number" min={0} max={100} key={`p${v.passScore}`} defaultValue={v.passScore} onBlur={(e) => num(e.target.value, 0, (n) => n !== v.passScore && save.mutate({ passScore: n }))} /></Row>

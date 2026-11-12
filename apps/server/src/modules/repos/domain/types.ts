@@ -6,6 +6,7 @@ export interface RepoDto {
   defaultBranch: string | null;
   frameworkId: string | null;
   provider: string | null;
+  model: string | null;
   enabled: boolean;
   autoReview: boolean;
   skipDrafts: boolean | null;
@@ -23,6 +24,7 @@ export interface RegisterRepoInput {
 export interface RepoPatch {
   frameworkId?: string | null;
   provider?: string | null;
+  model?: string | null;
   enabled?: boolean;
   autoReview?: boolean;
   skipDrafts?: boolean | null;

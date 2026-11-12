@@ -19,6 +19,8 @@ export interface ReviewHarnessFile {
 
 export interface ReviewRequest {
   provider: ProviderId;
+  /** Model dùng cho lần này ("" / bỏ trống = mặc định của provider). */
+  model?: string;
   /** Thư mục checkout của head commit (agent CLI chạy ở đây, chỉ đọc). */
   workdir: string;
   mr: { iid: number; title: string; description: string; author: string; sourceBranch: string; targetBranch: string; webUrl: string };
@@ -53,6 +55,6 @@ export interface Provider {
   readonly id: ProviderId;
   readonly agentic: boolean;
   /** Hỏi đáp tự do, không công cụ (tuỳ chọn). */
-  ask?(input: { system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
-  run(input: { system: string; user: string; workdir: string; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null }>;
+  ask?(input: { model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
+  run(input: { model?: string; system: string; user: string; workdir: string; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null }>;
 }

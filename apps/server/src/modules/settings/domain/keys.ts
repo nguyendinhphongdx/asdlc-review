@@ -5,6 +5,12 @@ import { z } from "zod";
 export const SETTING_SCHEMAS = {
   reviewProvider: z.enum(["claude-cli", "codex-cli", "openai-compatible"]),
   defaultFramework: z.string().min(1),
+  /** Model cho từng provider ("" = mặc định của provider/CLI). Repo có thể ghi đè bằng model riêng. */
+  claudeModel: z.string().max(120),
+  codexModel: z.string().max(120),
+  openaiModel: z.string().max(120),
+  /** Model riêng cho chat với agent ("" = dùng cùng model review). Nên chọn model rẻ/nhanh hơn. */
+  chatModel: z.string().max(120),
   passScore: z.number().min(0).max(100),
   skipDrafts: z.boolean(),
   diffBudgetChars: z.number().int().min(10_000).max(1_000_000),

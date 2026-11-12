@@ -7,6 +7,7 @@ model Repository {
   defaultBranch String?
   frameworkId   String?
   provider      String? // provider AI riêng cho repo (null = mặc định)
+  model         String? // model riêng cho repo (null = theo cài đặt chung của provider)
   enabled       Boolean   @default(true)
   autoReview    Boolean   @default(true)
   skipDrafts      Boolean?  // null = theo cài đặt chung

@@ -27,7 +27,7 @@ export interface ProviderInfo {
 export interface ReviewerApi {
   review(req: ReviewRequest): Promise<ReviewResponse>;
   /** Hỏi đáp tự do với agent (không công cụ, không đọc repo). */
-  ask(req: { provider: ProviderId; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
+  ask(req: { provider: ProviderId; model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
   providers(): Promise<ProviderInfo[]>;
 }
 
@@ -51,6 +51,7 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
           const out = await provider.run({
+            model: req.model,
             system,
             user: attempt === 1 ? user : `${user}\n\nPREVIOUS OUTPUT WAS NOT VALID JSON FOR THE SCHEMA. Return ONLY the JSON object.`,
             workdir: req.workdir,
@@ -71,7 +72,7 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
       const provider = providers[req.provider];
       if (!provider?.ask) throw new ModuleError("reviewer", "not_configured", "Provider này chưa hỗ trợ chat. Hãy chọn Claude Code CLI ở Cài đặt.");
       if (req.images?.length && provider.id !== "claude-cli") throw new ModuleError("reviewer", "not_configured", "Gửi ảnh trong chat chỉ hỗ trợ Claude Code CLI.");
-      return provider.ask({ system: req.system, user: req.user, workdir: req.workdir, images: req.images, tools: req.tools, onStep: req.onStep });
+      return provider.ask({ model: req.model, system: req.system, user: req.user, workdir: req.workdir, images: req.images, tools: req.tools, onStep: req.onStep });
     },
 
     async providers() {

@@ -46,6 +46,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     db, events,
     defaults: {
       reviewProvider: config.REVIEW_PROVIDER, defaultFramework: "asdlc",
+      claudeModel: config.CLAUDE_MODEL, codexModel: config.CODEX_MODEL, openaiModel: config.OPENAI_MODEL, chatModel: "",
       passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS,
       workDir: "", triggerMode: "polling", pollIntervalMin: config.POLL_INTERVAL_MIN > 0 ? config.POLL_INTERVAL_MIN : 5,
     },

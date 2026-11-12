@@ -16,17 +16,18 @@ export function codexCliProvider(o: CodexCliOptions): Provider {
   return {
     id: "codex-cli",
     agentic: true,
-    async run({ system, user, workdir, onActivity }) {
+    async run({ model, system, user, workdir, onActivity }) {
+      const mdl = model || o.model;
       const tmp = await mkdtemp(path.join(tmpdir(), "mrd-codex-"));
       try {
         const schemaFile = path.join(tmp, "schema.json");
         const outFile = path.join(tmp, "out.json");
         await writeFile(schemaFile, JSON.stringify(REVIEW_JSON_SCHEMA));
-        const args = ["exec", "-s", "read-only", "-C", workdir, "--skip-git-repo-check", "--ephemeral", "--output-schema", schemaFile, "-o", outFile, ...(o.model ? ["-m", o.model] : []), "-"];
+        const args = ["exec", "-s", "read-only", "-C", workdir, "--skip-git-repo-check", "--ephemeral", "--output-schema", schemaFile, "-o", outFile, ...(mdl ? ["-m", mdl] : []), "-"];
         const res = await run(o.bin, args, { cwd: workdir, input: `${system}\n\n${user}`, timeoutMs: o.timeoutMs, allowFailure: true, onStdoutLine: (l) => onActivity?.({ kind: "ai", message: l.replace(/\s+/g, " ").slice(0, 240) }) });
         const text = await readFile(outFile, "utf8").catch(() => "");
         if (!text.trim()) throw new ModuleError("reviewer", "upstream_error", `codex CLI không trả kết quả (exit ${res.code}): ${(res.stderr || res.stdout).slice(-500)}`);
-        return { text, model: o.model || "codex", costUsd: null };
+        return { text, model: mdl || "codex", costUsd: null };
       } finally {
         await rm(tmp, { recursive: true, force: true });
       }

@@ -26,6 +26,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
 
     const settings = await m.settings.snapshot();
     const provider = (repo.provider ?? settings.reviewProvider) as typeof settings.reviewProvider;
+    const model = repo.model || (provider === "claude-cli" ? settings.claudeModel : provider === "codex-cli" ? settings.codexModel : settings.openaiModel);
     const previous = await m.reviews.latestSucceeded(rec.id);
     const { runId } = await m.reviews.startRun({ mrId: rec.id, trigger: job.trigger, triggeredBy: job.triggeredBy, headSha: mr.headSha, baseSha: mr.baseSha, provider, commits: mr.commits });
     const rlog = log.child(`run:${runId.slice(-6)}`);
@@ -53,7 +54,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         timings[name] = Date.now() - t;
       }
     };
-    emit("clone", "info", `Nhận MR !${mr.iid} "${mr.title}" (${job.trigger}), provider ${provider}`);
+    emit("clone", "info", `Nhận MR !${mr.iid} "${mr.title}" (${job.trigger}), provider ${provider}${model ? `, model ${model}` : ""}`);
 
     let ws: Awaited<ReturnType<Modules["workspace"]["prepare"]>> | undefined;
     try {
@@ -85,7 +86,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       if (notebook.length) emit("review", "info", `Áp dụng ${notebook.length} bài học trong sổ tay của repo`);
       const ai = await stage("review", () =>
         m.reviewer.review({
-          provider, workdir: dir,
+          provider, model, workdir: dir,
           onActivity: (a) => emit("review", a.kind, a.message),
           mr: { iid: mr.iid, title: mr.title, description: mr.description, author: mr.authorUsername, sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, webUrl: mr.webUrl },
           rubric: fw.rubric,

@@ -53,6 +53,8 @@ export function createAgentChat(m: Modules, requestReview: RequestReview, log: L
 
     const settings = await m.settings.snapshot();
     const provider = (repo.provider ?? settings.reviewProvider) as typeof settings.reviewProvider;
+    const reviewModel = repo.model || (provider === "claude-cli" ? settings.claudeModel : provider === "codex-cli" ? settings.codexModel : settings.openaiModel);
+    const model = settings.chatModel || reviewModel;
     let raw: string;
     let steps: ChatStep[] = [];
     // Chuẩn bị checkout của MR để agent đọc code; lỗi thì vẫn trả lời được nhưng không có tool đọc repo.
@@ -73,7 +75,7 @@ export function createAgentChat(m: Modules, requestReview: RequestReview, log: L
       }
       live.set(mrId, []);
       const res = await m.reviewer.ask({
-        provider, system: SYSTEM, user: `<context>\n${ctx}\n</context>\n\nUser: ${cleaned}`, workdir, images,
+        provider, model, system: SYSTEM, user: `<context>\n${ctx}\n</context>\n\nUser: ${cleaned}`, workdir, images,
         ...(session ? { tools: { mcpUrl: `${mcpBase}/mcp/agent/${session.token}`, mcpName: MCP_NAME } } : {}),
         onStep: (st) => live.set(mrId, st.map((x) => ({ ...x }))),
       });
