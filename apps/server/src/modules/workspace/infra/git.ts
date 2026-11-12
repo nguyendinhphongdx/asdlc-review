@@ -10,7 +10,7 @@ export interface GitCtx {
 
 export function gitRunner(ctx: GitCtx) {
   return (args: string[], cwd?: string, allowFailure = false) =>
-    run("git", [...(ctx.auth ? ["-c", `http.extraHeader=${ctx.auth}`] : []), ...args], {
+    run("git", ["-c", "safe.bareRepository=all", ...(ctx.auth ? ["-c", `http.extraHeader=${ctx.auth}`] : []), ...args], {
       cwd,
       redact: ctx.secrets,
       timeoutMs: 15 * 60_000,

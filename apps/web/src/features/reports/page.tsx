@@ -2,10 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable } from "@/components/data-table/data-table";
 import { fmtScore } from "../../kernel/format.js";
 import { useRange } from "../../kernel/range.js";
-import { Empty, ErrorBox, Loading, PageHeader, Stat } from "../../kernel/page.js";
+import { ErrorBox, Loading, PageHeader, Stat } from "../../kernel/page.js";
 import { exportUrl, getRepoNames, getReport } from "./api.js";
 
 export function ReportsPage() {
@@ -27,10 +27,15 @@ export function ReportsPage() {
               <Stat label="Lộ secret" value={r.overview.secretLeaks} tone={r.overview.secretLeaks ? "danger" : undefined} /><Stat label="Lỗi bảo mật" value={r.overview.securityIssues} />
             </div>
             <Card className="overflow-hidden"><CardHeader><CardTitle>Theo repo</CardTitle></CardHeader>
-              {r.byRepo.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : (
-                <Table><TableHeader><TableRow className="hover:bg-transparent"><TableHead>Repo</TableHead><TableHead>MR</TableHead><TableHead>Điểm TB</TableHead><TableHead>Blocker</TableHead></TableRow></TableHeader>
-                  <TableBody>{r.byRepo.map((x) => <TableRow key={x.repoId}><TableCell className="font-medium">{names.data?.[x.repoId] ?? x.repoId}</TableCell><TableCell className="tabular-nums">{x.mrCount}</TableCell><TableCell className="tabular-nums">{fmtScore(x.avgScore)}</TableCell><TableCell className="tabular-nums">{x.blockers}</TableCell></TableRow>)}</TableBody></Table>
-              )}
+              <DataTable<(typeof r.byRepo)[number]>
+                aria-label="Báo cáo theo repo" compact framed={false} data={r.byRepo} getRowId={(x) => x.repoId} empty="Chưa có dữ liệu" initialSort={[{ id: "mrCount", desc: true }]}
+                columns={[
+                  { id: "repo", header: "Repo", accessorFn: (x) => names.data?.[x.repoId] ?? x.repoId, meta: { className: "font-medium" } },
+                  { accessorKey: "mrCount", header: "MR", meta: { className: "tabular-nums" } },
+                  { id: "avgScore", header: "Điểm TB", accessorFn: (x) => x.avgScore ?? undefined, sortUndefined: "last", cell: ({ getValue }) => fmtScore(getValue<number | undefined>() ?? null), meta: { className: "tabular-nums" } },
+                  { accessorKey: "blockers", header: "Blocker", meta: { className: "tabular-nums" } },
+                ]}
+              />
             </Card>
           </>
         );

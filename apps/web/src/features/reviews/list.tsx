@@ -1,17 +1,16 @@
+import type { InboxItemDto, RunListItemDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, GradeBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type ColumnDef } from "@/components/data-table/data-table";
 import { fmtDate, fmtDur } from "../../kernel/format.js";
-import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
-import { getInbox, listRuns, openRunStream, refreshInbox, requestReview } from "./api.js";
+import { ErrorBox, PageHeader } from "../../kernel/page.js";
+import { getInbox, listRuns, openRunStream, refreshInbox, rerun, requestReview } from "./api.js";
 import { FindMrDialog } from "./find-dialog.js";
 import { stageLabel } from "../../kernel/stages.js";
 
@@ -39,13 +38,31 @@ function useLiveRuns() {
 }
 
 const ago = (iso: string | null) => (iso ? fmtDate(iso) : "chưa lần nào");
+const INBOX_STATUS = { pending: "Chờ review", queued: "Đang chờ", running: "Đang review" } as const;
+const RUN_STATUS = { succeeded: "Hoàn tất", failed: "Lỗi", running: "Đang review", queued: "Đang chờ", skipped: "Bỏ qua" } as const;
 
 function InboxTab() {
   const qc = useQueryClient();
+  const nav = useNavigate();
   const q = useQuery({ queryKey: ["inbox"], queryFn: getInbox, refetchInterval: 30000 });
   const refresh = useMutation({ mutationFn: refreshInbox, onSuccess: (d) => qc.setQueryData(["inbox"], d) });
   const run = useMutation({ mutationFn: (url: string) => requestReview(url), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["inbox"] }); void qc.invalidateQueries({ queryKey: ["runs"] }); } });
   const d = q.data;
+  const columns: ColumnDef<InboxItemDto>[] = [
+    { id: "mr", header: "Merge request", accessorFn: (i) => `!${i.iid} ${i.title}`, meta: { className: "max-w-[360px]" },
+      cell: ({ row: { original: i } }) => (<><a href={i.webUrl} target="_blank" rel="noreferrer" className="block truncate font-medium hover:underline">!{i.iid} {i.title}</a><span className="block truncate font-mono text-xs text-muted-foreground">{i.sourceBranch} → {i.targetBranch}</span></>) },
+    { id: "repo", header: "Repo", accessorFn: (i) => i.repoPath.split("/").pop() ?? i.repoPath, meta: { className: "max-w-[200px] truncate" }, cell: ({ row: { original: i }, getValue }) => <span title={i.repoPath}>{getValue<string>()}</span> },
+    { accessorKey: "authorUsername", header: "Tác giả", cell: ({ getValue }) => <span className="inline-flex items-center gap-2"><Avatar name={getValue<string>()} />{getValue<string>()}</span> },
+    { accessorKey: "updatedAt", header: "Cập nhật", meta: { className: "text-xs text-muted-foreground whitespace-nowrap" }, cell: ({ getValue }) => fmtDate(getValue<string>()) },
+    { accessorKey: "status", header: "Trạng thái", meta: { filterLabels: INBOX_STATUS },
+      cell: ({ row: { original: i } }) => (<>
+        {i.status === "running" ? <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review</Badge> : i.status === "queued" ? <Badge>Đang chờ</Badge> : <Badge variant="warning">Chờ review</Badge>}
+        {i.draft && <Badge className="ml-1.5">Draft</Badge>}
+      </>) },
+    { id: "review", header: () => <span className="sr-only">Review</span>, enableSorting: false, enableHiding: false, meta: { className: "w-24 text-right", headerClassName: "w-24" },
+      cell: ({ row: { original: i } }) => i.runId ? <Link to={`/reviews/${i.runId}`} className="text-sm font-medium hover:underline">Xem</Link>
+        : <Button size="sm" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>{run.isPending && run.variables === i.webUrl ? "Đang gửi…" : "Review"}</Button> },
+  ];
   return (
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -63,77 +80,62 @@ function InboxTab() {
       {d?.connected && d.repos.enabled === 0 && (
         <section role="status" className="rounded-xl border border-warning bg-warning-bg px-5 py-4 text-warning-fg">
           <div className="font-semibold">Chưa có repo nào được thêm</div>
-          <div className="mt-0.5 text-[13px]">Poller chỉ quét các repo đã thêm. Bấm “Tìm MR” và review một MR (repo sẽ tự được thêm), hoặc thêm ở trang <Link className="font-medium underline" to="/repos">Repository</Link>.</div>
+          <div className="mt-0.5 text-[13px]">Poller chỉ quét các repo đã thêm. Thêm ở trang <Link className="font-medium underline" to="/repos">Repository</Link>, hoặc bấm “Tìm MR” và review một MR (repo sẽ tự được thêm).</div>
         </section>
       )}
       {refresh.error && <ErrorBox error={refresh.error} />}
       {run.error && <ErrorBox error={run.error} />}
       {d?.errors.map((e) => <p key={e.repo} role="alert" className="text-[13px] text-danger-fg">Không lấy được MR của {e.repo}: {e.message}</p>)}
-      {q.isLoading ? <Loading /> : q.error ? <ErrorBox error={q.error} /> : !d?.items.length ? (
-        <Empty>{d?.openMrs ? `Có ${d.openMrs} MR đang mở nhưng tất cả đã được review ở commit hiện tại (xem tab lịch sử).` : "Không có MR nào đang chờ review. Bấm “Làm mới” để poll ngay, hoặc “Tìm MR” để chọn MR từ repo chưa thêm."}</Empty>
-      ) : (
-        <Card className="overflow-hidden">
-          <Table className="min-w-[860px]">
-            <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Merge request</TableHead><TableHead>Repo</TableHead><TableHead>Tác giả</TableHead><TableHead>Cập nhật</TableHead><TableHead>Trạng thái</TableHead><TableHead className="w-28" /></TableRow></TableHeader>
-            <TableBody>
-              {d.items.map((i) => (
-                <TableRow key={`${i.repoId}-${i.iid}`}>
-                  <TableCell className="max-w-[360px]">
-                    <a href={i.webUrl} target="_blank" rel="noreferrer" className="block truncate font-medium hover:underline">!{i.iid} {i.title}</a>
-                    <span className="block truncate font-mono text-xs text-muted-foreground">{i.sourceBranch} → {i.targetBranch}</span>
-                  </TableCell>
-                  <TableCell className="max-w-[200px] truncate text-sm" title={i.repoPath}>{i.repoPath.split("/").pop()}</TableCell>
-                  <TableCell><span className="inline-flex items-center gap-2"><Avatar name={i.authorUsername} />{i.authorUsername}</span></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{fmtDate(i.updatedAt)}</TableCell>
-                  <TableCell>
-                    {i.status === "running" ? <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review</Badge> : i.status === "queued" ? <Badge>Đang chờ</Badge> : <Badge variant="warning">Chờ review</Badge>}
-                    {i.draft && <Badge className="ml-1.5">Draft</Badge>}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {i.runId ? <Link to={`/reviews/${i.runId}`} className="text-sm font-medium hover:underline">Xem</Link>
-                      : <Button size="sm" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>{run.isPending && run.variables === i.webUrl ? "Đang gửi…" : "Review"}</Button>}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="border-t px-5 py-3 text-[13px] text-muted-foreground">{d.items.length} MR đang chờ</div>
-        </Card>
-      )}
+      <DataTable<InboxItemDto>
+        aria-label="MR đang chờ review" columns={columns} data={d?.items ?? []} loading={q.isLoading} error={q.error}
+        getRowId={(i) => `${i.repoId}-${i.iid}`} unit="MR đang chờ" minWidth={860}
+        search={{ placeholder: "Tìm theo tiêu đề, repo, tác giả…" }}
+        filters={[{ columnId: "repo", label: "Repo" }, { columnId: "authorUsername", label: "Tác giả" }, { columnId: "status", label: "Trạng thái" }]}
+        initialSort={[{ id: "updatedAt", desc: true }]}
+        rowActions={(i) => [
+          { label: "Review ngay", onSelect: () => run.mutate(i.webUrl), hidden: () => !!i.runId },
+          { label: "Xem kết quả", onSelect: () => nav(`/reviews/${i.runId}`), hidden: () => !i.runId },
+          { label: "Mở trên GitLab", onSelect: () => window.open(i.webUrl, "_blank", "noopener") },
+          { label: "Sao chép link MR", onSelect: () => void navigator.clipboard?.writeText(i.webUrl) },
+        ]}
+        empty={d?.openMrs ? `Có ${d.openMrs} MR đang mở nhưng tất cả đã được review ở commit hiện tại (xem tab lịch sử).` : "Không có MR nào đang chờ review. Bấm “Làm mới” để poll ngay, hoặc “Tìm MR” để chọn MR từ repo chưa thêm."}
+      />
     </>
   );
 }
 
 function HistoryTab() {
-  const [search, setSearch] = useState("");
+  const nav = useNavigate();
+  const re = useMutation({ mutationFn: (mrId: string) => rerun(mrId) });
   const q = useQuery({ queryKey: ["runs"], queryFn: () => listRuns({ limit: 100 }), refetchInterval: 20000 });
-  const items = (q.data?.items ?? []).filter((r) => !search || `${r.mr.title} ${r.mr.authorUsername}`.toLowerCase().includes(search.toLowerCase()));
+  const total = (r: RunListItemDto) => Object.values(r.findingCounts).reduce((a, b) => a + b, 0);
+  const columns: ColumnDef<RunListItemDto>[] = [
+    { id: "mr", header: "Merge request", accessorFn: (r) => `!${r.mr.iid} ${r.mr.title}`, meta: { className: "min-w-[280px]" }, cell: ({ row: { original: r } }) => <Link to={`/reviews/${r.id}`} className="font-medium hover:underline">!{r.mr.iid} {r.mr.title}</Link> },
+    { id: "author", header: "Tác giả", accessorFn: (r) => r.mr.authorUsername, cell: ({ getValue }) => <span className="inline-flex items-center gap-2"><Avatar name={getValue<string>()} />{getValue<string>()}</span> },
+    { accessorKey: "round", header: "Vòng", meta: { className: "tabular-nums" } },
+    { id: "score", header: "Điểm", accessorFn: (r) => (r.status === "succeeded" ? r.score ?? undefined : undefined), sortUndefined: "last",
+      cell: ({ row: { original: r } }) => (r.status === "succeeded" ? <GradeBadge grade={r.grade} score={r.score} /> : <Badge>—</Badge>) },
+    { id: "findings", header: "Finding", accessorFn: total, cell: ({ row: { original: r } }) => <span className="inline-flex gap-2.5 text-xs">{SEV_DOT.map(([k, c]) => (r.findingCounts[k] ? <span key={k} className="inline-flex items-center gap-1"><span className={`size-2 rounded-full ${c}`} />{r.findingCounts[k]}</span> : null))}</span> },
+    { id: "changes", header: "Thay đổi", accessorFn: (r) => r.additions + r.deletions, meta: { className: "font-mono text-xs whitespace-nowrap" },
+      cell: ({ row: { original: r } }) => <><span className="text-success-fg">+{r.additions}</span> <span className="text-danger-fg">−{r.deletions}</span> · {r.filesChanged} file</> },
+    { accessorKey: "durationMs", header: "Thời gian", meta: { className: "tabular-nums" }, cell: ({ getValue }) => fmtDur(getValue<number | null>()) },
+    { accessorKey: "status", header: "Trạng thái", meta: { filterLabels: RUN_STATUS }, cell: ({ row: { original: r } }) => <Status status={r.status} stage={r.stage} error={r.error} /> },
+    { accessorKey: "createdAt", header: "Lúc", meta: { className: "text-xs text-muted-foreground whitespace-nowrap" }, cell: ({ getValue }) => fmtDate(getValue<string>()) },
+  ];
   return (
     <>
-      <Input aria-label="Tìm kiếm" className="max-w-xs" placeholder="Tìm theo tiêu đề, tác giả…" value={search} onChange={(e) => setSearch(e.target.value)} />
-      {q.isLoading ? <Loading /> : q.error ? <ErrorBox error={q.error} /> : !items.length ? <Empty>Chưa có lần review nào</Empty> : (
-        <Card className="overflow-hidden">
-          <Table className="min-w-[980px]">
-            <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Merge request</TableHead><TableHead>Tác giả</TableHead><TableHead>Vòng</TableHead><TableHead>Điểm</TableHead><TableHead>Finding</TableHead><TableHead>Thay đổi</TableHead><TableHead>Thời gian</TableHead><TableHead>Trạng thái</TableHead><TableHead>Lúc</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {items.map((r) => (
-                <TableRow key={r.id}>
-                  <TableCell><Link to={`/reviews/${r.id}`} className="font-medium hover:underline">!{r.mr.iid} {r.mr.title}</Link></TableCell>
-                  <TableCell><span className="inline-flex items-center gap-2"><Avatar name={r.mr.authorUsername} />{r.mr.authorUsername}</span></TableCell>
-                  <TableCell className="tabular-nums">{r.round}</TableCell>
-                  <TableCell>{r.status === "succeeded" ? <GradeBadge grade={r.grade} score={r.score} /> : <Badge>—</Badge>}</TableCell>
-                  <TableCell><span className="inline-flex gap-2.5 text-xs">{SEV_DOT.map(([k, c]) => (r.findingCounts[k] ? <span key={k} className="inline-flex items-center gap-1"><span className={`size-2 rounded-full ${c}`} />{r.findingCounts[k]}</span> : null))}</span></TableCell>
-                  <TableCell className="font-mono text-xs"><span className="text-success-fg">+{r.additions}</span> <span className="text-danger-fg">−{r.deletions}</span> · {r.filesChanged} file</TableCell>
-                  <TableCell className="tabular-nums">{fmtDur(r.durationMs)}</TableCell>
-                  <TableCell><Status status={r.status} stage={r.stage} error={r.error} /></TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{fmtDate(r.createdAt)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <div className="border-t px-5 py-3 text-[13px] text-muted-foreground">{items.length} / {q.data?.total ?? 0} lần review</div>
-        </Card>
-      )}
+      {re.error && <ErrorBox error={re.error} />}
+      <DataTable<RunListItemDto>
+        aria-label="Lịch sử review" columns={columns} data={q.data?.items ?? []} loading={q.isLoading} error={q.error} getRowId={(r) => r.id}
+        unit="lần review" minWidth={980} search={{ placeholder: "Tìm theo tiêu đề, tác giả…" }}
+        filters={[{ columnId: "author", label: "Tác giả" }, { columnId: "status", label: "Trạng thái" }]}
+        initialSort={[{ id: "createdAt", desc: true }]} empty="Chưa có lần review nào"
+        rowActions={(r) => [
+          { label: "Xem chi tiết", onSelect: () => nav(`/reviews/${r.id}`) },
+          { label: "Review lại", onSelect: () => re.mutate(r.mr.id) },
+          { label: "Mở MR trên GitLab", onSelect: () => window.open(r.mr.webUrl, "_blank", "noopener") },
+        ]}
+      />
     </>
   );
 }

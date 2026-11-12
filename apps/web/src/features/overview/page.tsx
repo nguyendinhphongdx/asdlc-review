@@ -6,7 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type ColumnDef } from "@/components/data-table/data-table";
 import { cn } from "@/lib/utils";
 import { fmtHours, fmtScore } from "../../kernel/format.js";
 import { useRange } from "../../kernel/range.js";
@@ -65,14 +65,14 @@ export function OverviewPage() {
 
       <Card className="overflow-hidden">
         <CardHeader><CardTitle>Quy tắc vi phạm nhiều nhất</CardTitle><CardDescription>Tính theo lần review đầu của mỗi MR</CardDescription></CardHeader>
-        {o.topRules.length === 0 ? <Empty>Chưa có dữ liệu</Empty> : (
-          <Table>
-            <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Quy tắc</TableHead><TableHead>Nội dung</TableHead><TableHead className="text-right">Số lần</TableHead></TableRow></TableHeader>
-            <TableBody>{o.topRules.map((r) => (
-              <TableRow key={r.ruleId}><TableCell><Badge className="font-mono">{r.ruleId}</Badge></TableCell><TableCell>{r.title}</TableCell><TableCell className="text-right font-medium tabular-nums">{r.count}</TableCell></TableRow>
-            ))}</TableBody>
-          </Table>
-        )}
+        <DataTable<(typeof o.topRules)[number]>
+          aria-label="Quy tắc vi phạm nhiều nhất" compact framed={false} data={o.topRules} getRowId={(r) => r.ruleId} empty="Chưa có dữ liệu" initialSort={[{ id: "count", desc: true }]}
+          columns={[
+            { accessorKey: "ruleId", header: "Quy tắc", cell: ({ getValue }) => <Badge className="font-mono">{getValue<string>()}</Badge> },
+            { accessorKey: "title", header: "Nội dung" },
+            { accessorKey: "count", header: "Số lần", meta: { className: "text-right font-medium tabular-nums", headerClassName: "text-right" } },
+          ]}
+        />
       </Card>
     </>
   );

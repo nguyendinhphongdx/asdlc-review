@@ -173,6 +173,7 @@ for (const file of walk(WEB)) {
     if (self && target.startsWith("features/") && target.split("/")[1] !== self) add("R17", file, `feature "${self}" import feature khác: ${spec}`);
     if (self && target.startsWith("app/")) add("R17", file, `feature import app/: ${spec}`);
   }
+  if (self && /@\/components\/ui\/table["']/.test(code)) add("R19", file, "Feature không dùng ui/table trực tiếp; dùng components/data-table/DataTable để bảng đồng nhất");
   if (self && /\bfetch\(/.test(code) && !/\/api\.ts$/.test(rel)) add("R18", file, "Component không fetch trực tiếp; dùng features/<x>/api.ts");
 }
 

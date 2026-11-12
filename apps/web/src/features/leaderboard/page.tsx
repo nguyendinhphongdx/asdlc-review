@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { LeaderboardRow } from "@mrd/contracts";
 import { Trophy } from "lucide-react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type ColumnDef } from "@/components/data-table/data-table";
 import { cn } from "@/lib/utils";
 import { fmtHours, fmtScore } from "../../kernel/format.js";
 import { useRange } from "../../kernel/range.js";
@@ -11,6 +11,24 @@ import { getLeaderboard, getRecentRuns } from "./api.js";
 import { PodiumSlot } from "./podium.js";
 import { RankTable } from "./rank-table.js";
 import { Eyebrow, GlassCard, Sparkles, Spotlights } from "./stage.js";
+
+type RankedRow = LeaderboardRow & { rank: number };
+const num = (v: number | null | undefined) => v ?? undefined;
+const RANK_COLUMNS: ColumnDef<RankedRow>[] = [
+  { accessorKey: "rank", header: "#", meta: { className: "font-semibold tabular-nums" } },
+  { accessorKey: "name", header: "Thành viên", meta: { className: "font-medium" } },
+  { accessorKey: "mrCount", header: "MR", meta: { className: "tabular-nums" } },
+  { id: "avgFirstScore", header: "Lần đầu", accessorFn: (r) => num(r.avgFirstScore), sortUndefined: "last", cell: ({ getValue }) => fmtScore(getValue<number | undefined>() ?? null), meta: { className: "tabular-nums" } },
+  { id: "avgFinalScore", header: "Điểm cuối", accessorFn: (r) => num(r.avgFinalScore), sortUndefined: "last", cell: ({ getValue }) => fmtScore(getValue<number | undefined>() ?? null), meta: { className: "tabular-nums" } },
+  { id: "improvement", header: "Cải thiện", accessorFn: (r) => num(r.improvement), sortUndefined: "last", cell: ({ getValue }) => { const v = getValue<number | undefined>(); return <span className={(v ?? 0) >= 0 ? "text-success-fg" : "text-danger-fg"}>{fmtScore(v ?? null)}</span>; }, meta: { className: "tabular-nums" } },
+  { id: "rankScore", header: "Xếp hạng", accessorFn: (r) => num(r.rankScore), sortUndefined: "last", cell: ({ getValue }) => fmtScore(getValue<number | undefined>() ?? null), meta: { className: "font-bold tabular-nums" } },
+  { accessorKey: "blockers", header: "Blocker", meta: { className: "tabular-nums" } },
+  { accessorKey: "securityIssues", header: "Bảo mật", meta: { className: "tabular-nums" } },
+  { accessorKey: "secretLeaks", header: "Secret", meta: { className: "tabular-nums" } },
+  { accessorKey: "conventionViolations", header: "Convention", meta: { className: "tabular-nums" } },
+  { id: "avgReviewRounds", header: "Vòng TB", accessorFn: (r) => num(r.avgReviewRounds), sortUndefined: "last", cell: ({ getValue }) => fmtScore(getValue<number | undefined>() ?? null), meta: { className: "tabular-nums" } },
+  { id: "avgLeadTimeHours", header: "Lead time", accessorFn: (r) => num(r.avgLeadTimeHours), sortUndefined: "last", cell: ({ getValue }) => fmtHours(getValue<number | undefined>() ?? null), meta: { className: "tabular-nums" } },
+];
 
 const PERIODS = [{ d: 7, l: "7 ngày" }, { d: 30, l: "30 ngày" }, { d: 90, l: "90 ngày" }];
 
@@ -84,21 +102,11 @@ export function LeaderboardPage() {
 
       <details className="group rounded-xl border bg-card shadow-sm">
         <summary className="cursor-pointer select-none px-5 py-3.5 text-sm font-medium">Bảng số liệu đầy đủ</summary>
-        <Table>
-          <TableHeader><TableRow className="hover:bg-transparent"><TableHead>#</TableHead><TableHead>Thành viên</TableHead><TableHead>MR</TableHead><TableHead>Lần đầu</TableHead><TableHead>Điểm cuối</TableHead><TableHead>Cải thiện</TableHead><TableHead>Xếp hạng</TableHead><TableHead>Blocker</TableHead><TableHead>Bảo mật</TableHead><TableHead>Secret</TableHead><TableHead>Convention</TableHead><TableHead>Vòng TB</TableHead><TableHead>Lead time</TableHead></TableRow></TableHeader>
-          <TableBody>
-            {rows.map((r, i) => (
-              <TableRow key={r.memberId ?? r.name} className="tabular-nums">
-                <TableCell className="font-semibold">{i + 1}</TableCell><TableCell className="font-medium">{r.name}</TableCell><TableCell>{r.mrCount}</TableCell>
-                <TableCell>{fmtScore(r.avgFirstScore)}</TableCell><TableCell>{fmtScore(r.avgFinalScore)}</TableCell>
-                <TableCell className={(r.improvement ?? 0) >= 0 ? "text-success-fg" : "text-danger-fg"}>{fmtScore(r.improvement)}</TableCell>
-                <TableCell className="font-bold">{fmtScore(r.rankScore)}</TableCell>
-                <TableCell>{r.blockers}</TableCell><TableCell>{r.securityIssues}</TableCell><TableCell>{r.secretLeaks}</TableCell><TableCell>{r.conventionViolations}</TableCell>
-                <TableCell>{fmtScore(r.avgReviewRounds)}</TableCell><TableCell>{fmtHours(r.avgLeadTimeHours)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable<RankedRow>
+          aria-label="Bảng số liệu đầy đủ" framed={false} columns={RANK_COLUMNS} data={rows.map((r, i) => ({ ...r, rank: i + 1 }))} getRowId={(r) => r.memberId ?? r.name}
+          unit="thành viên" pageSize={25} search={{ placeholder: "Tìm thành viên…" }} initialSort={[{ id: "rank", desc: false }]} minWidth={1000}
+          initialHidden={{ secretLeaks: false, conventionViolations: false, avgReviewRounds: false }}
+        />
         <p className="border-t px-5 py-3 text-[13px] text-muted-foreground">Xếp hạng = trung bình Bayesian của điểm lần đầu, (C·m + Σs) / (C + n), C = 5, m = điểm trung bình toàn team.</p>
       </details>
     </>

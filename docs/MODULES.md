@@ -146,6 +146,7 @@ Quy ước: ngoài module, chỉ được `import … from "modules/<name>"` (t�
 **Frontend** (`apps/web`)
 - R17 `features/A` ↛ `features/B`; ghép feature chỉ ở `app/`.
 - R18 Feature chỉ gọi server qua `kernel/http` + `features/A/api.ts`; component không `fetch` trực tiếp.
+- R19 Bảng dữ liệu luôn dùng `components/data-table/DataTable` (TanStack Table: tìm kiếm, lọc, sắp xếp, ẩn/hiện cột, menu thao tác, phân trang); feature không import `ui/table` trực tiếp.
 - R19 Kiểu dữ liệu lấy từ `packages/contracts`, không khai báo lại.
 
 ### Cách thực thi tự động
