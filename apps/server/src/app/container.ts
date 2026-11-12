@@ -12,6 +12,7 @@ import { createReviewsModule } from "../modules/reviews/index.js";
 import { createScmModule } from "../modules/scm/index.js";
 import { createScoringModule } from "../modules/scoring/index.js";
 import { createSecretsModule } from "../modules/secrets/index.js";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createSettingsModule } from "../modules/settings/index.js";
 import { createWorkspaceModule } from "../modules/workspace/index.js";
@@ -104,7 +105,24 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     async startWorkers() {
       await refreshDirs();
       const r = await modules.secrets.load();
-      if (r.failed.length) log.warn("không giải mã được secret (sai khoá?)", { keys: r.failed });
+      if (r.failed.length) {
+        // Khoá hiện tại khác khoá đã dùng để lưu (vd: trước đó chạy bản web dùng file `secret.key`, giờ desktop dùng keychain):
+        // thử khoá cũ trong thư mục dữ liệu, giải mã được thì mã hoá lại bằng khoá hiện tại.
+        const legacyFile = path.join(config.dataDir, "secret.key");
+        const legacy = existsSync(legacyFile) ? readFileSync(legacyFile, "utf8").trim() : "";
+        if (legacy.length >= 16 && legacy !== master.key && secrets.canStore) {
+          const old = createSecretsModule({ db, masterKey: legacy });
+          await old.load();
+          const migrated: string[] = [];
+          for (const k of r.failed) {
+            const v = old.peek(k);
+            if (v) { await secrets.set(k, v); migrated.push(k); }
+          }
+          if (migrated.length) log.info("đã chuyển secret sang khoá mã hoá hiện tại", { keys: migrated });
+          r.failed = r.failed.filter((k) => !migrated.includes(k));
+        }
+        if (r.failed.length) log.warn("không giải mã được secret (sai khoá?) — hãy nhập lại ở Cài đặt → Kết nối", { keys: r.failed });
+      }
       modules.queue.process(REVIEW_QUEUE, workflows.reviewMergeRequest as never);
       void inbox.sync({ review: false }).catch(() => undefined); // nạp sẵn hộp MR khi khởi động (không tự review)
       // Poller luôn được đăng ký (tick mỗi phút) để đổi chế độ/chu kỳ trên UI có hiệu lực ngay, không cần khởi động lại.

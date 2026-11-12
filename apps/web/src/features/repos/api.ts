@@ -1,5 +1,5 @@
-import type { ConfigPreviewDto, ConnectionStatusDto, FrameworkInfoDto, HarnessReportDto, RepoCheckDto, RepoDto, RepoWebhookDto, SettingsDto, WebhookSecretDto } from "@mrd/contracts";
-import { request } from "../../kernel/http.js";
+import type { ConfigPreviewDto, DiscoverProjectDto, ConnectionStatusDto, FrameworkInfoDto, HarnessReportDto, RepoCheckDto, RepoDto, RepoWebhookDto, SettingsDto, WebhookSecretDto } from "@mrd/contracts";
+import { qs, request } from "../../kernel/http.js";
 export const listRepos = () => request<RepoDto[]>("/api/repos");
 export const registerRepo = (url: string) => request<RepoDto>("/api/repos", { method: "POST", json: { url } });
 export const checkRepo = (url: string) => request<RepoCheckDto>("/api/repos/check", { method: "POST", json: { url } });
@@ -13,3 +13,4 @@ export const listFrameworks = () => request<FrameworkInfoDto[]>("/api/frameworks
 export const getRepoHarness = (id: string) => request<{ report: HarnessReportDto | null; runId: string | null }>(`/api/repos/${id}/harness`);
 export const previewConfig = (yaml: string, frameworkId?: string) => request<ConfigPreviewDto>("/api/framework-config/preview", { method: "POST", json: { yaml, ...(frameworkId ? { frameworkId } : {}) } });
 export const getSettings = () => request<SettingsDto>("/api/settings");
+export const discoverProjects = (q: string) => request<DiscoverProjectDto[]>(`/api/discover/projects${qs({ q })}`);

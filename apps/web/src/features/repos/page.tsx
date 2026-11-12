@@ -25,7 +25,7 @@ export function ReposPage() {
   const sel = q.data?.find((r) => r.id === selected);
   return (
     <>
-      <PageHeader title="Repository" description="Repo nào được review tự động và webhook có đang hoạt động không.">
+      <PageHeader title="Repository" description="Repo nào được poller quét và review tự động; thêm repo bằng cách tìm trong tài khoản GitLab.">
         <Button onClick={() => setWizard(true)}><Plus />Thêm repository</Button>
       </PageHeader>
       <Input aria-label="Tìm repository" className="max-w-xs" placeholder="Tìm repository…" value={search} onChange={(e) => setSearch(e.target.value)} />

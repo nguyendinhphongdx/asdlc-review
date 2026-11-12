@@ -1,14 +1,15 @@
-import type { RepoDto } from "@mrd/contracts";
+import type { DiscoverProjectDto, RepoDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CircleCheck, Eye, EyeOff, Loader2, X } from "lucide-react";
+import { CircleCheck, Eye, EyeOff, GitMerge, Loader2, Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "../../kernel/copy.js";
 import { ErrorBox } from "../../kernel/page.js";
-import { checkRepo, createRepoWebhook, getConnection, getRepoWebhook, getWebhookSecret, registerRepo } from "./api.js";
+import { checkRepo, createRepoWebhook, discoverProjects, getConnection, getRepoWebhook, getSettings, getWebhookSecret, registerRepo } from "./api.js";
 
 const Step = ({ n, active, done, title, children }: { n: number; active: boolean; done: boolean; title: string; children?: React.ReactNode }) => (
   <li className={cn("flex gap-3 py-3", !active && !done && "opacity-50")} aria-current={active ? "step" : undefined}>
@@ -20,7 +21,9 @@ const Step = ({ n, active, done, title, children }: { n: number; active: boolean
 export function AddRepoWizard({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [url, setUrl] = useState("");
+  const [term, setTerm] = useState("");
+  const [q, setQ] = useState("");
+  const [selected, setSelected] = useState<DiscoverProjectDto | null>(null);
   const [repo, setRepo] = useState<RepoDto | null>(null);
   const [created, setCreated] = useState(false);
   const [shown, setShown] = useState(false);
@@ -42,10 +45,15 @@ export function AddRepoWizard({ onClose }: { onClose: () => void }) {
     return () => { document.removeEventListener("keydown", onKey); prev?.focus(); };
   }, [onClose]);
 
-  const check = useMutation({ mutationFn: () => checkRepo(url.trim()) });
+  useEffect(() => { const t = setTimeout(() => setQ(term), 300); return () => clearTimeout(t); }, [term]);
+  const projects = useQuery({ queryKey: ["discover-projects", q], queryFn: () => discoverProjects(q), enabled: step === 1 });
+  const settings = useQuery({ queryKey: ["settings"], queryFn: getSettings });
+  // Webhook chỉ cần khi chạy chế độ webhook; polling/thủ công thì chọn repo xong là xong.
+  const needsWebhook = settings.data?.triggerMode === "webhook";
+  const check = useMutation({ mutationFn: (path: string) => checkRepo(path) });
   const register = useMutation({
-    mutationFn: () => registerRepo(url.trim()),
-    onSuccess: (r) => { setRepo(r); setStep(2); void qc.invalidateQueries({ queryKey: ["repos"] }); },
+    mutationFn: (p: DiscoverProjectDto) => registerRepo(p.webUrl),
+    onSuccess: (r) => { void qc.invalidateQueries({ queryKey: ["repos"] }); void qc.invalidateQueries({ queryKey: ["inbox"] }); if (needsWebhook) { setRepo(r); setStep(2); } else onClose(); },
   });
   const auto = useMutation({ mutationFn: () => createRepoWebhook(repo!.id), onSuccess: () => { setCreated(true); void qc.invalidateQueries({ queryKey: ["repos"] }); } });
   const conn = useQuery({ queryKey: ["connection"], queryFn: getConnection, enabled: step === 2 });
@@ -58,33 +66,49 @@ export function AddRepoWizard({ onClose }: { onClose: () => void }) {
   const rejected = poll.data?.events.filter((e) => e.result === "rejected").length ?? 0;
   const c = check.data;
   const canNext = !!c?.ok && !check.isPending;
+  const pick = (p: DiscoverProjectDto) => { if (p.registered) return; setSelected(p); register.reset(); check.mutate(p.path); };
   const finish = () => { void qc.invalidateQueries({ queryKey: ["repos"] }); void qc.invalidateQueries({ queryKey: ["repo-webhook", repo?.id] }); onClose(); };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={dialog} role="dialog" aria-modal="true" aria-labelledby="wiz-title" className="w-full max-w-xl rounded-xl border bg-card p-5 text-card-foreground shadow-lg">
         <div className="flex items-start justify-between gap-3">
-          <div><h2 id="wiz-title" className="text-base font-semibold">Thêm repository</h2><p className="text-[13px] text-muted-foreground">Bước {step} / 3</p></div>
+          <div><h2 id="wiz-title" className="text-base font-semibold">Thêm repository</h2><p className="text-[13px] text-muted-foreground">{needsWebhook ? `Bước ${step} / 3` : "Chọn repo trong tài khoản GitLab"}</p></div>
           <Button variant="ghost" size="icon" aria-label="Đóng" onClick={onClose}><X /></Button>
         </div>
         <ol className="mt-2 divide-y">
           <Step n={1} active={step === 1} done={step > 1} title="Chọn repository">
             {step === 1 ? (
-              <form className="mt-2 flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); if (!url.trim()) return; if (canNext) register.mutate(); else check.mutate(); }}>
-                <div className="flex flex-wrap gap-2">
-                  <Input autoFocus aria-label="Link repository" className="flex-[1_1_260px]" placeholder="https://gitlab.example.com/group/project" value={url} onChange={(e) => { setUrl(e.target.value); if (check.data || check.error) check.reset(); register.reset(); }} />
-                  <Button type="button" variant="outline" disabled={!url.trim() || check.isPending} onClick={() => check.mutate()}>{check.isPending && <Loader2 className="animate-spin" />}Kiểm tra</Button>
+              <form className="mt-2 flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); if (selected && canNext) register.mutate(selected); }}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+                  <Input autoFocus aria-label="Tìm repository" className="pl-9" placeholder="Tìm repo trong tài khoản GitLab của bạn…" value={term} onChange={(e) => setTerm(e.target.value)} />
                 </div>
+                {projects.isLoading ? <p className="text-[13px] text-muted-foreground">Đang tải danh sách repo…</p> : projects.error ? <ErrorBox error={projects.error} /> : !projects.data?.length ? <p className="text-[13px] text-muted-foreground">Không tìm thấy repo nào</p> : (
+                  <ul className="max-h-64 divide-y overflow-y-auto rounded-lg border" aria-label="Danh sách repo">
+                    {projects.data.map((p) => (
+                      <li key={p.path}>
+                        <button type="button" disabled={p.registered} aria-pressed={selected?.path === p.path} onClick={() => pick(p)}
+                          className={cn("flex w-full items-center gap-3 px-3 py-2 text-left", p.registered ? "opacity-60" : "hover:bg-muted/50", selected?.path === p.path && "bg-muted")}>
+                          <GitMerge className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                          <span className="min-w-0 flex-1"><span className="block truncate font-medium">{p.name}</span><span className="block truncate text-xs text-muted-foreground">{p.path}</span></span>
+                          {p.registered && <Badge variant="success">Đã thêm</Badge>}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {check.isPending && <p className="flex items-center gap-2 text-[13px] text-muted-foreground"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Đang kiểm tra quyền truy cập…</p>}
                 {check.error && <ErrorBox error={check.error} />}
                 {c && !c.ok && <div role="alert" className="rounded-lg border border-danger bg-danger-bg p-3 text-sm text-danger-fg">{c.error ?? "Không truy cập được repository này bằng token hiện tại."}</div>}
                 {c?.ok && <p role="status" className="text-[13px] text-success-fg"><span className="font-mono">{c.fullPath}</span> · token truy cập được{c.defaultBranch ? ` · nhánh mặc định ${c.defaultBranch}` : ""}</p>}
                 {register.error && <ErrorBox error={register.error} />}
-                <div className="flex justify-end"><Button type="submit" disabled={!canNext || register.isPending}>{register.isPending && <Loader2 className="animate-spin" />}Tiếp tục</Button></div>
+                <div className="flex justify-end"><Button type="submit" disabled={!selected || !canNext || register.isPending}>{register.isPending && <Loader2 className="animate-spin" />}{needsWebhook ? "Tiếp tục" : "Thêm repository"}</Button></div>
               </form>
             ) : repo && <p className="text-[13px] text-muted-foreground"><span className="font-mono">{repo.fullPath}</span> · token truy cập được{repo.defaultBranch ? ` · nhánh mặc định ${repo.defaultBranch}` : ""}</p>}
           </Step>
 
-          <Step n={2} active={step === 2} done={step > 2} title="Tạo webhook trên GitLab">
+          {needsWebhook && <Step n={2} active={step === 2} done={step > 2} title="Tạo webhook trên GitLab">
             {step === 2 && (
               <div className="mt-2 flex flex-col gap-4">
                 {c?.canCreateWebhook && (
@@ -112,9 +136,9 @@ export function AddRepoWizard({ onClose }: { onClose: () => void }) {
                 <div className="flex justify-end"><Button onClick={() => setStep(3)}>Tiếp tục</Button></div>
               </div>
             )}
-          </Step>
+          </Step>}
 
-          <Step n={3} active={step === 3} done={got} title="Gửi sự kiện thử">
+          {needsWebhook && <Step n={3} active={step === 3} done={got} title="Gửi sự kiện thử">
             {step === 3 && (
               <div className="mt-2 flex flex-col gap-3 text-[13px]">
                 <p>Sau khi lưu webhook, bấm "Test → Merge request events" trên GitLab. Trang này sẽ tự cập nhật khi nhận được.</p>
@@ -124,11 +148,11 @@ export function AddRepoWizard({ onClose }: { onClose: () => void }) {
                 {poll.error && <ErrorBox error={poll.error} />}
               </div>
             )}
-          </Step>
+          </Step>}
         </ol>
         <div className="mt-3 flex justify-end gap-2 border-t pt-4">
-          <Button variant="outline" onClick={onClose}>{step === 3 && !got ? "Làm sau" : "Huỷ"}</Button>
-          <Button disabled={!got} onClick={finish}>Hoàn tất</Button>
+          <Button variant="outline" onClick={onClose}>{needsWebhook && step === 3 && !got ? "Làm sau" : "Huỷ"}</Button>
+          {needsWebhook && <Button disabled={!got} onClick={finish}>Hoàn tất</Button>}
         </div>
       </div>
     </div>
