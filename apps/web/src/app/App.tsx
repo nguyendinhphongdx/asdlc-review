@@ -9,7 +9,8 @@ import { OverviewPage } from "../features/overview/index.js";
 import { ReposPage } from "../features/repos/index.js";
 import { ReportsPage } from "../features/reports/index.js";
 import { ReviewDetailPage, ReviewsPage } from "../features/reviews/index.js";
-import { SettingsPage } from "../features/settings/index.js";
+import { SettingsPage, useAppVersion } from "../features/settings/index.js";
+import { useUpdateAvailable } from "../kernel/desktop.js";
 import { RangePicker } from "../kernel/range.js";
 
 interface Item { to: string; label: string; icon: LucideIcon; end?: boolean; range?: boolean }
@@ -32,6 +33,8 @@ const all = groups.flatMap((g) => g.items);
 function Shell({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation();
   const { dark, toggle } = useTheme();
+  const update = useUpdateAvailable();
+  const version = useAppVersion();
   const current = all.find((i) => (i.end ? pathname === i.to : pathname.startsWith(i.to)));
   const link = ({ isActive }: { isActive: boolean }) => `flex h-9 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${isActive ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"}`;
   return (
@@ -51,6 +54,11 @@ function Shell({ children }: { children: React.ReactNode }) {
             </div>
           ))}
         </nav>
+        <NavLink to="/settings?tab=version" className="mt-auto flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" aria-label="Thông tin phiên bản và cập nhật">
+          <img src="/favicon.svg" alt="" className="size-6 flex-none" />
+          <span className="min-w-0 flex-1 leading-tight"><span className="block truncate text-[13px] font-medium">ASDLC Review</span><span className="block truncate text-xs text-muted-foreground">{version ? `v${version}` : "Phiên bản"}{update ? ` · có v${update.latest}` : ""}</span></span>
+          {update && <span className="size-2 flex-none rounded-full bg-primary" aria-label="Có bản cập nhật" />}
+        </NavLink>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex min-h-14 flex-none items-center gap-3 border-b bg-background px-4 md:px-8">

@@ -24,7 +24,7 @@ describe("framework: fork, phiên bản, xoá an toàn (HTTP + DB thật)", () =
     await run("npx", ["--no-install", "prisma", "db", "push", "--skip-generate", "--schema", "prisma/schema"], { cwd: SERVER_DIR, env: { DATABASE_URL: cfg.databaseUrl }, timeoutMs: 120_000 });
     c = buildContainer({ ...cfg, frameworksDir: path.resolve(SERVER_DIR, "../../frameworks") }, silentLogger);
     await c.startWorkers();
-    app = await buildServer(c, { webDist: path.join(tmp, "none"), log: silentLogger });
+    app = await buildServer(c, { webDist: path.join(tmp, "none"), version: "test", log: silentLogger });
   });
   after(async () => {
     await app.close();

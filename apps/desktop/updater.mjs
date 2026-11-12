@@ -6,7 +6,7 @@ import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, rm
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import path from "node:path";
-import { app, dialog, shell } from "electron";
+import { app } from "electron";
 
 const REPO = "nguyendinhphongdx/asdlc-review";
 const win = process.platform === "win32";
@@ -29,10 +29,14 @@ async function latest() {
   return { version: String(rel.tag_name).replace(/^v/, ""), page: rel.html_url, zip: zip?.browser_download_url, sha: sha?.browser_download_url };
 }
 
-async function download(url, file) {
+async function download(url, file, onPercent) {
   const r = await fetch(url, { headers: { "user-agent": "asdlc-review-updater" } });
   if (!r.ok || !r.body) throw new Error(`tải lỗi ${r.status}`);
-  await pipeline(Readable.fromWeb(r.body), createWriteStream(file));
+  const total = Number(r.headers.get("content-length") ?? 0);
+  let got = 0, last = -1;
+  const src = Readable.fromWeb(r.body);
+  src.on("data", (c) => { got += c.length; const p = total ? Math.floor((got / total) * 100) : 0; if (p !== last) { last = p; onPercent(p); } });
+  await pipeline(src, createWriteStream(file));
 }
 
 const sha256 = (file) => createHash("sha256").update(readFileSync(file)).digest("hex");
@@ -58,50 +62,36 @@ function swapAndRelaunch(newDir, dir) {
   }
 }
 
-async function install(info, dir, onQuit) {
+/** Thông tin bản mới nhất so với bản đang chạy. */
+export async function checkLatest() {
+  const info = await latest();
+  const available = isNewer(info.version, app.getVersion());
+  return { current: app.getVersion(), latest: info.version, available, page: info.page, canAuto: available && !!info.zip && app.isPackaged && !!target(), _zip: info.zip, _sha: info.sha };
+}
+
+/** Tải, kiểm tra, giải nén rồi dặn script thay app; gọi onQuit để thoát cho script làm việc. */
+export async function installUpdate(info, onProgress, onQuit) {
+  const dir = target();
+  if (!app.isPackaged || !dir || !info._zip) throw new Error("Máy này không tự cập nhật được, hãy tải bản mới từ trang phát hành");
   const work = path.join(app.getPath("userData"), "updates");
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
   const zip = path.join(work, ASSET);
-  await download(info.zip, zip);
-  if (info.sha) {
-    const expect = (await (await fetch(info.sha, { headers: { "user-agent": "asdlc-review-updater" } })).text()).trim().split(/\s+/)[0];
-    if (expect && expect !== sha256(zip)) throw new Error("sha256 không khớp, bỏ bản tải về");
+  onProgress({ phase: "download", percent: 0 });
+  await download(info._zip, zip, (percent) => onProgress({ phase: "download", percent }));
+  onProgress({ phase: "verify" });
+  if (info._sha) {
+    const expect = (await (await fetch(info._sha, { headers: { "user-agent": "asdlc-review-updater" } })).text()).trim().split(/\s+/)[0];
+    if (expect && expect !== sha256(zip)) throw new Error("sha256 không khớp, đã bỏ bản tải về");
   }
+  onProgress({ phase: "extract" });
   const out = path.join(work, "extracted");
   mkdirSync(out);
   if (win) execFileSync("powershell", ["-NoProfile", "-Command", `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${out}' -Force`]);
   else execFileSync("ditto", ["-x", "-k", zip, out]);
   const entry = readdirSync(out)[0];
   if (!entry) throw new Error("gói rỗng");
+  onProgress({ phase: "restart" });
   swapAndRelaunch(path.join(out, entry), dir);
   onQuit();
-}
-
-let busy = false;
-/** Kiểm tra bản mới. `manual` = người dùng bấm: báo cả khi đã mới nhất / lỗi. */
-export async function checkForUpdates({ manual = false, win: parent, onQuit }) {
-  if (busy || (!app.isPackaged && !manual)) return;
-  busy = true;
-  try {
-    const info = await latest();
-    if (!isNewer(info.version, app.getVersion())) {
-      if (manual) await dialog.showMessageBox(parent, { message: `Bạn đang dùng bản mới nhất (v${app.getVersion()}).` });
-      return;
-    }
-    const dir = target();
-    if (!info.zip || !dir) {
-      const r = await dialog.showMessageBox(parent, { type: "info", message: `Có bản mới v${info.version}`, detail: "Không thể tự cập nhật trên máy này. Mở trang tải?", buttons: ["Mở trang tải", "Để sau"], defaultId: 0 });
-      if (r.response === 0) void shell.openExternal(info.page);
-      return;
-    }
-    const r = await dialog.showMessageBox(parent, { type: "info", message: `Có bản mới v${info.version} (đang dùng v${app.getVersion()})`, detail: "Cập nhật ngay: app sẽ tải bản mới, khởi động lại và giữ nguyên dữ liệu.", buttons: ["Cập nhật", "Để sau"], defaultId: 0, cancelId: 1 });
-    if (r.response !== 0) return;
-    await install(info, dir, onQuit);
-  } catch (err) {
-    console.error("cập nhật lỗi:", err.message);
-    if (manual) await dialog.showMessageBox(parent, { type: "error", message: "Không cập nhật được", detail: String(err.message) });
-  } finally {
-    busy = false;
-  }
 }

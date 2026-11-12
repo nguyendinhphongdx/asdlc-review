@@ -37,7 +37,7 @@ async function ensureDatabase() {
 await ensureDatabase();
 process.env.DATABASE_URL = config.databaseUrl;
 const container = buildContainer(config, log);
-const server = await buildServer(container, { webDist: config.webDist, log: log.child("http") });
+const server = await buildServer(container, { webDist: config.webDist, version: config.APP_VERSION, log: log.child("http") });
 await container.startWorkers();
 await server.listen({ port: config.PORT, host: config.HOST });
 log.info(`MR Dashboard chạy tại ${config.PUBLIC_URL}`, { queue: container.modules.queue.driver, provider: config.REVIEW_PROVIDER });

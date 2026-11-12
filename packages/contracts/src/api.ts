@@ -189,7 +189,9 @@ export type RubricDto = Rubric;
 
 export interface HealthDto {
   ok: boolean;
-  queue: "bullmq" | "memory";
+  /** Phiên bản app (rỗng khi chạy server thuần, không qua vỏ desktop). */
+  version: string;
+  queue: "bullmq" | "memory" | "sqlite";
   gitlab: { configured: boolean; webhook: boolean };
   github: { configured: boolean; webhook: boolean };
 }

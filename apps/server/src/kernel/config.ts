@@ -12,6 +12,8 @@ const bool = z
 
 const EnvSchema = z.object({
   PORT: z.coerce.number().default(4319),
+  /** Phiên bản app (do vỏ desktop truyền vào) để hiện trong giao diện. */
+  APP_VERSION: z.string().default(""),
   HOST: z.string().default("127.0.0.1"),
   PUBLIC_URL: z.string().optional(),
   DATA_DIR: z.string().default("./data"),

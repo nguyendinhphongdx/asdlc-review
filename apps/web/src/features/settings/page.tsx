@@ -3,12 +3,14 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "../../kernel/page.js";
 import { ConnectionTab } from "./connection.js";
 import { ReviewTab } from "./review-tab.js";
+import { VersionTab } from "./version-tab.js";
 
-const TABS = [{ id: "connection", label: "Kết nối" }, { id: "review", label: "Review" }] as const;
+const TABS = [{ id: "connection", label: "Kết nối" }, { id: "review", label: "Review" }, { id: "version", label: "Phiên bản" }] as const;
 
 export function SettingsPage() {
   const [sp, setSp] = useSearchParams();
-  const tab = sp.get("tab") === "review" ? "review" : "connection";
+  const t = sp.get("tab");
+  const tab = t === "review" || t === "version" ? t : "connection";
   return (
     <>
       <PageHeader title="Cài đặt" description="Kết nối nền tảng, cấu hình AI, framework và cách đăng comment lên MR." />
@@ -21,7 +23,7 @@ export function SettingsPage() {
         ))}
       </div>
       <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-6">
-        {tab === "connection" ? <ConnectionTab /> : <ReviewTab />}
+        {tab === "connection" ? <ConnectionTab /> : tab === "review" ? <ReviewTab /> : <VersionTab />}
       </div>
     </>
   );

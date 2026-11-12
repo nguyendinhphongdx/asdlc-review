@@ -27,6 +27,7 @@ declare module "fastify" {
 
 export interface ServerOptions {
   webDist: string;
+  version: string;
   log: Logger;
 }
 
@@ -163,6 +164,7 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
   app.get("/api/queue", async () => ({ driver: m.queue.driver, review: await m.queue.stats(REVIEW_QUEUE) }));
   app.get("/api/health", () => ({
     ok: true,
+    version: opts.version,
     queue: m.queue.driver,
     gitlab: { configured: m.scm.isConfigured("gitlab"), webhook: m.scm.webhookConfigured("gitlab") },
     github: { configured: m.scm.isConfigured("github"), webhook: m.scm.webhookConfigured("github") },

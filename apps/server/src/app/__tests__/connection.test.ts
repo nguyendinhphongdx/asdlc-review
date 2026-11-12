@@ -53,7 +53,7 @@ describe("kết nối GitLab + webhook (HTTP thật, DB thật, GitLab giả)", 
     const log = { ...silentLogger, info: (m: string, x?: unknown) => logs.push(m + JSON.stringify(x ?? "")), warn: (m: string, x?: unknown) => logs.push(m + JSON.stringify(x ?? "")), error: (m: string, x?: unknown) => logs.push(m + JSON.stringify(x ?? "")) };
     c = buildContainer({ ...cfg, frameworksDir: path.resolve(SERVER_DIR, "../../frameworks") }, silentLogger);
     await c.startWorkers();
-    app = await buildServer(c, { webDist: path.join(tmp, "none"), log: log as never });
+    app = await buildServer(c, { webDist: path.join(tmp, "none"), version: "test", log: log as never });
   });
   after(async () => {
     await app.close();
