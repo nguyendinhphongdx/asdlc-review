@@ -34,7 +34,7 @@ jobs:
       - name: Tạo GitHub Release
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          gh release create "$TAG" --generate-notes --title "ASDLC Review $TAG" \
+          gh release create "$TAG" --prerelease --generate-notes --title "ASDLC Review $TAG" \
             "asdlc-review-${TAG}.tar.gz" "asdlc-review-${TAG}.tar.gz.sha256"
 
   # Bản cài đặt app desktop: build trên từng OS để native module (Prisma engine) đúng nền tảng.
@@ -67,3 +67,13 @@ jobs:
         shell: bash
         env: { GH_TOKEN: "${{ github.token }}" }
         run: gh release upload "$TAG" out/ASDLC-Review-* --clobber
+
+  # Chỉ "công bố" release (thành bản mới nhất) khi mọi bản cài đã được tải lên,
+  # để link /releases/latest/download và cơ chế tự cập nhật không trỏ vào release thiếu file.
+  publish:
+    needs: desktop
+    runs-on: ubuntu-latest
+    steps:
+      - name: Công bố release
+        env: { GH_TOKEN: "${{ github.token }}", GH_REPO: "${{ github.repository }}" }
+        run: gh release edit "$TAG" --prerelease=false --latest
