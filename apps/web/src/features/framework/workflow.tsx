@@ -5,6 +5,7 @@ import { STAGES } from "../../kernel/stages.js";
 
 /** Mỗi bước của pipeline: ai thực hiện (code tất định hay AI) và làm gì. */
 const FLOW: Record<string, { by: "code" | "ai"; what: string }> = {
+  queue: { by: "code", what: "MR được xếp hàng và chờ worker rảnh (tối đa vài review chạy song song)." },
   clone: { by: "code", what: "Clone repo, fetch head của MR, tính diff so với nhánh đích. Diff vượt ngân sách thì giữ file ưu tiên và ghi lại file bị bỏ qua." },
   framework: { by: "code", what: "Nạp bộ tiêu chí này, rồi gộp với `.asdlc.yml` của repo (đọc từ base commit, không tin cấu hình do chính MR gửi lên)." },
   harness: { by: "code", what: "Tìm AGENTS.md, CLAUDE.md, rules, tài liệu kiến trúc trong repo; đây là quy tắc riêng của repo mà tác giả phải tuân theo." },
@@ -24,11 +25,11 @@ export function Workflow() {
   return (
     <>
       <Card>
-        <CardHeader><CardTitle>Quy trình review</CardTitle><CardDescription>Mỗi MR đi qua 7 bước. Chỉ một bước dùng AI; điểm luôn do code tính.</CardDescription></CardHeader>
+        <CardHeader><CardTitle>Quy trình review</CardTitle><CardDescription>Mỗi MR đi qua {STAGES.length} bước. Chỉ một bước dùng AI; điểm luôn do code tính.</CardDescription></CardHeader>
         <CardContent>
           <ol className="flex flex-col gap-3">
             {STAGES.map((s, i) => {
-              const f = FLOW[s.id]!;
+              const f = FLOW[s.id] ?? { by: "code" as const, what: "" };
               return (
                 <li key={s.id} className="flex gap-3">
                   <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums">{i + 1}</span>
