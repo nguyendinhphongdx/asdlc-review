@@ -1,11 +1,12 @@
 import type { RunActivityEntry, RunDetailDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Check, CircleAlert, ExternalLink, Loader2, TriangleAlert, X } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, ExternalLink, Loader2, RotateCw, ThumbsDown, ThumbsUp, TriangleAlert, X } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, GradeBadge, SeverityBadge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { CodeBlock } from "@/components/code-block";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScoreRing } from "@/components/ui/score-ring";
@@ -23,6 +24,9 @@ import { STAGES, stageLabel } from "../../kernel/stages.js";
 const VERDICT: Record<string, { label: string; variant: "success" | "warning" | "danger" }> = {
   approve: { label: "Có thể merge", variant: "success" }, comment: { label: "Cần góp ý", variant: "warning" }, request_changes: { label: "Yêu cầu sửa", variant: "danger" },
 };
+const SEV_ORDER = ["blocker", "critical", "major", "minor", "nit"];
+const SEV_COLOR: Record<string, string> = { blocker: "bg-danger", critical: "bg-chart-4", major: "bg-chart-3", minor: "bg-chart-2", nit: "bg-muted-foreground/60" };
+const SEV_HINT: Record<string, string> = { blocker: "chặn merge", critical: "cần sửa ngay", major: "cần sửa trước khi merge", minor: "nên cải thiện", nit: "tuỳ chọn" };
 const FB = { agree: "Đồng ý", disagree: "Không đồng ý", fixed: "Đã sửa" } as const;
 
 export function ReviewDetailPage() {
@@ -55,8 +59,8 @@ export function ReviewDetailPage() {
   return (
     <>
       <PageHeader title={`!${r.mr.iid} ${r.mr.title}`}>
-        <Button variant="outline" disabled={re.isPending || active} onClick={() => re.mutate({ mrId: r.mr.id })} title={active ? "Đang có một lần review chạy cho MR này" : undefined}>{re.isPending ? "Đang xếp hàng…" : "Review lại"}</Button>
-        <a className={buttonVariants()} href={r.mr.webUrl} target="_blank" rel="noreferrer">Mở MR<ExternalLink /></a>
+        <Button disabled={re.isPending || active} onClick={() => re.mutate({ mrId: r.mr.id })} title={active ? "Đang có một lần review chạy cho MR này" : undefined}><RotateCw />{re.isPending ? "Đang xếp hàng…" : "Review lại"}</Button>
+        <a className={buttonVariants({ variant: "ghost", size: "icon" })} href={r.mr.webUrl} target="_blank" rel="noreferrer" aria-label="Mở MR trên GitLab (tab mới)" title="Mở trên GitLab"><ExternalLink /></a>
       </PageHeader>
       <div className="-mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-muted-foreground">
         <span className="inline-flex items-center gap-2"><Avatar name={r.mr.authorUsername} className="size-[22px] text-[10px]" /><span className="font-medium text-foreground">{r.mr.authorUsername}</span></span>
@@ -98,6 +102,11 @@ export function ReviewDetailPage() {
             <div className="flex flex-wrap items-center gap-2"><GradeBadge grade={r.grade} />{verdict && <Badge variant={verdict.variant}>{verdict.label}</Badge>}{r.rawScore != null && r.rawScore - r.score > 1 && <Badge>Điểm thô {Math.round(r.rawScore)} → bị chặn ở {Math.round(r.score)}</Badge>}</div>
             {r.summary && <p className="max-w-[60ch]">{r.summary}</p>}
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-muted-foreground"><span>{r.filesChanged} file · <span className="text-success-fg">+{r.additions}</span> <span className="text-danger-fg">−{r.deletions}</span></span><span>{fmtDur(r.durationMs)}</span>{r.model && <span className="font-mono text-xs">{r.model}</span>}{r.costUsd != null && <span>${r.costUsd.toFixed(2)}</span>}<span className="font-mono text-xs">{r.headSha.slice(0, 7)}</span></div>
+            {r.findings.length > 0 && (
+              <div className="max-w-md" role="img" aria-label={SEV_ORDER.map((k) => `${r.findings.filter((f) => f.severity === k).length} ${k}`).join(", ")}>
+                <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">{SEV_ORDER.map((k) => { const n = r.findings.filter((f) => f.severity === k).length; return n ? <span key={k} className={cn("transition-all", SEV_COLOR[k])} style={{ flex: n }} /> : null; })}</div>
+              </div>
+            )}
             {r.frameworkId && <p className="text-[13px] text-muted-foreground">Chấm bằng framework <Link className="font-medium text-foreground hover:underline" to={`/framework?id=${encodeURIComponent(r.frameworkId)}`}>{fws.data?.find((f) => f.id === r.frameworkId)?.name ?? r.frameworkId}</Link>{r.frameworkVersion && ` v${r.frameworkVersion}`}</p>}
           </div>
         </Card>
@@ -137,25 +146,7 @@ export function ReviewDetailPage() {
       <RuleChecklist checks={r.ruleChecks ?? []} />
       <FileCoverage files={r.files ?? []} findings={r.findings} />
 
-      <Card className="overflow-hidden">
-        <CardHeader className="flex-row items-baseline justify-between"><CardTitle>Finding <span className="font-normal text-muted-foreground">({r.findings.length})</span></CardTitle></CardHeader>
-        {r.findings.length === 0 ? <Empty>Không có finding 🎉</Empty> : r.findings.map((f) => (
-          <article key={f.id} className="flex flex-col gap-2.5 border-t p-5">
-            <div className="flex flex-wrap items-center gap-2"><SeverityBadge severity={f.severity} /><Badge className="font-mono">{f.ruleId ?? f.category}</Badge><Badge variant={f.source === "ai" ? "info" : "secondary"}>{f.source === "ai" ? "AI" : "Phân tích tĩnh"}</Badge><h3 className="ml-1 text-[15px] font-semibold">{f.title}</h3></div>
-            {f.file && <div className="font-mono text-xs text-primary">{f.file}{f.lineStart ? `:${f.lineStart}` : ""}</div>}
-            <p>{f.why}</p>
-            {f.evidence && <pre className="overflow-x-auto rounded-md bg-zinc-900 px-3.5 py-3 font-mono text-xs leading-[1.7] text-zinc-200">{f.evidence}</pre>}
-            {f.suggestion && <div className="rounded-md bg-success-bg px-3.5 py-3 text-[13px] text-success-fg"><b>Gợi ý.</b> {f.suggestion}</div>}
-            {f.question && <div className="rounded-md bg-info-bg px-3.5 py-3 text-[13px] text-info-fg"><b>Câu hỏi cho tác giả.</b> {f.question}</div>}
-            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-              <span className="tabular-nums">Độ tin cậy {Math.round(f.confidence * 100)}% · trừ {f.deduction.toFixed(1)}</span>
-              <span className="flex gap-1.5">{(Object.keys(FB) as (keyof typeof FB)[]).map((v) => (
-                <Button key={v} size="sm" variant="outline" className={cn(f.feedback === v && "border-primary bg-info-bg text-info-fg")} onClick={() => fb.mutate({ id: f.id, v: f.feedback === v ? null : v })}>{FB[v]}</Button>
-              ))}</span>
-            </div>
-          </article>
-        ))}
-      </Card>
+      <Findings findings={r.findings} onFeedback={(id, v) => fb.mutate({ id, v })} />
     </>
   );
 }
@@ -192,6 +183,19 @@ function Pipeline({ r, entries, retrying, retried, onRetry }: { r: RunDetailDto;
   const statusLabel = r.status === "failed" ? `Lỗi${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "running" ? `Đang chạy${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "succeeded" ? "Hoàn tất" : r.status === "skipped" ? "Bỏ qua" : "Đang chờ · hàng đợi";
   const variant = r.status === "failed" ? "danger" : r.status === "succeeded" ? "success" : r.status === "running" ? "info" : "secondary";
   return (
+    r.status === "succeeded" ? (
+      <Card className="px-6 py-4" aria-label="Tiến trình review">
+        <ol className="flex">
+          {STAGES.map((st, i) => (
+            <li key={st.id} className="relative flex min-w-0 flex-1 flex-col items-center gap-1.5">
+              {i > 0 && <span aria-hidden="true" className="absolute left-[-50%] top-3.5 h-[3px] w-full rounded bg-success/45" />}
+              <span className="relative flex size-[30px] items-center justify-center rounded-full bg-success-bg text-success-fg"><Check className="size-4" aria-hidden="true" /></span>
+              <span className="truncate text-xs">{st.label}</span>
+            </li>
+          ))}
+        </ol>
+      </Card>
+    ) : (
     <Card>
       <CardHeader className="flex-row flex-wrap items-center justify-between gap-2"><CardTitle>Tiến trình review</CardTitle><Badge variant={variant}>{statusLabel}</Badge></CardHeader>
       <CardContent>
@@ -230,5 +234,66 @@ function Pipeline({ r, entries, retrying, retried, onRetry }: { r: RunDetailDto;
         </ol>
       </CardContent>
     </Card>
+    )
+  );
+}
+
+type Finding = RunDetailDto["findings"][number];
+
+function Findings({ findings, onFeedback }: { findings: Finding[]; onFeedback: (id: string, v: keyof typeof FB | null) => void }) {
+  const [sev, setSev] = useState<string>("all");
+  const counts = SEV_ORDER.map((k) => [k, findings.filter((f) => f.severity === k).length] as const).filter(([, n]) => n > 0);
+  if (findings.length === 0) return <Card><Empty>Không có finding 🎉</Empty></Card>;
+  const groups = counts.filter(([k]) => sev === "all" || sev === k);
+  const fixed = findings.filter((f) => f.feedback === "fixed").length;
+  return (
+    <section aria-label="Finding" className="flex flex-col gap-4">
+      <div role="group" aria-label="Lọc theo mức độ" className="flex flex-wrap items-center gap-2">
+        {[["all", findings.length] as const, ...counts].map(([k, n]) => (
+          <button key={k} type="button" aria-pressed={sev === k} onClick={() => setSev(k)}
+            className={cn("inline-flex h-8 items-center gap-2 rounded-full border bg-card px-3 text-[13px] font-medium capitalize outline-none focus-visible:ring-2 focus-visible:ring-ring", sev === k && "border-primary bg-info-bg text-info-fg")}>
+            {k !== "all" && <span className={cn("size-2 rounded-full", SEV_COLOR[k])} />}{k === "all" ? "Tất cả" : k}<span className="tabular-nums">{n}</span>
+          </button>
+        ))}
+        {fixed > 0 && <Badge variant="success" className="ml-auto">{fixed} đã sửa</Badge>}
+      </div>
+      {groups.map(([k]) => {
+        const list = findings.filter((f) => f.severity === k);
+        const open = SEV_ORDER.indexOf(k) <= 2;
+        return (
+          <Card key={k} className="overflow-hidden">
+            <div className="flex items-center gap-2 border-b bg-muted/40 px-5 py-3 text-[13px] font-semibold"><span className={cn("size-2 rounded-full", SEV_COLOR[k])} /><span className="capitalize">{k}</span><span className="font-normal text-muted-foreground">· {SEV_HINT[k]}</span><span className="ml-auto tabular-nums text-muted-foreground">{list.length}</span></div>
+            {list.map((f, i) => (
+              <details key={f.id} open={open && i < 3} className="group border-t p-5 first:border-0">
+                <summary className="flex w-full cursor-pointer list-none items-start justify-between gap-3 outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                  <span className="min-w-0">
+                    <span className="block text-[15px] font-semibold">{f.title}</span>
+                    <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {f.file && <span className="font-mono text-foreground">{f.file}{f.lineStart ? `:${f.lineStart}` : ""}</span>}
+                      <Badge className="font-mono">{f.ruleId ?? f.category}</Badge>
+                      <Badge variant={f.source === "ai" ? "info" : "secondary"}>{f.source === "ai" ? "AI" : "Phân tích tĩnh"}</Badge>
+                      <span className="tabular-nums">Tin cậy {Math.round(f.confidence * 100)}% · trừ {f.deduction.toFixed(1)}</span>
+                      {f.feedback && <Badge variant={f.feedback === "fixed" ? "success" : "secondary"}>{FB[f.feedback as keyof typeof FB]}</Badge>}
+                    </span>
+                  </span>
+                  <ChevronDown className="mt-1 size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+                </summary>
+                <div className="mt-3 flex flex-col gap-2.5">
+                  <p>{f.why}</p>
+                  {f.evidence && <CodeBlock code={f.evidence} file={f.file} />}
+                  {f.suggestion && <div className="rounded-md bg-success-bg px-3.5 py-3 text-[13px] text-success-fg"><b>Gợi ý.</b> {f.suggestion}</div>}
+                  {f.question && <div className="rounded-md bg-info-bg px-3.5 py-3 text-[13px] text-info-fg"><b>Câu hỏi cho tác giả.</b> {f.question}</div>}
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="outline" className={cn(f.feedback === "fixed" && "border-primary bg-info-bg text-info-fg")} onClick={() => onFeedback(f.id, f.feedback === "fixed" ? null : "fixed")}><Check />Đã sửa</Button>
+                    <Button size="icon-sm" variant="ghost" aria-label="Đồng ý với finding" title="Đồng ý" aria-pressed={f.feedback === "agree"} className={cn(f.feedback === "agree" && "bg-info-bg text-info-fg")} onClick={() => onFeedback(f.id, f.feedback === "agree" ? null : "agree")}><ThumbsUp /></Button>
+                    <Button size="icon-sm" variant="ghost" aria-label="Không đồng ý với finding" title="Không đồng ý" aria-pressed={f.feedback === "disagree"} className={cn(f.feedback === "disagree" && "bg-info-bg text-info-fg")} onClick={() => onFeedback(f.id, f.feedback === "disagree" ? null : "disagree")}><ThumbsDown /></Button>
+                  </div>
+                </div>
+              </details>
+            ))}
+          </Card>
+        );
+      })}
+    </section>
   );
 }

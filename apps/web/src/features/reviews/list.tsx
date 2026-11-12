@@ -1,6 +1,6 @@
 import type { InboxItemDto, RunListItemDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Inbox, Loader2, RefreshCw, type LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,14 @@ function useLiveRuns() {
   }, [qc]);
 }
 
+type ViewId = "all" | "pending" | "running" | "failed" | "reviewed";
+const VIEWS: { id: ViewId; label: string; icon: LucideIcon; tone: string; spin?: boolean; test: (i: InboxItemDto) => boolean }[] = [
+  { id: "all", label: "Tất cả MR đang mở", icon: Inbox, tone: "bg-secondary text-muted-foreground", test: () => true },
+  { id: "pending", label: "Cần review", icon: Clock, tone: "bg-warning-bg text-warning-fg", test: (i) => i.status === "pending" },
+  { id: "running", label: "Đang review", icon: Loader2, spin: true, tone: "bg-info-bg text-info-fg", test: (i) => i.status === "running" || i.status === "queued" },
+  { id: "failed", label: "Lỗi, cần xử lý", icon: AlertCircle, tone: "bg-danger-bg text-danger-fg", test: (i) => i.status === "failed" },
+  { id: "reviewed", label: "Đã review xong", icon: CheckCircle2, tone: "bg-success-bg text-success-fg", test: (i) => i.status === "reviewed" },
+];
 const ago = (iso: string | null) => (iso ? fmtDate(iso) : "chưa lần nào");
 const INBOX_STATUS = { pending: "Chờ review", queued: "Đang chờ", running: "Đang review", failed: "Lỗi", reviewed: "Đã review" } as const;
 const RUN_STATUS = { succeeded: "Hoàn tất", failed: "Lỗi", running: "Đang review", queued: "Đang chờ", skipped: "Bỏ qua" } as const;
@@ -52,15 +60,22 @@ function InboxTab() {
   const req = useReviewRequest();
   const run = { ...req, mutate: (url: string) => req.mutate({ url }), variables: req.variables && "url" in req.variables ? req.variables.url : undefined };
   const d = q.data;
+  const [view, setView] = useState<ViewId>("all");
+  const all = d?.items ?? [];
+  const counts = Object.fromEntries(VIEWS.map((v) => [v.id, all.filter(v.test).length])) as Record<ViewId, number>;
+  const shown = all.filter(VIEWS.find((v) => v.id === view)!.test);
   const columns: ColumnDef<InboxItemDto>[] = [
     { id: "mr", header: "Merge request", accessorFn: (i) => `!${i.iid} ${i.title}`, meta: { className: "max-w-[360px]" },
-      cell: ({ row: { original: i } }) => (<><a href={i.webUrl} target="_blank" rel="noreferrer" className="block truncate font-medium hover:underline">!{i.iid} {i.title}</a><span className="block truncate font-mono text-xs text-muted-foreground">{i.sourceBranch} → {i.targetBranch}</span></>) },
+      cell: ({ row: { original: i } }) => (<>
+        {i.runId ? <Link to={`/reviews/${i.runId}`} className="block truncate font-medium hover:underline">!{i.iid} {i.title}</Link> : <span className="block truncate font-medium">!{i.iid} {i.title}</span>}
+        <span className="block truncate font-mono text-xs text-muted-foreground">{i.sourceBranch} → {i.targetBranch}</span>
+      </>) },
     { id: "repo", header: "Repo", accessorFn: (i) => i.repoPath.split("/").pop() ?? i.repoPath, meta: { className: "max-w-[200px] truncate" }, cell: ({ row: { original: i }, getValue }) => <span title={i.repoPath}>{getValue<string>()}</span> },
     { accessorKey: "authorUsername", header: "Tác giả", cell: ({ getValue }) => <span className="inline-flex items-center gap-2"><Avatar name={getValue<string>()} />{getValue<string>()}</span> },
     { accessorKey: "updatedAt", header: "Cập nhật", meta: { className: "text-xs text-muted-foreground whitespace-nowrap" }, cell: ({ getValue }) => fmtDate(getValue<string>()) },
     { accessorKey: "status", header: "Trạng thái", meta: { filterLabels: INBOX_STATUS },
       cell: ({ row: { original: i } }) => (<>
-        {i.status === "running" ? <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review{i.stage && i.stage !== "start" ? ` · ${stageLabel(i.stage)}` : ""}</Badge> : i.status === "queued" ? <Badge variant="warning"><span className="size-1.5 animate-pulse rounded-full bg-current" />Đang chờ · hàng đợi</Badge> : i.status === "failed" ? <Badge variant="danger" title={i.error ?? ""}>Lỗi · bấm xem log</Badge> : i.status === "reviewed" ? <Badge variant="success">Đã review</Badge> : <Badge variant="warning">Chờ review</Badge>}
+        {i.status === "running" ? <Badge variant="info"><Loader2 className="size-3 animate-spin" aria-hidden="true" />Đang review{i.stage && i.stage !== "start" ? ` · ${stageLabel(i.stage)}` : ""}</Badge> : i.status === "queued" ? <Badge variant="warning"><Clock className="size-3 animate-pulse" aria-hidden="true" />Đang chờ · hàng đợi</Badge> : i.status === "failed" ? <Badge variant="danger" title={i.error ?? ""}><AlertCircle className="size-3" aria-hidden="true" />Lỗi · bấm xem log</Badge> : i.status === "reviewed" ? <Badge variant="success"><CheckCircle2 className="size-3" aria-hidden="true" />Đã review</Badge> : <Badge variant="warning"><Clock className="size-3" aria-hidden="true" />Chờ review</Badge>}
         {i.draft && <Badge className="ml-1.5">Draft</Badge>}
       </>) },
     { id: "review", header: () => <span className="sr-only">Review</span>, enableSorting: false, enableHiding: false, meta: { className: "w-24 text-right", headerClassName: "w-24" },
@@ -92,8 +107,17 @@ function InboxTab() {
       {run.error && <ErrorBox error={run.error} />}
       {run.notice && !run.error && <p role="status" className="text-[13px] text-muted-foreground">{run.notice}</p>}
       {d?.errors.map((e) => <p key={e.repo} role="alert" className="text-[13px] text-danger-fg">Không lấy được MR của {e.repo}: {e.message}</p>)}
+      <div role="group" aria-label="Lọc theo việc cần làm" className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        {VIEWS.map((v) => (
+          <button key={v.id} type="button" aria-pressed={view === v.id} onClick={() => setView(v.id)}
+            className={cn("flex items-center gap-3 rounded-xl border bg-card p-3.5 text-left outline-none transition-colors hover:border-ring focus-visible:ring-2 focus-visible:ring-ring", view === v.id && "border-primary ring-2 ring-primary/20")}>
+            <span className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", v.tone)}><v.icon className={cn("size-[18px]", v.spin && counts[v.id] > 0 && "animate-spin")} aria-hidden="true" /></span>
+            <span><span className={cn("block text-xl font-bold leading-tight tabular-nums", v.id === "failed" && counts.failed > 0 && "text-danger-fg")}>{counts[v.id]}</span><span className="text-[13px] text-muted-foreground">{v.label}</span></span>
+          </button>
+        ))}
+      </div>
       <DataTable<InboxItemDto>
-        aria-label="MR đang mở" columns={columns} data={d?.items ?? []} loading={q.isLoading} error={q.error}
+        aria-label="MR đang mở" columns={columns} data={shown} loading={q.isLoading} error={q.error}
         getRowId={(i) => `${i.repoId}-${i.iid}`} unit="MR đang mở" minWidth={860}
         search={{ placeholder: "Tìm theo tiêu đề, repo, tác giả…" }}
         filters={[{ columnId: "repo", label: "Repo" }, { columnId: "authorUsername", label: "Tác giả" }, { columnId: "status", label: "Trạng thái" }]}
