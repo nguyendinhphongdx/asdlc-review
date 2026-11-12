@@ -82,7 +82,7 @@ function InboxTab() {
                     <a href={i.webUrl} target="_blank" rel="noreferrer" className="block truncate font-medium hover:underline">!{i.iid} {i.title}</a>
                     <span className="block truncate font-mono text-xs text-muted-foreground">{i.sourceBranch} → {i.targetBranch}</span>
                   </TableCell>
-                  <TableCell className="max-w-[200px] truncate text-xs text-muted-foreground">{i.repoPath}</TableCell>
+                  <TableCell className="max-w-[200px] truncate text-sm" title={i.repoPath}>{i.repoPath.split("/").pop()}</TableCell>
                   <TableCell><span className="inline-flex items-center gap-2"><Avatar name={i.authorUsername} />{i.authorUsername}</span></TableCell>
                   <TableCell className="text-xs text-muted-foreground">{fmtDate(i.updatedAt)}</TableCell>
                   <TableCell>
