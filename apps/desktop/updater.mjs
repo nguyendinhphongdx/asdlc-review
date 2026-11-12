@@ -53,7 +53,7 @@ function swapAndRelaunch(newDir, dir) {
   if (win) {
     const exe = path.join(dir, path.basename(process.execPath));
     const script = path.join(dataDir, "swap.cmd");
-    writeFileSync(script, `@echo off\r\n:w\r\ntasklist /FI "PID eq ${pid}" | find "${pid}" >nul && (timeout /t 1 /nobreak >nul & goto w)\r\nrobocopy "${newDir}" "${dir}" /MIR /NFL /NDL /NJH /NJS >nul\r\nstart "" "${exe}"\r\n`);
+    writeFileSync(script, `@echo off\r\n:w\r\ntasklist /FI "PID eq ${pid}" | find "${pid}" >nul && (timeout /t 1 /nobreak >nul & goto w)\r\nrobocopy "${newDir}" "${dir}" /MIR /XF Uninstall.exe /NFL /NDL /NJH /NJS >nul\r\nstart "" "${exe}"\r\n`);
     spawn("cmd.exe", ["/c", script], { detached: true, stdio: "ignore", windowsHide: true }).unref();
   } else {
     const script = path.join(dataDir, "swap.sh");

@@ -65,7 +65,27 @@ else {
   }
 }
 
-const hash = createHash("sha256");
-await new Promise((ok, err) => createReadStream(zip).on("data", (d) => hash.update(d)).on("end", ok).on("error", err));
-writeFileSync(`${zip}.sha256`, `${hash.digest("hex")}  ${path.basename(zip)}\n`);
-console.log(`OK: ${zip} (${(readFileSync(zip).length / 1e6).toFixed(0)} MB)`);
+const checksum = async (file) => {
+  const hash = createHash("sha256");
+  await new Promise((ok, err) => createReadStream(file).on("data", (d) => hash.update(d)).on("end", ok).on("error", err));
+  writeFileSync(`${file}.sha256`, `${hash.digest("hex")}  ${path.basename(file)}\n`);
+  console.log(`OK: ${file} (${(readFileSync(file).length / 1e6).toFixed(0)} MB)`);
+};
+await checksum(zip);
+
+// Installer: macOS .dmg (kéo vào Applications), Windows .exe (Start Menu + Desktop + Gỡ cài đặt). Zip vẫn giữ cho tự cập nhật.
+if (mac) {
+  const dmgDir = "out/dmg";
+  mkdirSync(dmgDir, { recursive: true });
+  cpSync(path.join(outDir, "ASDLC Review.app"), path.join(dmgDir, "ASDLC Review.app"), { recursive: true, verbatimSymlinks: true });
+  execFileSync("ln", ["-s", "/Applications", path.join(dmgDir, "Applications")]);
+  const dmg = `out/ASDLC-Review-${osName}-${arch}.dmg`;
+  execFileSync("hdiutil", ["create", "-volname", "ASDLC Review", "-srcfolder", dmgDir, "-ov", "-format", "UDZO", dmg], { stdio: "inherit" });
+  await checksum(dmg);
+} else {
+  const exe = `out/ASDLC-Review-Setup-${osName}-${arch}.exe`;
+  try {
+    execFileSync("makensis", [`/DVERSION=${pkg.version}`, `/DSRC=${path.resolve(outDir)}`, `/DOUT=${path.resolve(exe)}`, `/DICON=${path.resolve("out/icon.ico")}`, "apps/desktop/installer.nsi"], { stdio: "inherit" });
+    await checksum(exe);
+  } catch (e) { console.warn("Không tạo được trình cài đặt .exe (thiếu NSIS?):", e.message); }
+}

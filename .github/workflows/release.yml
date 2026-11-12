@@ -56,8 +56,14 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      - name: Cài NSIS (trình cài đặt Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
       - run: pnpm pack:desktop
       - name: Tải lên release
         shell: bash
         env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release upload "$TAG" out/ASDLC-Review-*.zip out/ASDLC-Review-*.zip.sha256 --clobber
+        run: gh release upload "$TAG" out/ASDLC-Review-* --clobber
