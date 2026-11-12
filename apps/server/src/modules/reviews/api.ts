@@ -19,6 +19,12 @@ export interface ReviewsApi {
   listMrs(filter: { repositoryId?: string; memberId?: string; state?: string; limit?: number; offset?: number }): Promise<{ items: MrDto[]; total: number }>;
 
   startRun(input: StartRunInput): Promise<{ runId: string; round: number }>;
+  /** Tạo run ở trạng thái `queued` ngay lúc xếp hàng, để UI thấy được trước khi worker nhận việc. */
+  queueRun(input: StartRunInput): Promise<{ runId: string; round: number }>;
+  /** Worker bắt đầu chạy run đã xếp hàng (cũng dùng khi thử lại run lỗi). Trả thời gian đã chờ trong hàng đợi. */
+  beginRun(runId: string, provider?: string | null): Promise<{ waitedMs: number }>;
+  /** Ghi provider thực tế dùng cho run (biết sau khi nạp cấu hình repo, tức sau khi nhận việc). */
+  setProvider(runId: string, provider: string): Promise<void>;
   setStage(runId: string, stage: string, timings?: Record<string, number>): Promise<void>;
   completeRun(runId: string, result: RunResult): Promise<void>;
   failRun(runId: string, error: string, activity?: unknown[]): Promise<void>;
@@ -52,8 +58,26 @@ export function createReviewsModule(deps: ReviewsDeps): ReviewsApi {
     },
     findMr: (repositoryId, iid) => repo.findMr(repositoryId, iid),
     listMrs: (f) => repo.listMrs(f),
-    startRun: (i) => repo.startRun(i),
-    setStage: (id, stage, t) => repo.setStage(id, stage, t),
+    async startRun(i) {
+      const r = await repo.startRun(i);
+      deps.events.publish("reviews.run.status", { runId: r.runId, mrId: i.mrId, status: "running", stage: "start" });
+      return r;
+    },
+    async queueRun(i) {
+      const r = await repo.startRun(i, "queued");
+      deps.events.publish("reviews.run.status", { runId: r.runId, mrId: i.mrId, status: "queued", stage: "queue" });
+      return r;
+    },
+    async beginRun(runId, provider) {
+      const { mrId, waitedMs } = await repo.beginRun(runId, provider ?? null, clock.now());
+      deps.events.publish("reviews.run.status", { runId, mrId, status: "running", stage: "start" });
+      return { waitedMs };
+    },
+    setProvider: (id, provider) => repo.setProvider(id, provider),
+    async setStage(id, stage, t) {
+      const { mrId } = await repo.setStage(id, stage, t);
+      deps.events.publish("reviews.run.status", { runId: id, mrId, status: "running", stage });
+    },
     async completeRun(runId, result) {
       const { mrId } = await repo.completeRun(runId, result, clock.now());
       deps.events.publish("reviews.run.completed", { runId, mrId, score: result.score, grade: result.grade });

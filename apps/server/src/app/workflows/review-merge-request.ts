@@ -14,12 +14,31 @@ const RETRYABLE = new Set(["upstream_error", "timeout", "internal"]);
 export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logger, hub?: ProgressHub) {
   return async (job: ReviewJobData): Promise<void> => {
     const started = Date.now();
-    const mr = await m.scm.getMergeRequest(job.platform, job.projectPath, job.iid);
-    const repo = await m.repos.register({ platform: mr.platform, fullPath: mr.projectPath, webUrl: mr.projectWebUrl, defaultBranch: mr.defaultBranch });
-    if (!repo.enabled) return;
-    const memberId = await m.identity.resolveOrCreate(mr.platform, mr.authorUsername, mr.authorName);
-    const rec = await m.reviews.upsertMr(toSnapshot(mr, repo.id, memberId));
-    if (!job.force && (await m.reviews.findRunByHead(rec.id, mr.headSha))) {
+    // Run đã được tạo sẵn (status queued) lúc xếp hàng: nhận lại đúng run đó và báo "đang chạy" ngay,
+    // trước mọi bước chậm (gọi API, clone) để UI không bao giờ thấy khoảng trống.
+    const pre = job.runId && job.mrId ? { runId: job.runId, mrId: job.mrId } : null;
+    let waitedMs = 0;
+    if (pre) {
+      waitedMs = (await m.reviews.beginRun(pre.runId)).waitedMs;
+      hub?.emit(pre.runId, pre.mrId, "queue", "info", `Worker đã nhận việc${waitedMs >= 1000 ? ` sau ${(waitedMs / 1000).toFixed(0)}s chờ` : ""}, đang lấy thông tin MR`);
+    }
+    const failEarly = async (reason: string) => {
+      if (pre) await m.reviews.failRun(pre.runId, reason, hub?.backlog(pre.runId)).catch(() => undefined);
+    };
+    let mr: Awaited<ReturnType<Modules["scm"]["getMergeRequest"]>>;
+    let repo: Awaited<ReturnType<Modules["repos"]["register"]>>;
+    let rec: Awaited<ReturnType<Modules["reviews"]["upsertMr"]>>;
+    try {
+      mr = await m.scm.getMergeRequest(job.platform, job.projectPath, job.iid);
+      repo = await m.repos.register({ platform: mr.platform, fullPath: mr.projectPath, webUrl: mr.projectWebUrl, defaultBranch: mr.defaultBranch });
+      if (!repo.enabled) { await failEarly("Repo đang tắt nên không review."); return; }
+      const memberId = await m.identity.resolveOrCreate(mr.platform, mr.authorUsername, mr.authorName);
+      rec = await m.reviews.upsertMr(toSnapshot(mr, repo.id, memberId));
+    } catch (err) {
+      await failEarly(`Không lấy được thông tin MR: ${String((err as Error)?.message ?? err).slice(0, 300)}`);
+      throw err;
+    }
+    if (!pre && !job.force && (await m.reviews.findRunByHead(rec.id, mr.headSha))) {
       log.info("bỏ qua: commit này đã được review", { iid: mr.iid, sha: mr.headSha.slice(0, 8) });
       return;
     }
@@ -28,10 +47,14 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
     const provider = (repo.provider ?? settings.reviewProvider) as typeof settings.reviewProvider;
     const model = repo.model || (provider === "claude-cli" ? settings.claudeModel : provider === "codex-cli" ? settings.codexModel : settings.openaiModel);
     const previous = await m.reviews.latestSucceeded(rec.id);
-    const { runId } = await m.reviews.startRun({ mrId: rec.id, trigger: job.trigger, triggeredBy: job.triggeredBy, headSha: mr.headSha, baseSha: mr.baseSha, provider, commits: mr.commits });
+    const runId = pre
+      ? pre.runId
+      : (await m.reviews.startRun({ mrId: rec.id, trigger: job.trigger, triggeredBy: job.triggeredBy, headSha: mr.headSha, baseSha: mr.baseSha, provider, commits: mr.commits })).runId;
+    if (pre) await m.reviews.setProvider(runId, provider).catch(() => undefined);
     const rlog = log.child(`run:${runId.slice(-6)}`);
 
     const timings: Record<string, number> = {};
+    if (pre) timings.queue = waitedMs;
     let lastSave = 0;
     const emit = (st: string, level: "info" | "tool" | "ai" | "warn" | "done", message: string) => {
       hub?.emit(runId, rec.id, st, level, message);
@@ -86,7 +109,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       if (notebook.length) emit("review", "info", `Áp dụng ${notebook.length} bài học trong sổ tay của repo`);
       const ai = await stage("review", () =>
         m.reviewer.review({
-          provider, model, workdir: dir,
+          provider, model, workdir: dir, maxBudgetUsd: settings.maxBudgetUsd,
           onActivity: (a) => emit("review", a.kind, a.message),
           mr: { iid: mr.iid, title: mr.title, description: mr.description, author: mr.authorUsername, sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, webUrl: mr.webUrl },
           rubric: fw.rubric,

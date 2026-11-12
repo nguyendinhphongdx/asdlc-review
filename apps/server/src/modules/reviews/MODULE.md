@@ -5,13 +5,13 @@ Lưu và truy vấn lịch sử review: MR, từng lần chạy (run), finding v
 
 ## API
 - MR: `upsertMr`, `getMr`, `findMr`, `listMrs`.
-- Run: `startRun`, `setStage`, `completeRun`, `failRun`, `findRunByHead`, `latestRunByHead`, `saveActivity`, `failStale`, `latestSucceeded`, `getRun`, `listRuns`, `setFindingFeedback`.
+- Run: `startRun`, `queueRun`, `beginRun`, `setProvider`, `setStage`, `completeRun`, `failRun`, `findRunByHead`, `latestRunByHead`, `saveActivity`, `failStale`, `latestSucceeded`, `getRun`, `listRuns`, `setFindingFeedback`.
 - `facts({ from, to })` → `MrFact[]` (dữ kiện thô, không tính metric).
 
 Mỗi run lưu thêm `frameworkId`/`frameworkVersion` (chấm bằng bản nào), `omittedFiles`, `harnessReport` (JSON độ phủ harness lúc review).
 
 ## Sự kiện
-Phát `reviews.run.completed`, `reviews.run.failed`. Không nhận.
+Phát `reviews.run.status` (queued → running → từng stage), `reviews.run.completed`, `reviews.run.failed`. Không nhận.
 
 ## Dữ liệu
 `MergeRequest`, `ReviewRun`, `ReviewFinding`, `ReviewCategoryScore` (prisma/schema/reviews.prisma). `repositoryId` và `memberId` chỉ là ID chuỗi, không relation sang module khác.

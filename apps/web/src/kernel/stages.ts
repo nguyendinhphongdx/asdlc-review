@@ -1,5 +1,6 @@
 /** Thứ tự stage của pipeline review và nhãn tiếng Việt. */
 export const STAGES = [
+  { id: "queue", label: "Chờ trong hàng đợi" },
   { id: "clone", label: "Clone repository" },
   { id: "framework", label: "Nạp framework" },
   { id: "harness", label: "Nạp harness" },

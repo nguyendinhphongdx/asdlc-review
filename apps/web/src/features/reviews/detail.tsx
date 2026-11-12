@@ -14,7 +14,8 @@ import { fmtDate, fmtDur, fmtMs } from "../../kernel/format.js";
 import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { FileCoverage, HarnessLoad, RuleChecklist } from "./coverage.js";
 import { HarnessPanel } from "../../kernel/harness.js";
-import { getRun, listFrameworks, openRunStream, rerun, setFeedback } from "./api.js";
+import { getRun, listFrameworks, openRunStream, setFeedback } from "./api.js";
+import { useReviewRequest } from "./use-review-request.js";
 import { ActivityLog } from "./live-log.js";
 import { AgentChat } from "./chat.js";
 import { STAGES, stageLabel } from "../../kernel/stages.js";
@@ -37,11 +38,14 @@ export function ReviewDetailPage() {
     setLive([]);
     return openRunStream({
       onProgress: (_r, e) => setLive((l) => [...l, e]),
+      // Chuyển bước/chuyển từ chờ sang chạy: tải lại chi tiết ngay (TanStack Query refetch) để thanh tiến trình đổi tức thì.
+      onRunStatus: (s) => { if (s.runId === id) void qc.invalidateQueries({ queryKey: ["run", id] }); },
       onDone: () => void qc.invalidateQueries({ queryKey: ["run", id] }),
       onStatus: setConnected,
     }, id);
   }, [active, id, qc]);
-  const re = useMutation({ mutationFn: (mrId: string) => rerun(mrId), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["runs"] }); void qc.invalidateQueries({ queryKey: ["run", id] }); } });
+  // Bấm "Review lại" → chuyển ngay sang trang theo dõi của run mới (đang chờ → đang chạy), không ở lại trang cũ.
+  const re = useReviewRequest({ open: true });
   const fws = useQuery({ queryKey: ["frameworks"], queryFn: listFrameworks, staleTime: 60_000 });
   const fb = useMutation({ mutationFn: (a: { id: string; v: keyof typeof FB | null }) => setFeedback(a.id, a.v), onSuccess: () => qc.invalidateQueries({ queryKey: ["run", id] }) });
   if (q.isLoading) return <Loading />;
@@ -51,7 +55,7 @@ export function ReviewDetailPage() {
   return (
     <>
       <PageHeader title={`!${r.mr.iid} ${r.mr.title}`}>
-        <Button variant="outline" disabled={re.isPending} onClick={() => re.mutate(r.mr.id)}>Review lại</Button>
+        <Button variant="outline" disabled={re.isPending || active} onClick={() => re.mutate({ mrId: r.mr.id })} title={active ? "Đang có một lần review chạy cho MR này" : undefined}>{re.isPending ? "Đang xếp hàng…" : "Review lại"}</Button>
         <a className={buttonVariants()} href={r.mr.webUrl} target="_blank" rel="noreferrer">Mở MR<ExternalLink /></a>
       </PageHeader>
       <div className="-mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-muted-foreground">
@@ -62,8 +66,9 @@ export function ReviewDetailPage() {
       </div>
       {r.error && !(r.status === "failed" && STAGES.some((x) => x.id === r.stage)) && <ErrorBox error={r.error} />}
 
-      <Pipeline r={r} retrying={re.isPending} retried={re.isSuccess} onRetry={() => re.mutate(r.mr.id)} />
+      <Pipeline r={r} entries={live.length ? live : r.activity} retrying={re.isPending} retried={re.isSuccess} onRetry={() => re.mutate({ mrId: r.mr.id })} />
       {re.error && <ErrorBox error={re.error} />}
+      {re.notice && !re.error && !re.isPending && <p role="status" className="text-[13px] text-muted-foreground">{re.notice}</p>}
 
       <AgentChat mrId={r.mr.id} live={live} active={active} connected={connected} />
       {!active && r.activity.length > 0 && (
@@ -157,21 +162,48 @@ export function ReviewDetailPage() {
 
 type StageState = "done" | "failed" | "running" | "pending";
 
-function Pipeline({ r, retrying, retried, onRetry }: { r: RunDetailDto; retrying: boolean; retried: boolean; onRetry: () => void }) {
+/** Đồng hồ 1 giây/lần khi `on`, để số giây "đã chờ/đang chạy" nhích theo thời gian thực. */
+function useTick(on: boolean) {
+  const [, set] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const t = setInterval(() => set((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [on]);
+}
+const since = (iso: string) => Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+const clock = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}p${String(s % 60).padStart(2, "0")}s` : `${s}s`);
+
+function Pipeline({ r, entries, retrying, retried, onRetry }: { r: RunDetailDto; entries: RunActivityEntry[]; retrying: boolean; retried: boolean; onRetry: () => void }) {
+  const live = r.status === "queued" || r.status === "running";
+  useTick(live);
+  const last = entries[entries.length - 1];
+  /** Mốc bắt đầu của một bước: lấy từ dòng "Bắt đầu: …" gần nhất của bước đó (queue: từ lúc tạo run). */
+  const startedAt = (id: string) => (id === "queue" ? r.createdAt : [...entries].reverse().find((e) => e.stage === id && e.message.startsWith("Bắt đầu"))?.at);
   const known = STAGES.some((x) => x.id === r.stage);
   const stateOf = (id: string): StageState => {
     if (r.status === "failed" && r.stage === id) return "failed";
     if ((r.status === "running" || r.status === "queued") && r.stage === id) return "running";
+    if (id === "queue" && !(r.status === "queued" || (r.status === "failed" && r.stage === "queue"))) return "done";
     if (r.stageTimings[id] != null) return "done";
     if (r.status === "succeeded") return "done";
     return "pending";
   };
-  const statusLabel = r.status === "failed" ? `Lỗi${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "running" ? `Đang chạy${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "succeeded" ? "Hoàn tất" : r.status === "skipped" ? "Bỏ qua" : "Đang chờ";
+  const statusLabel = r.status === "failed" ? `Lỗi${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "running" ? `Đang chạy${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "succeeded" ? "Hoàn tất" : r.status === "skipped" ? "Bỏ qua" : "Đang chờ · hàng đợi";
   const variant = r.status === "failed" ? "danger" : r.status === "succeeded" ? "success" : r.status === "running" ? "info" : "secondary";
   return (
     <Card>
       <CardHeader className="flex-row flex-wrap items-center justify-between gap-2"><CardTitle>Tiến trình review</CardTitle><Badge variant={variant}>{statusLabel}</Badge></CardHeader>
       <CardContent>
+        {live && (
+          <div role="status" aria-live="polite" className="mb-3 flex items-start gap-2.5 rounded-lg border bg-muted/30 px-3.5 py-2.5 text-sm">
+            <Loader2 className="mt-0.5 size-4 flex-none animate-spin text-primary" aria-hidden="true" />
+            <div className="min-w-0">
+              <div className="font-medium">{r.status === "queued" ? `Đang chờ tới lượt trong hàng đợi · ${clock(since(r.createdAt))}` : known ? `${stageLabel(r.stage)}…` : "Đang khởi động…"}</div>
+              <div className="break-words text-[13px] text-muted-foreground">{last ? <>{last.message} <span className="tabular-nums">· {clock(since(last.at))} trước</span></> : "Chưa có tín hiệu nào từ worker."}</div>
+            </div>
+          </div>
+        )}
         {r.status === "skipped" && <p className="mb-3 text-sm text-muted-foreground">{r.error ?? "Lần review này bị bỏ qua."}</p>}
         <ol className="flex flex-col">
           {STAGES.map((st, i) => {
@@ -184,7 +216,7 @@ function Pipeline({ r, retrying, retried, onRetry }: { r: RunDetailDto; retrying
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-3"><span className={cn("font-medium", s === "failed" && "text-danger-fg")}>{st.label}</span>
-                    <span className="text-xs tabular-nums text-muted-foreground">{s === "pending" ? "Chưa chạy" : s === "running" ? "Đang chạy…" : ms != null ? fmtMs(ms) : "—"}</span></div>
+                    <span className="text-xs tabular-nums text-muted-foreground">{s === "pending" ? "Chưa chạy" : s === "running" ? `${st.id === "queue" ? "Đang chờ" : "Đang chạy"}${startedAt(st.id) ? ` · ${clock(since(startedAt(st.id)!))}` : "…"}` : ms != null ? fmtMs(ms) : "—"}</span></div>
                   {s === "failed" && (
                     <div className="mt-2 flex flex-col gap-2.5">
                       <p role="alert" className="text-[13px] text-danger-fg">{r.error ?? "Stage này đã lỗi."}</p>

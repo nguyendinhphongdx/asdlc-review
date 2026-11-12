@@ -55,7 +55,7 @@ export function RepoSettings({ repo }: { repo: RepoDto }) {
           </select>
         </Row>
         <Row label="Model" hint="Model dùng review và chat cho repo này. Để trống = theo cài đặt chung của provider.">
-          <ModelInput provider={repo.provider ?? "claude-cli"} label="Model của repo" placeholder="(theo cài đặt chung)" value={repo.model ?? ""} onCommit={(m) => save.mutate({ model: m || null })} />
+          <ModelInput provider={repo.provider ?? "claude-cli"} label="Model của repo" defaultLabel="Theo cài đặt chung" value={repo.model ?? ""} onCommit={(m) => save.mutate({ model: m || null })} />
         </Row>
         <Row label="Ngân sách diff (ký tự)" hint="Giới hạn lượng diff đưa vào prompt; MR lớn hơn sẽ bị cắt. Để trống = theo cài đặt chung.">
           <Input aria-label="Ngân sách diff" type="number" min={10000} max={1000000} step={10000} placeholder="120000" value={budget} onChange={(e) => setBudget(e.target.value)}

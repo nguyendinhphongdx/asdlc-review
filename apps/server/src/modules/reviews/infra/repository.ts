@@ -35,16 +35,30 @@ export class ReviewRepository {
     return { items: items.map(toMrDto), total };
   }
 
-  async startRun(i: StartRunInput): Promise<{ runId: string; round: number }> {
+  /** Tạo run. `queued`: mới xếp hàng (chưa có worker nhận); mặc định `running` (chạy ngay). */
+  async startRun(i: StartRunInput, initial: "queued" | "running" = "running"): Promise<{ runId: string; round: number }> {
     const round = (await this.db.reviewRun.count({ where: { mergeRequestId: i.mrId } })) + 1;
+    const queued = initial === "queued";
     const r = await this.db.reviewRun.create({
-      data: { mergeRequestId: i.mrId, round, trigger: i.trigger, triggeredBy: i.triggeredBy ?? null, headSha: i.headSha, baseSha: i.baseSha ?? null, status: "running", stage: "start", provider: i.provider ?? null, frameworkId: i.frameworkId ?? null, frameworkVersion: i.frameworkVersion ?? null, commits: i.commits ?? 0, startedAt: new Date() },
+      data: { mergeRequestId: i.mrId, round, trigger: i.trigger, triggeredBy: i.triggeredBy ?? null, headSha: i.headSha, baseSha: i.baseSha ?? null, status: initial, stage: queued ? "queue" : "start", provider: i.provider ?? null, frameworkId: i.frameworkId ?? null, frameworkVersion: i.frameworkVersion ?? null, commits: i.commits ?? 0, startedAt: queued ? null : new Date() },
     });
     return { runId: r.id, round };
   }
 
-  async setStage(runId: string, stage: string, timings?: Record<string, number>) {
-    await this.db.reviewRun.update({ where: { id: runId }, data: { stage, ...(timings ? { stageTimings: JSON.stringify(timings) } : {}) } });
+  /** Worker nhận run đã xếp hàng (hoặc thử lại run lỗi): chuyển sang `running`, trả thời gian đã chờ. */
+  async beginRun(runId: string, provider: string | null, now: Date): Promise<{ mrId: string; waitedMs: number }> {
+    const cur = await this.db.reviewRun.findUnique({ where: { id: runId }, select: { createdAt: true } });
+    const r = await this.db.reviewRun.update({ where: { id: runId }, data: { status: "running", stage: "start", error: null, finishedAt: null, startedAt: now, ...(provider ? { provider } : {}) } });
+    return { mrId: r.mergeRequestId, waitedMs: cur ? Math.max(0, now.getTime() - cur.createdAt.getTime()) : 0 };
+  }
+
+  async setProvider(runId: string, provider: string): Promise<void> {
+    await this.db.reviewRun.update({ where: { id: runId }, data: { provider } });
+  }
+
+  async setStage(runId: string, stage: string, timings?: Record<string, number>): Promise<{ mrId: string }> {
+    const r = await this.db.reviewRun.update({ where: { id: runId }, data: { stage, ...(timings ? { stageTimings: JSON.stringify(timings) } : {}) } });
+    return { mrId: r.mergeRequestId };
   }
 
   async completeRun(runId: string, res: RunResult, now: Date): Promise<{ mrId: string }> {

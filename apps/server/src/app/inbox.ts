@@ -68,7 +68,7 @@ export function createInbox(m: Modules, requestReview: RequestReview, log: Logge
           items.push({
             repoId, repoPath: c.repoPath, iid: mr.iid, title: mr.title, authorUsername: mr.authorUsername, webUrl: mr.webUrl,
             sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, draft: mr.draft, updatedAt: mr.updatedAt.toISOString(), headSha: mr.headSha,
-            status: !run ? "pending" : run.status === "running" ? "running" : run.status === "failed" ? "failed" : "queued", runId: run?.id, ...(run?.status === "failed" ? { error: run.error ?? undefined } : {}),
+            status: !run ? "pending" : run.status === "running" ? "running" : run.status === "failed" ? "failed" : "queued", runId: run?.id, ...(run && (run.status === "queued" || run.status === "running") && run.stage ? { stage: run.stage } : {}), ...(run?.status === "failed" ? { error: run.error ?? undefined } : {}),
           });
         }
       }

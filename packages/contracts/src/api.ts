@@ -154,6 +154,8 @@ export interface SettingsDto {
   skipDrafts: boolean;
   /** Ngân sách ký tự cho diff gửi AI; file ưu tiên thấp bị bỏ qua khi vượt. */
   diffBudgetChars: number;
+  /** Trần chi phí (USD) mỗi lần review bằng Claude CLI; 0 = không giới hạn. */
+  maxBudgetUsd: number;
   /** Thư mục lưu repo clone + thư mục làm việc tạm; rỗng = mặc định trong thư mục dữ liệu của app. */
   workDir: string;
   /** polling = app tự quét GitLab định kỳ; webhook = GitLab gọi về (cần địa chỉ công khai); manual = chỉ review khi bấm. */
@@ -193,6 +195,7 @@ export interface HealthDto {
 }
 
 export type RequestReviewResultDto =
-  | { status: "queued" | "duplicate"; jobId: string }
+  /** `queued`: đã tạo run ở trạng thái chờ. `duplicate`: MR này đang có run chờ/chạy ở đúng commit, trả về run đó. */
+  | { status: "queued" | "duplicate"; jobId: string; runId: string }
   | { status: "already_reviewed"; runId: string }
   | { status: "skipped"; reason: string };

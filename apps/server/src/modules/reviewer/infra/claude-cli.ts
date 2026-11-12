@@ -48,8 +48,10 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
       if (out.is_error === true || typeof out.result !== "string") throw new ModuleError("reviewer", "upstream_error", `claude CLI lỗi (exit ${res.code}): ${String(out.result ?? (res.stderr || res.stdout)).slice(0, 300)}`);
       return { text: out.result, costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null, steps };
     },
-    async run({ model, system, user, workdir, onActivity }) {
+    async run({ model, system, user, workdir, maxBudgetUsd, onActivity }) {
       const mdl = model || o.model;
+      // Trần theo lần gọi (lấy từ Cài đặt) ưu tiên hơn giá trị khởi tạo; 0 = không giới hạn.
+      const budget = maxBudgetUsd ?? o.maxBudgetUsd;
       const args = [
         "-p", "--output-format", "stream-json", "--verbose",
         "--json-schema", JSON.stringify(REVIEW_JSON_SCHEMA),
@@ -59,7 +61,7 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
         "--no-session-persistence",
         "--append-system-prompt", system,
         ...(mdl ? ["--model", mdl] : []),
-        ...(o.maxBudgetUsd > 0 ? ["--max-budget-usd", String(o.maxBudgetUsd)] : []),
+        ...(budget > 0 ? ["--max-budget-usd", String(budget)] : []),
       ];
       let final: Record<string, unknown> | undefined;
       const rel = (p: unknown) => String(p ?? "").replace(`${workdir}/`, "");
@@ -89,7 +91,15 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
       if (!final) throw new ModuleError("reviewer", "upstream_error", `claude CLI không trả kết quả (exit ${res.code}): ${(res.stderr || res.stdout).slice(-500)}`);
       const out: Record<string, unknown> = final;
       if (out.is_error === true || (res.code !== 0 && !out.result && !out.structured_output)) {
-        throw new ModuleError("reviewer", "upstream_error", `claude CLI lỗi (exit ${res.code}): ${String(out.result || res.stderr || "không có đầu ra (tiến trình bị dừng đột ngột?)").slice(0, 500)}`);
+        const cost = typeof out.total_cost_usd === "number" ? ` (đã tốn $${out.total_cost_usd.toFixed(2)})` : "";
+        // Vượt trần chi phí: thử lại chỉ tốn thêm tiền mà vẫn lỗi, nên dùng mã riêng (không tự thử lại).
+        if (out.subtype === "error_max_budget_usd") {
+          throw new ModuleError("reviewer", "quota_exceeded", `Vượt trần chi phí $${budget} cho một lần review${cost}. MR/prompt quá lớn: chia nhỏ MR hoặc tăng/bỏ trần ở Cài đặt → Giới hạn khi review (0 = không giới hạn).`);
+        }
+        // Claude CLI có thể thoát lỗi mà result rỗng: nêu subtype/errors của sự kiện kết quả thay vì "không có đầu ra".
+        const errs = Array.isArray(out.errors) ? (out.errors as unknown[]).map(String).join("; ") : "";
+        const detail = String(out.result || errs || res.stderr || "không có đầu ra (tiến trình bị dừng đột ngột?)");
+        throw new ModuleError("reviewer", "upstream_error", `claude CLI lỗi (exit ${res.code}${out.subtype ? `, ${String(out.subtype)}` : ""})${cost}: ${detail}`.slice(0, 600));
       }
       const payload = out.structured_output ?? out.result;
       const text = typeof payload === "string" ? payload : JSON.stringify(payload);

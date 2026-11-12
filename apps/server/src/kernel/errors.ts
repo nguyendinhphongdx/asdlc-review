@@ -7,6 +7,7 @@ export type ErrorCode =
   | "not_configured"
   | "upstream_error"
   | "timeout"
+  | "quota_exceeded"
   | "internal";
 
 export class ModuleError extends Error {
@@ -22,4 +23,4 @@ export class ModuleError extends Error {
 }
 
 export const httpStatusOf = (code: ErrorCode): number =>
-  ({ not_found: 404, invalid_input: 400, conflict: 409, unauthorized: 401, not_configured: 412, upstream_error: 502, timeout: 504, internal: 500 })[code];
+  ({ not_found: 404, invalid_input: 400, conflict: 409, unauthorized: 401, not_configured: 412, upstream_error: 502, timeout: 504, quota_exceeded: 402, internal: 500 })[code];

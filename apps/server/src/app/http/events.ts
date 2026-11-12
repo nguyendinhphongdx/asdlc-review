@@ -4,7 +4,7 @@ import type { Container } from "../container.js";
 /**
  * Server-Sent Events: đẩy tiến trình review xuống UI theo thời gian thực.
  * `GET /api/events` (mọi run) hoặc `?run=<id>` (một run, kèm phát lại phần đã qua khi vào giữa chừng).
- * Sự kiện: `progress` {runId, mrId, entry}, `completed`, `failed`. Server gửi `: ping` mỗi 15 giây để giữ kết nối.
+ * Sự kiện: `status` {runId, mrId, status, stage} (chờ → chạy → từng bước), `progress` {runId, mrId, entry}, `completed`, `failed`. Server gửi `: ping` mỗi 15 giây để giữ kết nối.
  */
 export function registerEventRoutes(app: FastifyInstance, c: Container) {
   app.get<{ Querystring: { run?: string } }>("/api/events", (req, reply) => {
@@ -24,6 +24,7 @@ export function registerEventRoutes(app: FastifyInstance, c: Container) {
 
     const off = [
       c.events.subscribe("reviews.run.progress", (p) => { if (!run || p.runId === run) send("progress", p); }),
+      c.events.subscribe("reviews.run.status", (p) => { if (!run || p.runId === run) send("status", p); }),
       c.events.subscribe("reviews.run.completed", (p) => { if (!run || p.runId === run) send("completed", p); }),
       c.events.subscribe("reviews.run.failed", (p) => { if (!run || p.runId === run) send("failed", p); }),
     ];

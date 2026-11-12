@@ -67,10 +67,10 @@ export function ReviewTab() {
         <Row label="AI provider"><Select aria-label="AI provider" value={v.reviewProvider} onChange={(e) => save.mutate({ reviewProvider: e.target.value as typeof v.reviewProvider })}>
           {(p.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.label}{x.available ? "" : " (chưa sẵn sàng)"}</option>)}</Select></Row>
         <Row label="Model" hint={v.reviewProvider === "claude-cli" ? "Model Claude dùng để review (vd claude-opus-5-5). Repo có thể chọn model riêng." : v.reviewProvider === "codex-cli" ? "Để trống = model mặc định của Codex CLI." : "Bắt buộc với OpenAI-compatible (tên model của server)."}>
-          <ModelInput provider={v.reviewProvider} label="Model review" placeholder="(mặc định của provider)"
+          <ModelInput provider={v.reviewProvider} label="Model review" defaultLabel="Mặc định của provider"
             value={v.reviewProvider === "claude-cli" ? v.claudeModel : v.reviewProvider === "codex-cli" ? v.codexModel : v.openaiModel}
             onCommit={(m) => save.mutate(v.reviewProvider === "claude-cli" ? { claudeModel: m } : v.reviewProvider === "codex-cli" ? { codexModel: m } : { openaiModel: m })} /></Row>
-        <Row label="Model cho chat" hint="Model riêng cho trợ lý chat (nên rẻ/nhanh hơn model review). Để trống = dùng model review."><ModelInput provider={v.reviewProvider} label="Model chat" placeholder="(dùng model review)" value={v.chatModel} onCommit={(m) => save.mutate({ chatModel: m })} /></Row>
+        <Row label="Model cho chat" hint="Model riêng cho trợ lý chat (nên rẻ/nhanh hơn model review). Để trống = dùng model review."><ModelInput provider={v.reviewProvider} label="Model chat" defaultLabel="Dùng model review" value={v.chatModel} onCommit={(m) => save.mutate({ chatModel: m })} /></Row>
         <Row label="Framework mặc định"><Select aria-label="Framework mặc định" value={v.defaultFramework} onChange={(e) => save.mutate({ defaultFramework: e.target.value })}>
           {(f.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name} v{x.version}</option>)}</Select></Row>
         <Row label="Điểm đạt"><Input aria-label="Điểm đạt" className="w-24" type="number" min={0} max={100} key={`p${v.passScore}`} defaultValue={v.passScore} onBlur={(e) => num(e.target.value, 0, (n) => n !== v.passScore && save.mutate({ passScore: n }))} /></Row>
@@ -85,6 +85,9 @@ export function ReviewTab() {
       <Card><CardHeader><CardTitle>Giới hạn khi review</CardTitle><CardDescription>Kiểm soát chi phí và thời gian trên MR lớn.</CardDescription></CardHeader><CardContent>
         <Row label="Bỏ qua MR nháp (Draft/WIP)" hint="MR có tiền tố Draft:/WIP: sẽ không được review cho tới khi sẵn sàng."><Check label="Bỏ qua MR nháp" checked={v.skipDrafts} onChange={(c) => save.mutate({ skipDrafts: c })} /></Row>
         <Row label="Ngân sách diff (ký tự)" hint="Vượt mức này, file ưu tiên thấp bị bỏ qua."><Input aria-label="Ngân sách diff (ký tự)" className="w-32" type="number" min={1000} step={1000} key={`b${v.diffBudgetChars}`} defaultValue={v.diffBudgetChars} onBlur={(e) => num(e.target.value, 1000, (n) => n !== v.diffBudgetChars && save.mutate({ diffBudgetChars: n }))} /></Row>
+        <Row label="Trần chi phí mỗi review (USD)" hint="0 = không giới hạn. Chỉ áp dụng cho Claude CLI: vượt trần thì review dừng và báo lỗi. Số này là ước tính của CLI theo token đã dùng (kể cả cache).">
+          <Input aria-label="Trần chi phí mỗi review (USD)" className="w-32" type="number" min={0} step={0.5} key={`mb${v.maxBudgetUsd}`} defaultValue={v.maxBudgetUsd}
+            onBlur={(e) => { const n = Number(e.target.value); if (e.target.value.trim() !== "" && Number.isFinite(n) && n >= 0 && n !== v.maxBudgetUsd) save.mutate({ maxBudgetUsd: n }); }} /></Row>
       </CardContent></Card>
       <StorageCard workDir={v.workDir} save={(p) => save.mutateAsync(p)} />
       <Card><CardHeader><CardTitle>Hệ thống</CardTitle></CardHeader><CardContent>

@@ -81,7 +81,7 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
   const waitRuns = async (n: number) => {
     for (let i = 0; i < 100; i++) {
       const { items } = await c.modules.reviews.listRuns({});
-      if (items.filter((r) => r.status !== "running").length >= n) return items;
+      if (items.filter((r) => r.status !== "running" && r.status !== "queued").length >= n) return items;
       await wait(100);
     }
     throw new Error("quá thời gian chờ review");
@@ -111,7 +111,7 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
     assert.equal(d.grade, "F");
     assert.equal(d.verdict, "request_changes");
     assert.ok(d.gates.some((g) => g.id === "secret-leak"));
-    assert.deepEqual(d.stageTimings && Object.keys(d.stageTimings).sort(), ["analysis", "clone", "framework", "harness", "publish", "review", "score"]);
+    assert.deepEqual(d.stageTimings && Object.keys(d.stageTimings).sort(), ["analysis", "clone", "framework", "harness", "publish", "queue", "review", "score"]);
     assert.ok(d.harnessFiles.includes("CLAUDE.md"));
     assert.equal(d.frameworkId, "asdlc");
     assert.equal(d.frameworkVersion, "1.0.0");
@@ -132,6 +132,26 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
     assert.deepEqual(items.map((r) => r.round).sort(), [1, 2]);
   });
 
+  it("bấm review: run xuất hiện NGAY ở trạng thái chờ, rồi báo trạng thái theo thời gian thực", async () => {
+    const seen: string[] = [];
+    const off = c.events.subscribe("reviews.run.status", (p) => { seen.push(`${p.status}:${p.stage}`); });
+    const res = await c.workflows.requestReview({ ...input, force: true });
+    assert.equal(res.status, "queued");
+    assert.ok("runId" in res && res.runId);
+    const now = await c.modules.reviews.getRun(res.runId);
+    assert.ok(["queued", "running"].includes(now.status), `run phải có ngay, được ${now.status}`);
+    assert.equal(seen[0], "queued:queue", "sự kiện đầu tiên phải là chờ trong hàng đợi");
+    // Bấm lại khi run còn chờ/đang chạy: trả về chính run đó, không xếp chồng.
+    const again = await c.workflows.requestReview({ ...input, force: true });
+    if (again.status === "duplicate") assert.equal(again.runId, res.runId);
+    for (let i = 0; i < 100 && (await c.modules.reviews.getRun(res.runId)).status !== "succeeded"; i++) await wait(100);
+    off();
+    const done = await c.modules.reviews.getRun(res.runId);
+    assert.equal(done.status, "succeeded", done.error ?? "");
+    assert.ok(seen.includes("running:start") && seen.includes("running:clone") && seen.includes("running:publish"), seen.join(","));
+    assert.ok(typeof done.stageTimings.queue === "number");
+  });
+
   it("tác giả được tạo thành viên và lên leaderboard", async () => {
     const members = await c.modules.identity.list();
     assert.equal(members.length, 1);
@@ -141,7 +161,7 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
     assert.equal(lb[0]!.name, "Dev An");
     assert.equal(lb[0]!.secretLeaks, 1);
     assert.equal(lb[0]!.mrCount, 1);
-    assert.equal(lb[0]!.avgReviewRounds, 2);
+    assert.equal(lb[0]!.avgReviewRounds, 3);
   });
 
   it("chat command", async () => {

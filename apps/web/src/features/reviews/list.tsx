@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { DataTable, type ColumnDef } from "@/components/data-table/data-table";
 import { fmtDate, fmtDur } from "../../kernel/format.js";
 import { ErrorBox, PageHeader } from "../../kernel/page.js";
-import { getInbox, listRuns, openRunStream, refreshInbox, rerun, requestReview } from "./api.js";
+import { getInbox, listRuns, openRunStream, refreshInbox } from "./api.js";
+import { useReviewRequest } from "./use-review-request.js";
 import { FindMrDialog } from "./find-dialog.js";
 import { stageLabel } from "../../kernel/stages.js";
 
@@ -19,7 +20,8 @@ const SEV_DOT: [string, string][] = [["blocker", "bg-danger"], ["critical", "bg-
 function Status({ status, stage, error }: { status: string; stage: string | null; error: string | null }) {
   if (status === "succeeded") return <Badge variant="success">Hoàn tất</Badge>;
   if (status === "failed") return <Badge variant="danger" title={error ?? ""}>Lỗi{stage ? ` · ${stageLabel(stage)}` : ""}</Badge>;
-  if (status === "running") return <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review{stage ? ` · ${stageLabel(stage)}` : ""}</Badge>;
+  if (status === "running") return <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review{stage && stage !== "start" ? ` · ${stageLabel(stage)}` : ""}</Badge>;
+  if (status === "queued") return <Badge variant="warning"><span className="size-1.5 animate-pulse rounded-full bg-current" />Đang chờ · hàng đợi</Badge>;
   if (status === "skipped") return <Badge title={error ?? ""}>Bỏ qua</Badge>;
   return <Badge>{status === "queued" ? "Đang chờ" : status}</Badge>;
 }
@@ -31,8 +33,9 @@ function useLiveRuns() {
   // Cập nhật ngay khi có tiến trình mới (SSE); polling chỉ là dự phòng.
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
-    const refresh = () => { clearTimeout(t); t = setTimeout(() => { void qc.invalidateQueries({ queryKey: ["runs"] }); void qc.invalidateQueries({ queryKey: ["inbox"] }); }, 400); };
-    const close = openRunStream({ onProgress: refresh, onDone: refresh });
+    // invalidate → TanStack Query tự refetch; gộp các sự kiện dồn dập trong 150ms.
+    const refresh = () => { clearTimeout(t); t = setTimeout(() => { void qc.invalidateQueries({ queryKey: ["runs"] }); void qc.invalidateQueries({ queryKey: ["inbox"] }); }, 150); };
+    const close = openRunStream({ onRunStatus: refresh, onDone: refresh });
     return () => { clearTimeout(t); close(); };
   }, [qc]);
 }
@@ -46,7 +49,8 @@ function InboxTab() {
   const nav = useNavigate();
   const q = useQuery({ queryKey: ["inbox"], queryFn: getInbox, refetchInterval: 30000 });
   const refresh = useMutation({ mutationFn: refreshInbox, onSuccess: (d) => qc.setQueryData(["inbox"], d) });
-  const run = useMutation({ mutationFn: (url: string) => requestReview(url), onSuccess: () => { void qc.invalidateQueries({ queryKey: ["inbox"] }); void qc.invalidateQueries({ queryKey: ["runs"] }); } });
+  const req = useReviewRequest();
+  const run = { ...req, mutate: (url: string) => req.mutate({ url }), variables: req.variables && "url" in req.variables ? req.variables.url : undefined };
   const d = q.data;
   const columns: ColumnDef<InboxItemDto>[] = [
     { id: "mr", header: "Merge request", accessorFn: (i) => `!${i.iid} ${i.title}`, meta: { className: "max-w-[360px]" },
@@ -56,13 +60,13 @@ function InboxTab() {
     { accessorKey: "updatedAt", header: "Cập nhật", meta: { className: "text-xs text-muted-foreground whitespace-nowrap" }, cell: ({ getValue }) => fmtDate(getValue<string>()) },
     { accessorKey: "status", header: "Trạng thái", meta: { filterLabels: INBOX_STATUS },
       cell: ({ row: { original: i } }) => (<>
-        {i.status === "running" ? <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review</Badge> : i.status === "queued" ? <Badge>Đang chờ</Badge> : i.status === "failed" ? <Badge variant="danger" title={i.error ?? ""}>Lỗi · bấm xem log</Badge> : <Badge variant="warning">Chờ review</Badge>}
+        {i.status === "running" ? <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review{i.stage && i.stage !== "start" ? ` · ${stageLabel(i.stage)}` : ""}</Badge> : i.status === "queued" ? <Badge variant="warning"><span className="size-1.5 animate-pulse rounded-full bg-current" />Đang chờ · hàng đợi</Badge> : i.status === "failed" ? <Badge variant="danger" title={i.error ?? ""}>Lỗi · bấm xem log</Badge> : <Badge variant="warning">Chờ review</Badge>}
         {i.draft && <Badge className="ml-1.5">Draft</Badge>}
       </>) },
     { id: "review", header: () => <span className="sr-only">Review</span>, enableSorting: false, enableHiding: false, meta: { className: "w-24 text-right", headerClassName: "w-24" },
       cell: ({ row: { original: i } }) => i.status === "failed" && i.runId ? <span className="inline-flex items-center gap-2"><Link to={`/reviews/${i.runId}`} className="text-sm font-medium hover:underline">Log</Link><Button size="sm" variant="outline" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>Review lại</Button></span>
         : i.runId ? <Link to={`/reviews/${i.runId}`} className="text-sm font-medium hover:underline">Xem</Link>
-        : <Button size="sm" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>{run.isPending && run.variables === i.webUrl ? "Đang gửi…" : "Review"}</Button> },
+        : <Button size="sm" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>{run.isPending && run.variables === i.webUrl ? "Đang xếp hàng…" : "Review"}</Button> },
   ];
   return (
     <>
@@ -86,6 +90,7 @@ function InboxTab() {
       )}
       {refresh.error && <ErrorBox error={refresh.error} />}
       {run.error && <ErrorBox error={run.error} />}
+      {run.notice && !run.error && <p role="status" className="text-[13px] text-muted-foreground">{run.notice}</p>}
       {d?.errors.map((e) => <p key={e.repo} role="alert" className="text-[13px] text-danger-fg">Không lấy được MR của {e.repo}: {e.message}</p>)}
       <DataTable<InboxItemDto>
         aria-label="MR đang chờ review" columns={columns} data={d?.items ?? []} loading={q.isLoading} error={q.error}
@@ -107,7 +112,7 @@ function InboxTab() {
 
 function HistoryTab() {
   const nav = useNavigate();
-  const re = useMutation({ mutationFn: (mrId: string) => rerun(mrId) });
+  const re = useReviewRequest({ open: true });
   const q = useQuery({ queryKey: ["runs"], queryFn: () => listRuns({ limit: 100 }), refetchInterval: 20000 });
   const total = (r: RunListItemDto) => Object.values(r.findingCounts).reduce((a, b) => a + b, 0);
   const columns: ColumnDef<RunListItemDto>[] = [
@@ -126,6 +131,7 @@ function HistoryTab() {
   return (
     <>
       {re.error && <ErrorBox error={re.error} />}
+      {re.isPending && <p role="status" className="text-[13px] text-muted-foreground">Đang xếp hàng review…</p>}
       <DataTable<RunListItemDto>
         aria-label="Lịch sử review" columns={columns} data={q.data?.items ?? []} loading={q.isLoading} error={q.error} getRowId={(r) => r.id}
         unit="lần review" minWidth={980} search={{ placeholder: "Tìm theo tiêu đề, tác giả…" }}
@@ -133,7 +139,7 @@ function HistoryTab() {
         initialSort={[{ id: "createdAt", desc: true }]} empty="Chưa có lần review nào"
         rowActions={(r) => [
           { label: "Xem chi tiết", onSelect: () => nav(`/reviews/${r.id}`) },
-          { label: "Review lại", onSelect: () => re.mutate(r.mr.id) },
+          { label: "Review lại", onSelect: () => re.mutate({ mrId: r.mr.id }) },
           { label: "Mở MR trên GitLab", onSelect: () => window.open(r.mr.webUrl, "_blank", "noopener") },
         ]}
       />

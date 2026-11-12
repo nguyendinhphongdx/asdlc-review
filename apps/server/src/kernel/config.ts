@@ -35,7 +35,8 @@ const EnvSchema = z.object({
   REVIEW_PROVIDER: z.enum(["claude-cli", "codex-cli", "openai-compatible"]).default("claude-cli"),
   CLAUDE_BIN: z.string().default("claude"),
   CLAUDE_MODEL: z.string().default("claude-opus-5-5"),
-  CLAUDE_MAX_BUDGET_USD: z.coerce.number().default(3),
+  /** Trần chi phí (USD) mỗi lần review bằng Claude CLI; 0 = không giới hạn. Đổi được ở Cài đặt → Giới hạn khi review. */
+  CLAUDE_MAX_BUDGET_USD: z.coerce.number().min(0).default(0),
   CODEX_BIN: z.string().default("codex"),
   CODEX_MODEL: z.string().default(""),
   OPENAI_BASE_URL: z.string().default("https://api.openai.com/v1"),

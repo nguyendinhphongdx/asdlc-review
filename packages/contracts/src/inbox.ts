@@ -14,6 +14,8 @@ export interface InboxItemDto {
   /** pending = chưa có lần review nào cho commit này. */
   status: "pending" | "queued" | "running" | "failed";
   runId?: string;
+  /** Giai đoạn hiện tại của run đang chờ/chạy (queue | clone | … | publish). */
+  stage?: string;
   /** Lý do lỗi của lần review gần nhất ở commit này (status = failed). */
   error?: string;
 }

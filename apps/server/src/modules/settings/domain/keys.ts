@@ -14,6 +14,8 @@ export const SETTING_SCHEMAS = {
   passScore: z.number().min(0).max(100),
   skipDrafts: z.boolean(),
   diffBudgetChars: z.number().int().min(10_000).max(1_000_000),
+  /** Trần chi phí (USD) mỗi lần review bằng Claude CLI; 0 = không giới hạn. */
+  maxBudgetUsd: z.number().min(0).max(1000),
   /** Cách nhận MR mới: quét định kỳ (mặc định, chạy được sau NAT), webhook, hoặc chỉ review thủ công. */
   /** Thư mục lưu repo đã clone (repos/) và thư mục làm việc tạm (runs/). Rỗng = mặc định trong DATA_DIR. */
   workDir: z.string().max(500).refine((v) => v === "" || path.isAbsolute(v), "Phải là đường dẫn tuyệt đối"),

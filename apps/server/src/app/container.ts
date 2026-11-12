@@ -47,7 +47,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     defaults: {
       reviewProvider: config.REVIEW_PROVIDER, defaultFramework: "asdlc",
       claudeModel: config.CLAUDE_MODEL, codexModel: config.CODEX_MODEL, openaiModel: config.OPENAI_MODEL, chatModel: "",
-      passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS,
+      passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS, maxBudgetUsd: config.CLAUDE_MAX_BUDGET_USD,
       workDir: "", triggerMode: "polling", pollIntervalMin: config.POLL_INTERVAL_MIN > 0 ? config.POLL_INTERVAL_MIN : 5,
     },
   });
@@ -91,7 +91,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
 
   const app: AppSettings = { publicUrl: config.PUBLIC_URL, contextBudgetChars: config.CONTEXT_BUDGET_CHARS, diffBudgetChars: config.DIFF_BUDGET_CHARS, botMention: config.BOT_MENTION };
   const progress = createProgressHub(events);
-  const requestReview = createRequestReview(modules, log.child("request"));
+  const requestReview = createRequestReview(modules, log.child("request"), progress);
   const inbox = createInbox(modules, requestReview, log.child("poll"));
   const agentTools = createAgentTools(modules);
   const chatLive = new Map<string, ChatStep[]>();
@@ -131,7 +131,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
         if (r.failed.length) log.warn("không giải mã được secret (sai khoá?) — hãy nhập lại ở Cài đặt → Kết nối", { keys: r.failed });
       }
       // Run còn "running" từ lần chạy trước là run bị bỏ dở (app dừng giữa chừng): đánh dấu lỗi để UI không treo "đang review".
-      const orphans = await modules.reviews.failStale({ olderThanMs: 0, statuses: ["running"], reason: "Bị gián đoạn: ứng dụng đã dừng khi đang review. Bấm Review lại để chạy lại." });
+      const orphans = await modules.reviews.failStale({ olderThanMs: 0, statuses: ["running", "queued"], reason: "Bị gián đoạn: ứng dụng đã dừng khi đang chờ/đang review. Bấm Review lại để chạy lại." });
       if (orphans) log.warn("đã đánh dấu lỗi các lần review bị bỏ dở", { count: orphans });
       modules.queue.process(REVIEW_QUEUE, workflows.reviewMergeRequest as never);
       void inbox.sync({ review: false }).catch(() => undefined); // nạp sẵn hộp MR khi khởi động (không tự review)

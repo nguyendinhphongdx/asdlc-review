@@ -63,6 +63,9 @@ export interface ReviewJobData {
   trigger: ReviewTrigger;
   triggeredBy?: string;
   force?: boolean;
+  /** Run đã tạo sẵn (status queued) lúc xếp hàng: worker nhận lại đúng run này thay vì tạo run mới. */
+  runId?: string;
+  mrId?: string;
 }
 
 export interface MrSummaryDto {

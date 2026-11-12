@@ -23,6 +23,8 @@ export interface ReviewRequest {
   model?: string;
   /** Thư mục checkout của head commit (agent CLI chạy ở đây, chỉ đọc). */
   workdir: string;
+  /** Trần chi phí (USD) cho lần này, hiện chỉ Claude CLI hỗ trợ; 0/bỏ trống = không giới hạn. */
+  maxBudgetUsd?: number;
   mr: { iid: number; title: string; description: string; author: string; sourceBranch: string; targetBranch: string; webUrl: string };
   rubric: Rubric;
   harness: { files: ReviewHarnessFile[]; tree: string; discovered: string[] };
@@ -56,5 +58,5 @@ export interface Provider {
   readonly agentic: boolean;
   /** Hỏi đáp tự do, không công cụ (tuỳ chọn). */
   ask?(input: { model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
-  run(input: { model?: string; system: string; user: string; workdir: string; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null }>;
+  run(input: { model?: string; system: string; user: string; workdir: string; maxBudgetUsd?: number; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null }>;
 }
