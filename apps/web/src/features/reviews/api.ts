@@ -18,3 +18,7 @@ export const rejectLesson = (id: string) => request<LessonDto>(`/api/lessons/${i
 export const deleteLesson = (id: string) => request<void>(`/api/lessons/${id}`, { method: "DELETE" });
 export const getInbox = () => request<InboxDto>("/api/inbox");
 export const refreshInbox = () => request<InboxDto>("/api/inbox/refresh", { method: "POST", json: {} });
+export const approveAction = (id: string) => request<{ note: string }>(`/api/actions/${id}/approve`, { method: "POST", json: {} });
+export const dismissAction = (id: string) => request<unknown>(`/api/actions/${id}/dismiss`, { method: "POST", json: {} });
+/** Đọc nội dung tệp đính kèm (blob:/data: URL do trình duyệt tạo). */
+export const readAttachmentText = async (url: string) => (await fetch(url)).text();

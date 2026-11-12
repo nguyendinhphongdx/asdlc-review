@@ -41,18 +41,18 @@ export async function ensureBare(git: ReturnType<typeof gitRunner>, bareDir: str
 }
 
 export async function resolveBase(bareDir: string, baseSha: string | null | undefined, targetRef: string, headSha: string) {
-  if (baseSha && (await run("git", ["cat-file", "-e", `${baseSha}^{commit}`], { cwd: bareDir, allowFailure: true })).code === 0) return baseSha;
-  return (await run("git", ["merge-base", targetRef, headSha], { cwd: bareDir })).stdout.trim();
+  if (baseSha && (await run("git", ["-c", "safe.bareRepository=all", "cat-file", "-e", `${baseSha}^{commit}`], { cwd: bareDir, allowFailure: true })).code === 0) return baseSha;
+  return (await run("git", ["-c", "safe.bareRepository=all", "merge-base", targetRef, headSha], { cwd: bareDir })).stdout.trim();
 }
 
 export async function addWorktree(bareDir: string, wtDir: string, sha: string) {
   if (existsSync(wtDir)) await rm(wtDir, { recursive: true, force: true });
-  await run("git", ["worktree", "prune"], { cwd: bareDir, allowFailure: true });
-  await run("git", ["worktree", "add", "--detach", "--force", wtDir, sha], { cwd: bareDir });
+  await run("git", ["-c", "safe.bareRepository=all", "worktree", "prune"], { cwd: bareDir, allowFailure: true });
+  await run("git", ["-c", "safe.bareRepository=all", "worktree", "add", "--detach", "--force", wtDir, sha], { cwd: bareDir });
 }
 
 export async function removeWorktree(bareDir: string, wtDir: string) {
-  await run("git", ["worktree", "remove", "--force", wtDir], { cwd: bareDir, allowFailure: true });
+  await run("git", ["-c", "safe.bareRepository=all", "worktree", "remove", "--force", wtDir], { cwd: bareDir, allowFailure: true });
   await rm(wtDir, { recursive: true, force: true });
 }
 
@@ -69,8 +69,8 @@ export async function sanitizeWorktree(dir: string) {
 export async function diffAgainstBase(wtDir: string, baseSha: string, headSha: string) {
   const range = `${baseSha}...${headSha}`;
   const [diff, numstat] = await Promise.all([
-    run("git", ["diff", "--no-color", "--no-ext-diff", "-M", "--unified=3", range], { cwd: wtDir }),
-    run("git", ["diff", "--numstat", "-M", range], { cwd: wtDir }),
+    run("git", ["-c", "safe.bareRepository=all", "diff", "--no-color", "--no-ext-diff", "-M", "--unified=3", range], { cwd: wtDir }),
+    run("git", ["-c", "safe.bareRepository=all", "diff", "--numstat", "-M", range], { cwd: wtDir }),
   ]);
   return { diff: diff.stdout, numstat: numstat.stdout };
 }

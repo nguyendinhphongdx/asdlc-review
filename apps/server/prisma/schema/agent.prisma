@@ -4,6 +4,7 @@ model AgentMessage {
   mrId      String
   role      String // user | agent | system
   text      String
+  steps     String? // JSON: các bước agent đã làm (suy luận, gọi tool)
   createdAt DateTime @default(now())
 
   @@index([mrId, createdAt])
@@ -19,4 +20,16 @@ model AgentLesson {
   createdAt DateTime @default(now())
 
   @@index([repoId, status])
+}
+
+/// Đề xuất của agent chờ người duyệt: đăng comment lên MR hoặc chạy lại review.
+model AgentAction {
+  id        String   @id @default(cuid())
+  mrId      String
+  kind      String // comment | rerun
+  payload   String // JSON: { file?, line?, body?, reason? }
+  status    String // pending | done | dismissed
+  createdAt DateTime @default(now())
+
+  @@index([mrId, status])
 }

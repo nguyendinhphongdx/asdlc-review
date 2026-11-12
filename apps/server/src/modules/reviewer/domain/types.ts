@@ -1,6 +1,11 @@
 import type { Finding, RawReview, Rubric } from "@mrd/contracts";
 
 /** Ảnh dán vào chat (base64, không kèm tiền tố data:). */
+/** Cho agent chat công cụ: đọc repo (Read/Grep/Glob trong workdir) và các tool MCP do app cung cấp. */
+export type ChatStep =
+  | { kind: "thinking"; text: string }
+  | { kind: "tool"; id: string; name: string; input: Record<string, unknown>; output?: string; error?: boolean };
+export interface ChatTools { mcpUrl: string; mcpName: string }
 export interface ChatImage { mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; data: string }
 
 export type ProviderId = "claude-cli" | "codex-cli" | "openai-compatible";
@@ -48,6 +53,6 @@ export interface Provider {
   readonly id: ProviderId;
   readonly agentic: boolean;
   /** Hỏi đáp tự do, không công cụ (tuỳ chọn). */
-  ask?(input: { system: string; user: string; workdir: string; images?: ChatImage[] }): Promise<{ text: string; costUsd: number | null }>;
+  ask?(input: { system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
   run(input: { system: string; user: string; workdir: string; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null }>;
 }

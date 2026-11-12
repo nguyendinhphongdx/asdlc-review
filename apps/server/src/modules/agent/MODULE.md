@@ -6,13 +6,14 @@ Trí nhớ của agent: hội thoại theo MR và "sổ tay" bài học theo rep
 ## API
 - `addMessage`, `listMessages(mrId)`.
 - `addLesson({repoId,text,source,status})`, `listLessons(repoId, status?)`, `setLessonStatus`, `removeLesson`, `getLesson`, `notebook(repoId)` (văn bản các bài học đang bật).
+- `addAction(mrId,kind,payload)`, `listActions`, `getAction`, `setActionStatus` — đề xuất của agent (đăng comment / chạy lại) chờ người duyệt; `addMessage` nhận thêm `steps` (suy luận, gọi tool).
 - `extractLessons(text)` — tách các dòng `LESSON: …` khỏi câu trả lời.
 
 ## Sự kiện
 Không phát, không nhận.
 
 ## Dữ liệu
-`AgentMessage`, `AgentLesson` (prisma/schema/agent.prisma). `mrId`/`repoId` chỉ là ID chuỗi.
+`AgentMessage`, `AgentLesson`, `AgentAction` (prisma/schema/agent.prisma). `mrId`/`repoId` chỉ là ID chuỗi.
 
 ## Port
 Không cần port ngoài.

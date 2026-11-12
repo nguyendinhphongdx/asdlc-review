@@ -25,6 +25,9 @@ import { resolveMasterKey } from "./secret-key.js";
 import { memberDirectoryAdapter, paramsAdapter, runFactsAdapter } from "./adapters/analytics.js";
 import type { AppSettings, Modules } from "./modules.js";
 import { createAgentChat } from "./workflows/agent-chat.js";
+import { createAgentActions } from "./workflows/agent-actions.js";
+import { createAgentTools } from "./agent-tools.js";
+import type { ChatStep } from "../modules/reviewer/index.js";
 import { createChatCommand } from "./workflows/chat-command.js";
 import { createHandleScmEvent } from "./workflows/handle-event.js";
 import { POLL_QUEUE, REVIEW_QUEUE } from "./workflows/mappers.js";
@@ -89,17 +92,20 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   const progress = createProgressHub(events);
   const requestReview = createRequestReview(modules, log.child("request"));
   const inbox = createInbox(modules, requestReview, log.child("poll"));
+  const agentTools = createAgentTools(modules);
+  const chatLive = new Map<string, ChatStep[]>();
   const workflows = {
     requestReview,
     reviewMergeRequest: createReviewMergeRequest(modules, app, log.child("review"), progress),
     handleScmEvent: createHandleScmEvent(modules, requestReview, log.child("event")),
     chatCommand: createChatCommand(modules, requestReview, { publicUrl: config.PUBLIC_URL }),
     registerRepo: createRegisterRepo(modules),
-    agentChat: createAgentChat(modules, requestReview, log.child("agent")),
+    agentChat: createAgentChat(modules, requestReview, log.child("agent"), agentTools, `http://127.0.0.1:${config.PORT}`, chatLive),
+    agentActions: createAgentActions(modules, requestReview, log.child("agent")),
   };
 
   return {
-    modules, workflows, inbox, events, db, credentials, progress, publicUrl: config.PUBLIC_URL,
+    modules, workflows, inbox, agentTools, chatLive, events, db, credentials, progress, publicUrl: config.PUBLIC_URL,
     storage: { dirs, defaults: { dataDir: config.dataDir, reposDir: config.reposDir, runsDir: config.runsDir } },
     /** Bật worker xử lý hàng đợi và poller (nếu cấu hình). */
     async startWorkers() {
