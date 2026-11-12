@@ -56,12 +56,12 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - name: Cài NSIS (trình cài đặt Windows)
+      - name: Cài Inno Setup (trình cài đặt Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          choco install nsis -y --no-progress
-          "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
+          choco install innosetup -y --no-progress
+          "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Append
       - run: pnpm pack:desktop
       - name: Tải lên release
         shell: bash

@@ -83,9 +83,14 @@ if (mac) {
   execFileSync("hdiutil", ["create", "-volname", "ASDLC Review", "-srcfolder", dmgDir, "-ov", "-format", "UDZO", dmg], { stdio: "inherit" });
   await checksum(dmg);
 } else {
-  const exe = `out/ASDLC-Review-Setup-${osName}-${arch}.exe`;
+  // Inno Setup 6 (giao diện modern). ISCC nằm trong PATH (CI thêm sẵn) hoặc ở thư mục cài mặc định.
+  const exeName = `ASDLC-Review-Setup-${osName}-${arch}`;
+  const exe = `out/${exeName}.exe`;
+  const iscc = ["ISCC", "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe", "C:\\Program Files\\Inno Setup 6\\ISCC.exe"].find((c) => { try { execFileSync(c, ["/?"], { stdio: "ignore" }); return true; } catch (e) { return e.code !== "ENOENT" && !/ENOENT/.test(String(e.message)); } });
   try {
-    execFileSync("makensis", [`/DVERSION=${pkg.version}`, `/DSRC=${path.resolve(outDir)}`, `/DOUT=${path.resolve(exe)}`, `/DICON=${path.resolve("out/icon.ico")}`, "apps/desktop/installer.nsi"], { stdio: "inherit" });
+    if (!iscc) throw new Error("không tìm thấy ISCC");
+    const icoDef = existsSync("out/icon.ico") ? [`/DIcon=${path.resolve("out/icon.ico")}`] : [];
+    execFileSync(iscc, [`/DVersion=${pkg.version}`, `/DSrc=${path.resolve(outDir)}`, `/DOutDir=${path.resolve("out")}`, `/DOutName=${exeName}`, ...icoDef, "installer.iss"], { stdio: "inherit", cwd: "apps/desktop" });
     await checksum(exe);
-  } catch (e) { console.warn("Không tạo được trình cài đặt .exe (thiếu NSIS?):", e.message); }
+  } catch (e) { console.warn("Không tạo được trình cài đặt .exe (thiếu Inno Setup?):", e.message); }
 }
