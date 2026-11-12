@@ -47,7 +47,7 @@ if (mac) {
   execFileSync("iconutil", ["-c", "icns", "out/icon.iconset", "-o", "out/icon.icns"]);
   icon = "out/icon.icns";
 } else {
-  try { sh("npx --yes png-to-ico apps/desktop/icon.png > out/icon.ico"); icon = "out/icon.ico"; } catch { console.warn("Không tạo được icon .ico, dùng icon mặc định"); }
+  try { sh("npx --yes png-to-ico " + [16, 24, 32, 48, 64, 128, 256].map((n) => `apps/desktop/ico/${n}.png`).join(" ") + " > out/icon.ico"); icon = "out/icon.ico"; } catch { console.warn("Không tạo được icon .ico, dùng icon mặc định"); }
 }
 
 sh(`npx --yes @electron/packager@18 ${stage} "ASDLC Review" --platform=${mac ? "darwin" : "win32"} --arch=${arch} --electron-version=38.8.6 ${icon ? `--icon=${icon}` : ""} --out=out/app --overwrite --app-version=${pkg.version} ${mac ? "--app-bundle-id=vn.asdlc.review" : ""} --no-prune`);
