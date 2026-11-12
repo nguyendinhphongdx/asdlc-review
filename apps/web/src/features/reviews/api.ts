@@ -1,4 +1,4 @@
-import type { ChatImageDto, ChatReplyDto, ChatStateDto, LessonDto, DiscoverMrDto, DiscoverProjectDto, FrameworkInfoDto, Paged, RequestReviewResultDto, RunDetailDto, RunListItemDto } from "@mrd/contracts";
+import type { InboxDto, ChatImageDto, ChatReplyDto, ChatStateDto, LessonDto, DiscoverMrDto, DiscoverProjectDto, FrameworkInfoDto, Paged, RequestReviewResultDto, RunDetailDto, RunListItemDto } from "@mrd/contracts";
 import { qs, request } from "../../kernel/http.js";
 export const listRuns = (p: { limit?: number; offset?: number; minScore?: number; maxScore?: number; status?: string }) =>
   request<Paged<RunListItemDto>>(`/api/reviews${qs(p)}`);
@@ -16,3 +16,5 @@ export const sendChat = (mrId: string, text: string, images: ChatImageDto[] = []
 export const approveLesson = (id: string) => request<LessonDto>(`/api/lessons/${id}/approve`, { method: "POST", json: {} });
 export const rejectLesson = (id: string) => request<LessonDto>(`/api/lessons/${id}/reject`, { method: "POST", json: {} });
 export const deleteLesson = (id: string) => request<void>(`/api/lessons/${id}`, { method: "DELETE" });
+export const getInbox = () => request<InboxDto>("/api/inbox");
+export const refreshInbox = () => request<InboxDto>("/api/inbox/refresh", { method: "POST", json: {} });

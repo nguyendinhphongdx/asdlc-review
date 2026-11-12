@@ -85,12 +85,12 @@ export class GitLabClient implements PlatformClient {
   }
 
   async listMrs(projectPath: string, state: "opened" | "merged" | "all", search: string): Promise<DiscoverMr[]> {
-    const qs = new URLSearchParams({ state, per_page: "30", order_by: "updated_at", sort: "desc" });
+    const qs = new URLSearchParams({ state, per_page: state === "opened" && !search.trim() ? "100" : "30", order_by: "updated_at", sort: "desc" });
     if (search.trim()) qs.set("search", search.trim());
     const { data } = await this.api<GlMr[]>("GET", `/projects/${this.pid(projectPath)}/merge_requests?${qs}`);
     return data.map((m) => ({
       iid: m.iid, title: m.title, authorUsername: m.author.username, webUrl: m.web_url, sourceBranch: m.source_branch, targetBranch: m.target_branch,
-      state: m.state === "merged" ? "merged" : m.state === "closed" ? "closed" : "opened", draft: Boolean(m.draft ?? m.work_in_progress), updatedAt: new Date(m.updated_at),
+      state: m.state === "merged" ? "merged" : m.state === "closed" ? "closed" : "opened", draft: Boolean(m.draft ?? m.work_in_progress), updatedAt: new Date(m.updated_at), headSha: m.sha,
     }));
   }
 

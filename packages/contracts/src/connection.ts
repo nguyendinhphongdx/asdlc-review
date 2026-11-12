@@ -99,4 +99,5 @@ export interface DiscoverMrDto {
   state: "opened" | "merged" | "closed";
   draft: boolean;
   updatedAt: string;
+  headSha?: string;
 }

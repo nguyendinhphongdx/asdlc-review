@@ -94,4 +94,4 @@ export interface ProjectProbe {
 }
 
 export interface DiscoverProject { path: string; name: string; webUrl: string; lastActivityAt: Date | null }
-export interface DiscoverMr { iid: number; title: string; authorUsername: string; webUrl: string; sourceBranch: string; targetBranch: string; state: "opened" | "merged" | "closed"; draft: boolean; updatedAt: Date }
+export interface DiscoverMr { iid: number; title: string; authorUsername: string; webUrl: string; sourceBranch: string; targetBranch: string; state: "opened" | "merged" | "closed"; draft: boolean; updatedAt: Date; headSha: string }

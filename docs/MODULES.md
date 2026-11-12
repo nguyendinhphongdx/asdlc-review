@@ -65,7 +65,7 @@ MRDashboard/
 │  │        │  ├─ review-merge-request.ts   # clone→harness→analysis→reviewer→scoring→lưu→publish
 │  │        │  ├─ request-review.ts         # nhận trigger → validate → enqueue
 │  │        │  ├─ chat-command.ts           # review|status|leaderboard
-│  │        │  └─ poll-open-mrs.ts
+│  │        │  └─ inbox.ts
 │  │        └─ http/             # Fastify: gom route của từng module + webhook + static web
 │  │
 │  ├─ web/                       # dashboard React

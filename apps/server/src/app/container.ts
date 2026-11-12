@@ -27,7 +27,7 @@ import { createAgentChat } from "./workflows/agent-chat.js";
 import { createChatCommand } from "./workflows/chat-command.js";
 import { createHandleScmEvent } from "./workflows/handle-event.js";
 import { POLL_QUEUE, REVIEW_QUEUE } from "./workflows/mappers.js";
-import { createPollOpenMrs } from "./workflows/poll-open-mrs.js";
+import { createInbox } from "./inbox.js";
 import { createRegisterRepo } from "./workflows/register-repo.js";
 import { createRequestReview } from "./workflows/request-review.js";
 import { createProgressHub } from "./progress.js";
@@ -87,18 +87,18 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   const app: AppSettings = { publicUrl: config.PUBLIC_URL, contextBudgetChars: config.CONTEXT_BUDGET_CHARS, diffBudgetChars: config.DIFF_BUDGET_CHARS, botMention: config.BOT_MENTION };
   const progress = createProgressHub(events);
   const requestReview = createRequestReview(modules, log.child("request"));
+  const inbox = createInbox(modules, requestReview, log.child("poll"));
   const workflows = {
     requestReview,
     reviewMergeRequest: createReviewMergeRequest(modules, app, log.child("review"), progress),
     handleScmEvent: createHandleScmEvent(modules, requestReview, log.child("event")),
-    pollOpenMrs: createPollOpenMrs(modules, requestReview, log.child("poll")),
     chatCommand: createChatCommand(modules, requestReview, { publicUrl: config.PUBLIC_URL }),
     registerRepo: createRegisterRepo(modules),
     agentChat: createAgentChat(modules, requestReview, log.child("agent")),
   };
 
   return {
-    modules, workflows, events, db, credentials, progress, publicUrl: config.PUBLIC_URL,
+    modules, workflows, inbox, events, db, credentials, progress, publicUrl: config.PUBLIC_URL,
     storage: { dirs, defaults: { dataDir: config.dataDir, reposDir: config.reposDir, runsDir: config.runsDir } },
     /** Bật worker xử lý hàng đợi và poller (nếu cấu hình). */
     async startWorkers() {
@@ -106,13 +106,14 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
       const r = await modules.secrets.load();
       if (r.failed.length) log.warn("không giải mã được secret (sai khoá?)", { keys: r.failed });
       modules.queue.process(REVIEW_QUEUE, workflows.reviewMergeRequest as never);
+      void inbox.sync({ review: false }).catch(() => undefined); // nạp sẵn hộp MR khi khởi động (không tự review)
       // Poller luôn được đăng ký (tick mỗi phút) để đổi chế độ/chu kỳ trên UI có hiệu lực ngay, không cần khởi động lại.
       let lastPoll = 0;
       modules.queue.process(POLL_QUEUE, (async () => {
         const s = await settings.snapshot();
         if (s.triggerMode !== "polling" || Date.now() - lastPoll < s.pollIntervalMin * 60_000 - 5_000) return;
         lastPoll = Date.now();
-        await workflows.pollOpenMrs();
+        await inbox.sync({ review: true });
       }) as never, { concurrency: 1 });
       await modules.queue.repeat(POLL_QUEUE, "poll-open-mrs", {}, 60_000);
     },

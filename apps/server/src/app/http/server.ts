@@ -123,6 +123,17 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
     return reply.status(202).send(await w.requestReview({ platform: repo.platform as "gitlab" | "github", projectPath: repo.fullPath, iid: mr.iid, trigger: "manual", force: true }));
   });
   app.post("/api/repos", async (req, reply) => reply.status(201).send(await w.registerRepo(z.object({ url: z.string() }).parse(req.body).url)));
+  // ---------- hộp MR chờ review (poller) ----------
+  app.get("/api/inbox", async () => {
+    if (!c.inbox.hasData) await c.inbox.sync({ review: false }).catch(() => undefined);
+    return c.inbox.list((await m.settings.get("triggerMode")) === "polling");
+  });
+  app.post("/api/inbox/refresh", async () => {
+    const auto = (await m.settings.get("triggerMode")) === "polling";
+    await c.inbox.sync({ review: auto });
+    return c.inbox.list(auto);
+  });
+
   // ---------- agent: chat theo MR + sổ tay bài học ----------
   app.get<{ Params: { id: string } }>("/api/mrs/:id/chat", async (req) => {
     const mr = await m.reviews.getMr(req.params.id);
