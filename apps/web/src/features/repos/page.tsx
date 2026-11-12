@@ -40,7 +40,7 @@ export function ReposPage() {
         initialSort={[{ id: "fullPath", desc: false }]} rowClassName={(r) => (r.id === selected ? "bg-muted" : undefined)}
         empty={<><p>Chưa đăng ký repo nào</p><Button className="mt-4" onClick={() => setWizard(true)}><Plus />Thêm repository đầu tiên</Button></>}
         rowActions={(r) => [
-          { label: r.id === selected ? "Đóng chi tiết" : "Chi tiết", onSelect: () => setSelected(r.id === selected ? null : r.id) },
+          { label: r.id === selected ? "Đóng cài đặt" : "Cài đặt và chi tiết", onSelect: () => setSelected(r.id === selected ? null : r.id) },
           { label: "Mở trên GitLab", onSelect: () => window.open(r.webUrl, "_blank", "noopener") },
           { label: "Gỡ repository", destructive: true, onSelect: () => { if (confirm(`Gỡ ${r.fullPath}?`)) del.mutate(r.id); } },
         ]}

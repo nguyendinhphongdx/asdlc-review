@@ -12,8 +12,10 @@ export interface InboxItemDto {
   updatedAt: string;
   headSha: string;
   /** pending = chưa có lần review nào cho commit này. */
-  status: "pending" | "queued" | "running";
+  status: "pending" | "queued" | "running" | "failed";
   runId?: string;
+  /** Lý do lỗi của lần review gần nhất ở commit này (status = failed). */
+  error?: string;
 }
 export interface InboxDto {
   items: InboxItemDto[];

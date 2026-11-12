@@ -25,6 +25,12 @@ export interface ReviewsApi {
 
   /** Run đã có (đang chạy/đã xong) cho đúng commit này của MR: dùng để khử trùng review. */
   findRunByHead(mrId: string, headSha: string): Promise<RunSummary | null>;
+  /** Run mới nhất của đúng commit này, bất kể trạng thái (để biết lần trước đã lỗi). */
+  latestRunByHead(mrId: string, headSha: string): Promise<RunSummary | null>;
+  /** Lưu nhật ký tiến trình khi run còn chạy (để không mất khi app dừng đột ngột). */
+  saveActivity(runId: string, activity: unknown[]): Promise<void>;
+  /** Đánh dấu lỗi các run kẹt: `running` (khi khởi động) hoặc quá hạn. Trả số run đã xử lý. */
+  failStale(opts: { olderThanMs: number; statuses: ("running" | "queued")[]; reason: string }): Promise<number>;
   latestSucceeded(mrId: string): Promise<RunDetail | null>;
   getRun(id: string): Promise<RunDetail>;
   listRuns(filter: RunFilter): Promise<{ items: RunListItem[]; total: number }>;
@@ -57,6 +63,9 @@ export function createReviewsModule(deps: ReviewsDeps): ReviewsApi {
       deps.events.publish("reviews.run.failed", { runId, mrId, error: error.slice(0, 300) });
     },
     findRunByHead: (mrId, sha) => repo.findRunByHead(mrId, sha),
+    latestRunByHead: (mrId, sha) => repo.latestRunByHead(mrId, sha),
+    saveActivity: (runId, activity) => repo.saveActivity(runId, activity),
+    failStale: (o) => repo.failStale(o, clock.now()),
     latestSucceeded: (mrId) => repo.latestSucceeded(mrId),
     async getRun(id) {
       const r = await repo.getRun(id);

@@ -128,6 +128,13 @@ export interface RepoDto {
   provider: string | null;
   enabled: boolean;
   autoReview: boolean;
+  /** null = theo cài đặt chung. */
+  skipDrafts: boolean | null;
+  /** Nhánh đích (phân tách dấu phẩy, hỗ trợ *) mà repo tự review; null = mọi nhánh. */
+  targetBranches: string | null;
+  /** null = theo framework. */
+  publishComments: boolean | null;
+  diffBudgetChars: number | null;
   lastPolledAt: string | null;
   /** Tóm tắt webhook (null nếu chưa có dữ liệu). */
   webhook?: { status: import("./connection.js").WebhookStatus; lastEventAt: string | null };

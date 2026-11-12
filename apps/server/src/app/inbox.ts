@@ -63,12 +63,12 @@ export function createInbox(m: Modules, requestReview: RequestReview, log: Logge
         if (!repos.get(repoId)?.enabled) continue;
         for (const mr of c.mrs) {
           const rec = await m.reviews.findMr(repoId, mr.iid);
-          const run = rec ? await m.reviews.findRunByHead(rec.id, mr.headSha) : null;
+          const run = rec ? await m.reviews.latestRunByHead(rec.id, mr.headSha) : null;
           if (run?.status === "succeeded") continue; // đã review commit này → nằm ở Lịch sử
           items.push({
             repoId, repoPath: c.repoPath, iid: mr.iid, title: mr.title, authorUsername: mr.authorUsername, webUrl: mr.webUrl,
             sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, draft: mr.draft, updatedAt: mr.updatedAt.toISOString(), headSha: mr.headSha,
-            status: run ? (run.status === "running" ? "running" : "queued") : "pending", runId: run?.id,
+            status: !run ? "pending" : run.status === "running" ? "running" : run.status === "failed" ? "failed" : "queued", runId: run?.id, ...(run?.status === "failed" ? { error: run.error ?? undefined } : {}),
           });
         }
       }

@@ -8,6 +8,10 @@ export interface RepoDto {
   provider: string | null;
   enabled: boolean;
   autoReview: boolean;
+  skipDrafts: boolean | null;
+  targetBranches: string | null;
+  publishComments: boolean | null;
+  diffBudgetChars: number | null;
   lastPolledAt: Date | null;
 }
 export interface RegisterRepoInput {
@@ -21,6 +25,10 @@ export interface RepoPatch {
   provider?: string | null;
   enabled?: boolean;
   autoReview?: boolean;
+  skipDrafts?: boolean | null;
+  targetBranches?: string | null;
+  publishComments?: boolean | null;
+  diffBudgetChars?: number | null;
 }
 
 export type WebhookResult = "accepted" | "rejected" | "ignored" | "skipped";

@@ -6,14 +6,15 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { FrameworkPicker } from "./framework-picker.js";
 import { HarnessTab } from "./harness-tab.js";
+import { RepoSettings } from "./settings-tab.js";
 import { WebhookLog } from "./webhook-log.js";
 
-const TABS = [{ id: "framework", label: "Framework" }, { id: "harness", label: "Harness" }, { id: "webhook", label: "Webhook" }] as const;
+const TABS = [{ id: "settings", label: "Cài đặt" }, { id: "framework", label: "Framework" }, { id: "harness", label: "Harness" }, { id: "webhook", label: "Webhook" }] as const;
 type TabId = (typeof TABS)[number]["id"];
 
 /** Khung chi tiết repo: framework áp dụng, độ phủ harness và nhật ký webhook. */
 export function RepoDetail({ repo, onClose }: { repo: RepoDto; onClose: () => void }) {
-  const [tab, setTab] = useState<TabId>("framework");
+  const [tab, setTab] = useState<TabId>("settings");
   return (
     <div className="flex flex-col gap-4" aria-label={`Chi tiết ${repo.fullPath}`}>
       <div className="flex items-center justify-between gap-3">
@@ -28,6 +29,7 @@ export function RepoDetail({ repo, onClose }: { repo: RepoDto; onClose: () => vo
         ))}
       </div>
       <div role="tabpanel" id="repo-panel" aria-labelledby={`repo-tab-${tab}`} className="flex flex-col gap-4">
+        {tab === "settings" && <RepoSettings repo={repo} />}
         {tab === "framework" && <FrameworkPicker repo={repo} />}
         {tab === "harness" && <HarnessTab repo={repo} />}
         {tab === "webhook" && <Card className="overflow-hidden"><WebhookLog id={repo.id} fullPath={repo.fullPath} /></Card>}

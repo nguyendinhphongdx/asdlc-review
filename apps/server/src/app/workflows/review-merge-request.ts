@@ -31,7 +31,12 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
     const rlog = log.child(`run:${runId.slice(-6)}`);
 
     const timings: Record<string, number> = {};
-    const emit = (st: string, level: "info" | "tool" | "ai" | "warn" | "done", message: string) => hub?.emit(runId, rec.id, st, level, message);
+    let lastSave = 0;
+    const emit = (st: string, level: "info" | "tool" | "ai" | "warn" | "done", message: string) => {
+      hub?.emit(runId, rec.id, st, level, message);
+      // Lưu nhật ký xuống DB định kỳ để vẫn xem được dù app dừng giữa chừng.
+      if (hub && Date.now() - lastSave > 2000) { lastSave = Date.now(); void m.reviews.saveActivity(runId, hub.backlog(runId)).catch(() => undefined); }
+    };
     const STAGE_LABEL: Record<string, string> = { clone: "Clone repository", framework: "Nạp framework", harness: "Nạp harness", analysis: "Phân tích tĩnh", review: "Review bằng AI", score: "Chấm điểm", publish: "Đăng comment" };
     const stage = async <T>(name: string, fn: () => Promise<T> | T): Promise<T> => {
       await m.reviews.setStage(runId, name, timings);
@@ -54,7 +59,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
     try {
       const auth = m.scm.gitAuth(mr.platform);
       ws = await stage("clone", () =>
-        m.workspace.prepare({ repoKey: `${mr.platform}/${mr.projectPath}`, runId, cloneUrl: mr.cloneUrl, authHeader: auth.header, secrets: auth.secrets, targetBranch: mr.targetBranch, headRef: mr.headRef, headSha: mr.headSha, baseSha: mr.baseSha, diffBudgetChars: settings.diffBudgetChars }),
+        m.workspace.prepare({ repoKey: `${mr.platform}/${mr.projectPath}`, runId, cloneUrl: mr.cloneUrl, authHeader: auth.header, secrets: auth.secrets, targetBranch: mr.targetBranch, headRef: mr.headRef, headSha: mr.headSha, baseSha: mr.baseSha, diffBudgetChars: repo.diffBudgetChars ?? settings.diffBudgetChars }),
       );
       const dir = ws.dir;
       emit("clone", "info", `Diff ${ws.numstat.length} file${ws.omittedFiles.length ? `, ${ws.omittedFiles.length} file bị bỏ qua do vượt ngân sách` : ""}`);
@@ -114,8 +119,9 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       };
 
       emit("score", "info", `Điểm ${score.total} · hạng ${score.grade} · ${score.verdict}${score.gates.length ? ` · cổng: ${score.gates.map((g) => g.id).join(", ")}` : ""}`);
+      const publishComments = repo.publishComments ?? fw.rubric.publish.comments;
       let commentUrl: string | undefined;
-      if (fw.rubric.publish.comments) {
+      if (publishComments) {
         commentUrl = await stage("publish", async () => {
           try {
             const url = await m.scm.upsertSummaryNote(mr, m.publisher.renderSummary(report), m.publisher.summaryMarker);
@@ -135,7 +141,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         });
       }
 
-      if (!fw.rubric.publish.comments) emit("publish", "info", "Không đăng comment lên MR (framework đang tắt), chỉ lưu kết quả");
+      if (!publishComments) emit("publish", "info", "Không đăng comment lên MR (đã tắt ở repo hoặc framework), chỉ lưu kết quả");
       emit("publish", "done", "Hoàn tất review");
       await m.reviews.completeRun(runId, {
         activity: hub?.backlog(runId),

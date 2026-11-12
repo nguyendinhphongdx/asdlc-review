@@ -129,11 +129,16 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
         }
         if (r.failed.length) log.warn("không giải mã được secret (sai khoá?) — hãy nhập lại ở Cài đặt → Kết nối", { keys: r.failed });
       }
+      // Run còn "running" từ lần chạy trước là run bị bỏ dở (app dừng giữa chừng): đánh dấu lỗi để UI không treo "đang review".
+      const orphans = await modules.reviews.failStale({ olderThanMs: 0, statuses: ["running"], reason: "Bị gián đoạn: ứng dụng đã dừng khi đang review. Bấm Review lại để chạy lại." });
+      if (orphans) log.warn("đã đánh dấu lỗi các lần review bị bỏ dở", { count: orphans });
       modules.queue.process(REVIEW_QUEUE, workflows.reviewMergeRequest as never);
       void inbox.sync({ review: false }).catch(() => undefined); // nạp sẵn hộp MR khi khởi động (không tự review)
       // Poller luôn được đăng ký (tick mỗi phút) để đổi chế độ/chu kỳ trên UI có hiệu lực ngay, không cần khởi động lại.
       let lastPoll = 0;
       modules.queue.process(POLL_QUEUE, (async () => {
+        // Run treo quá lâu (quá hạn của provider) cũng coi là lỗi.
+        await modules.reviews.failStale({ olderThanMs: 45 * 60_000, statuses: ["running", "queued"], reason: "Quá hạn: lần review chạy quá 45 phút không kết thúc." }).catch(() => 0);
         const s = await settings.snapshot();
         if (s.triggerMode !== "polling" || Date.now() - lastPoll < s.pollIntervalMin * 60_000 - 5_000) return;
         lastPoll = Date.now();

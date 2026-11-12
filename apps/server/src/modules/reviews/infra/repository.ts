@@ -80,6 +80,18 @@ export class ReviewRepository {
     return { mrId: r.mergeRequestId };
   }
 
+  async latestRunByHead(mrId: string, headSha: string): Promise<RunSummary | null> {
+    const r = await this.db.reviewRun.findFirst({ where: { mergeRequestId: mrId, headSha }, orderBy: { createdAt: "desc" } });
+    return r ? toRunSummary(r) : null;
+  }
+  async saveActivity(runId: string, activity: unknown[]): Promise<void> {
+    await this.db.reviewRun.updateMany({ where: { id: runId, status: { in: ["running", "queued"] } }, data: { activity: JSON.stringify(activity) } });
+  }
+  async failStale(o: { olderThanMs: number; statuses: string[]; reason: string }, now: Date): Promise<number> {
+    const res = await this.db.reviewRun.updateMany({ where: { status: { in: o.statuses }, createdAt: { lt: new Date(now.getTime() - o.olderThanMs) } }, data: { status: "failed", error: o.reason, finishedAt: now } });
+    return res.count;
+  }
+
   async findRunByHead(mrId: string, headSha: string): Promise<RunSummary | null> {
     const r = await this.db.reviewRun.findFirst({ where: { mergeRequestId: mrId, headSha, status: { in: ["running", "queued", "succeeded"] } }, orderBy: { createdAt: "desc" } });
     return r ? toRunSummary(r) : null;

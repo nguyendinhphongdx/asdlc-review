@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { ReposApi } from "./api.js";
 
-const Patch = z.object({ frameworkId: z.string().nullish(), provider: z.enum(["claude-cli", "codex-cli", "openai-compatible"]).nullish(), enabled: z.boolean().optional(), autoReview: z.boolean().optional() });
+const Patch = z.object({ frameworkId: z.string().nullish(), provider: z.enum(["claude-cli", "codex-cli", "openai-compatible"]).nullish(), enabled: z.boolean().optional(), autoReview: z.boolean().optional(), skipDrafts: z.boolean().nullish(), targetBranches: z.string().max(300).nullish(), publishComments: z.boolean().nullish(), diffBudgetChars: z.number().int().min(10_000).max(1_000_000).nullish() });
 
 export function registerReposRoutes(app: FastifyInstance, api: ReposApi) {
   app.get("/api/repos", async () => {

@@ -20,6 +20,11 @@ export type RequestReviewResult =
   | { status: "already_reviewed"; runId: string }
   | { status: "skipped"; reason: string };
 
+/** Khớp tên nhánh với danh sách `a, release/*, feature-*` (dấu * khớp mọi ký tự). */
+export function matchesBranch(list: string, branch: string): boolean {
+  return list.split(",").map((s) => s.trim()).filter(Boolean).some((g) => new RegExp(`^${g.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*")}$`).test(branch));
+}
+
 /** Quyết định "có xếp hàng review MR này không" rồi enqueue. Không chạy review. */
 export function createRequestReview(m: Modules, log: Logger) {
   return async (input: RequestReviewInput): Promise<RequestReviewResult> => {
@@ -41,9 +46,16 @@ export function createRequestReview(m: Modules, log: Logger) {
 
     const mr = await m.scm.getMergeRequest(input.platform, input.projectPath, input.iid);
     if (auto && mr.state !== "opened") return { status: "skipped", reason: "MR không còn mở" };
-    if (auto && mr.draft && (await m.settings.get("skipDrafts"))) return { status: "skipped", reason: "MR đang là draft" };
+    if (auto && mr.draft && (repo?.skipDrafts ?? (await m.settings.get("skipDrafts")))) return { status: "skipped", reason: "MR đang là draft" };
+    if (auto && repo?.targetBranches && !matchesBranch(repo.targetBranches, mr.targetBranch)) return { status: "skipped", reason: `nhánh đích ${mr.targetBranch} không nằm trong danh sách của repo` };
     const hit = await reviewed(mr.headSha);
     if (hit) return { status: "already_reviewed", runId: hit.id };
+    // Tự động (poll/webhook) không thử lại commit đã lỗi: tránh vòng lặp lỗi + tốn tiền. Bấm "Review lại" để chạy lại.
+    if (auto && repo) {
+      const rec = await m.reviews.findMr(repo.id, input.iid);
+      const last = rec ? await m.reviews.latestRunByHead(rec.id, mr.headSha) : null;
+      if (last?.status === "failed") return { status: "skipped", reason: "lần review trước ở commit này đã lỗi (bấm Review lại để thử lại)" };
+    }
 
     const data: ReviewJobData = { platform: input.platform, projectPath: mr.projectPath, iid: mr.iid, trigger: input.trigger, triggeredBy: input.triggeredBy, force: input.force };
     const jobId = `${mr.platform}/${mr.projectPath}#${mr.iid}@${mr.headSha.slice(0, 12)}${input.force ? `@f${Date.now()}` : ""}`;

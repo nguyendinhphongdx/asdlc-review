@@ -9,6 +9,10 @@ model Repository {
   provider      String? // provider AI riêng cho repo (null = mặc định)
   enabled       Boolean   @default(true)
   autoReview    Boolean   @default(true)
+  skipDrafts      Boolean?  // null = theo cài đặt chung
+  targetBranches  String?   // danh sách nhánh đích (phân tách dấu phẩy, hỗ trợ *): chỉ tự review MR nhắm vào các nhánh này; null = mọi nhánh
+  publishComments Boolean?  // null = theo framework
+  diffBudgetChars Int?      // null = theo cài đặt chung
   lastPolledAt  DateTime?
   createdAt     DateTime  @default(now())
 

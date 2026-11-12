@@ -38,7 +38,7 @@ function useLiveRuns() {
 }
 
 const ago = (iso: string | null) => (iso ? fmtDate(iso) : "chưa lần nào");
-const INBOX_STATUS = { pending: "Chờ review", queued: "Đang chờ", running: "Đang review" } as const;
+const INBOX_STATUS = { pending: "Chờ review", queued: "Đang chờ", running: "Đang review", failed: "Lỗi" } as const;
 const RUN_STATUS = { succeeded: "Hoàn tất", failed: "Lỗi", running: "Đang review", queued: "Đang chờ", skipped: "Bỏ qua" } as const;
 
 function InboxTab() {
@@ -56,11 +56,12 @@ function InboxTab() {
     { accessorKey: "updatedAt", header: "Cập nhật", meta: { className: "text-xs text-muted-foreground whitespace-nowrap" }, cell: ({ getValue }) => fmtDate(getValue<string>()) },
     { accessorKey: "status", header: "Trạng thái", meta: { filterLabels: INBOX_STATUS },
       cell: ({ row: { original: i } }) => (<>
-        {i.status === "running" ? <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review</Badge> : i.status === "queued" ? <Badge>Đang chờ</Badge> : <Badge variant="warning">Chờ review</Badge>}
+        {i.status === "running" ? <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review</Badge> : i.status === "queued" ? <Badge>Đang chờ</Badge> : i.status === "failed" ? <Badge variant="danger" title={i.error ?? ""}>Lỗi · bấm xem log</Badge> : <Badge variant="warning">Chờ review</Badge>}
         {i.draft && <Badge className="ml-1.5">Draft</Badge>}
       </>) },
     { id: "review", header: () => <span className="sr-only">Review</span>, enableSorting: false, enableHiding: false, meta: { className: "w-24 text-right", headerClassName: "w-24" },
-      cell: ({ row: { original: i } }) => i.runId ? <Link to={`/reviews/${i.runId}`} className="text-sm font-medium hover:underline">Xem</Link>
+      cell: ({ row: { original: i } }) => i.status === "failed" && i.runId ? <span className="inline-flex items-center gap-2"><Link to={`/reviews/${i.runId}`} className="text-sm font-medium hover:underline">Log</Link><Button size="sm" variant="outline" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>Review lại</Button></span>
+        : i.runId ? <Link to={`/reviews/${i.runId}`} className="text-sm font-medium hover:underline">Xem</Link>
         : <Button size="sm" disabled={run.isPending} onClick={() => run.mutate(i.webUrl)}>{run.isPending && run.variables === i.webUrl ? "Đang gửi…" : "Review"}</Button> },
   ];
   return (
