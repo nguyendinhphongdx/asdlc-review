@@ -16,9 +16,17 @@ export interface QueueStats {
   failed: number;
 }
 
+/** Nơi lưu job chưa xong để nạp lại sau khi khởi động (tuỳ chọn cho driver trong process). */
+export interface JobRecord { id: string; data: unknown; attempts: number; attempt: number; runAt: number }
+export interface JobStore {
+  save(queue: string, job: JobRecord): Promise<void>;
+  remove(queue: string, id: string): Promise<void>;
+  load(queue: string): Promise<JobRecord[]>;
+}
+
 /** Hợp đồng cho từng backend hàng đợi. */
 export interface QueueDriver {
-  readonly name: "bullmq" | "memory";
+  readonly name: "bullmq" | "memory" | "sqlite";
   enqueue(queue: string, data: unknown, opts: EnqueueOptions): Promise<{ id: string; deduplicated: boolean }>;
   process(queue: string, handler: JobHandler<never>, concurrency: number): void;
   repeat(queue: string, key: string, data: unknown, everyMs: number): Promise<void>;

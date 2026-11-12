@@ -79,7 +79,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     }),
     scoring: createScoringModule(),
     publisher: createPublisherModule(),
-    queue: createQueueModule({ redisUrl: config.REDIS_URL, concurrency: config.REVIEW_CONCURRENCY, logger: log.child("queue") }),
+    queue: createQueueModule({ redisUrl: config.REDIS_URL, db, concurrency: config.REVIEW_CONCURRENCY, logger: log.child("queue") }),
     identity,
     repos: createReposModule({ db, events }),
     reviews,

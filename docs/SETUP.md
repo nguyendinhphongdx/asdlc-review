@@ -8,7 +8,7 @@ Làm theo từng bước dưới đây, bạn sẽ có một MR thật được 
 | Node.js 22+, pnpm 10+, git | `node -v`, `pnpm -v`, `git --version` |
 | AI: `claude` CLI đã đăng nhập (mặc định) | `claude --version`, mở `claude` một lần để đăng nhập |
 | GitLab (gitlab.com hoặc tự host) | bạn là Maintainer của repo thử |
-| Redis (tuỳ chọn) | không cần: mặc định hàng đợi trong process; đặt `REDIS_URL=redis://…` trong `.env` nếu muốn dùng Redis |
+| Redis (tuỳ chọn) | không cần: mặc định hàng đợi trong process, lưu vào SQLite; đặt `REDIS_URL=redis://…` trong `.env` nếu muốn dùng Redis |
 
 ```bash
 git clone https://github.com/nguyendinhphongdx/asdlc-review.git

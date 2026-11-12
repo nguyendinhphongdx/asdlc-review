@@ -84,7 +84,7 @@ docs/  tools/arch/   tài liệu, bộ kiểm luật kiến trúc
 | pnpm | 10+ |
 | git | có trong `PATH` |
 | AI | `claude` hoặc `codex` CLI đã đăng nhập, **hoặc** `OPENAI_API_KEY` |
-| Redis | không bắt buộc: mặc định hàng đợi chạy trong process (`REDIS_URL=memory`); chỉ đặt `redis://…` khi cần hàng đợi bền hoặc nhiều server |
+| Redis | không bắt buộc: mặc định hàng đợi chạy trong process và lưu vào SQLite (`REDIS_URL=sqlite`); chỉ đặt `redis://…` khi chạy nhiều server |
 
 ### Chạy từ mã nguồn
 ```bash
@@ -114,7 +114,7 @@ pnpm desktop
 | `REVIEW_PROVIDER` | `claude-cli` \| `codex-cli` \| `openai-compatible` |
 | `CLAUDE_MODEL`, `CLAUDE_MAX_BUDGET_USD` | Model và trần chi phí mỗi review |
 | `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` | Provider tương thích OpenAI |
-| `REDIS_URL` | `redis://…` hoặc `memory` |
+| `REDIS_URL` | `sqlite` (mặc định), `memory` hoặc `redis://…` |
 | `DATA_DIR`, `DATABASE_URL` | Nơi lưu repo cache và SQLite |
 | `INLINE_MIN_SEVERITY`, `MAX_INLINE_COMMENTS` | Điều khiển comment inline |
 | `POLL_INTERVAL_MIN` | >0 bật poller (khi không nhận được webhook) |

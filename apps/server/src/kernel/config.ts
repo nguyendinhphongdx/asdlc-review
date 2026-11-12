@@ -17,8 +17,8 @@ const EnvSchema = z.object({
   DATA_DIR: z.string().default("./data"),
   DATABASE_URL: z.string().optional(),
   /** "memory" = hàng đợi trong process (dev/test); còn lại là URL Redis cho BullMQ. */
-  /** "memory" = hàng đợi trong process (mặc định, không cần cài gì). Đặt redis://… nếu muốn hàng đợi bền qua khởi động lại / chạy nhiều server. */
-  REDIS_URL: z.string().default("memory"),
+  /** "sqlite" = hàng đợi trong process lưu vào SQLite (mặc định, không cần cài gì, bền qua khởi động lại). "memory" = không lưu (test). redis://… nếu chạy nhiều server. */
+  REDIS_URL: z.string().default("sqlite"),
   REVIEW_CONCURRENCY: z.coerce.number().int().min(1).default(2),
   FRAMEWORKS_DIR: z.string().default("./frameworks"),
   WEB_DIST: z.string().default("./apps/web/dist"),

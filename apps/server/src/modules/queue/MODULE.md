@@ -11,12 +11,12 @@ Hàng đợi job generic: thêm job có khử trùng, xử lý song song có gi�
 Không phát, không nhận.
 
 ## Dữ liệu
-Trạng thái job nằm trong Redis (BullMQ). Không có bảng SQLite.
+Chế độ `sqlite` (mặc định): bảng `QueueJob` (prisma/schema/queue.prisma) giữ job chưa xong. Chế độ `bullmq`: trạng thái nằm trong Redis.
 
 ## Port
 Không cần port.
 
 ## Quyết định
-- Hai driver sau cùng một interface: `bullmq` (Redis) và `memory` (mặc định: không cần cài gì; job chưa chạy sẽ mất khi khởi động lại, poller/webhook tự xếp lại) và `bullmq` (Redis, tuỳ chọn khi cần bền/nhiều server).
+- Các driver sau cùng một interface: `sqlite` (mặc định: hàng đợi trong process + lưu job vào SQLite, nạp lại khi khởi động, job chạy dở được chạy lại tối đa `attempts` lần), `memory` (không lưu; test) và `bullmq` (Redis, tuỳ chọn khi chạy nhiều server).
 - jobId trùng khi job còn chờ/đang chạy thì bị bỏ qua (khử trùng); job đã xong thì được phép thêm lại.
 - Dấu ":" trong jobId được thay bằng "_" vì BullMQ không chấp nhận.

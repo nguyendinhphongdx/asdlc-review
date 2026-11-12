@@ -1,0 +1,11 @@
+// Chủ sở hữu: modules/queue. Job chờ/đang chạy được lưu để sống sót qua lần khởi động lại.
+model QueueJob {
+  queue    String
+  jobId    String
+  data     String // JSON
+  attempts Int
+  attempt  Int // số lần đã bắt đầu chạy
+  runAt    DateTime
+
+  @@id([queue, jobId])
+}
