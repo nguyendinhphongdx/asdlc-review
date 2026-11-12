@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export const Table = ({ className, ...p }: React.ComponentProps<"table">) => (
-  <div className="w-full overflow-x-auto"><table className={cn("w-full border-collapse text-sm", className)} {...p} /></div>
+  <div className="relative w-full overflow-x-auto"><table className={cn("w-full border-collapse text-sm", className)} {...p} /></div>
 );
 export const TableHeader = (p: React.ComponentProps<"thead">) => <thead {...p} />;
 export const TableBody = (p: React.ComponentProps<"tbody">) => <tbody className="[&_tr:last-child_td]:border-0" {...p} />;

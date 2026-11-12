@@ -72,7 +72,7 @@ function Shell({ children }: { children: React.ReactNode }) {
         <nav aria-label="Điều hướng" className="flex flex-none gap-1 overflow-x-auto border-b bg-sidebar px-3 py-1.5 md:hidden">
           {all.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className={link}><n.icon className="size-4" aria-hidden="true" />{n.label}</NavLink>)}
         </nav>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
           <main className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 p-4 md:p-8">{children}</main>
         </div>
       </div>
