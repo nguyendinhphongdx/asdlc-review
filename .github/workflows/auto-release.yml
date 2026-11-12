@@ -1,0 +1,40 @@
+name: Auto release
+# Tự nhận phần nào thay đổi để build đúng phần đó:
+#  - site/**            → pages.yml tự deploy landing page (không phát hành app)
+#  - mã app (còn lại)   → tăng số phiên bản, gắn tag và build bản cài đặt desktop (release.yml)
+#  - chỉ docs/*.md      → không làm gì
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["site/**", "docs/**", "**/*.md", ".github/workflows/pages.yml", ".github/workflows/ci.yml"]
+permissions: { contents: write }
+concurrency: { group: auto-release, cancel-in-progress: false }
+jobs:
+  bump:
+    if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
+    runs-on: ubuntu-latest
+    outputs: { tag: "${{ steps.v.outputs.tag }}" }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - id: v
+        name: Tăng phiên bản patch, commit và gắn tag
+        run: |
+          CUR=$(node -p "require('./package.json').version")
+          LAST=$(git tag -l 'v*' --sort=-v:refname | head -1 | sed 's/^v//')
+          BASE=$(printf '%s\n%s\n' "$CUR" "${LAST:-0.0.0}" | sort -V | tail -1)
+          NEXT=$(echo "$BASE" | awk -F. '{printf "%d.%d.%d", $1, $2, $3+1}')
+          for f in package.json apps/desktop/package.json; do
+            node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('$f'));p.version='$NEXT';fs.writeFileSync('$f',JSON.stringify(p,null,2)+'\n')"
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore(release): v$NEXT [skip release]"
+          git tag "v$NEXT"
+          git push origin HEAD:main "v$NEXT"
+          echo "tag=v$NEXT" >> "$GITHUB_OUTPUT"
+  release:
+    needs: bump
+    uses: ./.github/workflows/release.yml
+    with: { tag: "${{ needs.bump.outputs.tag }}" }
+    permissions: { contents: write }

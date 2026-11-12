@@ -3,14 +3,19 @@ name: Release
 # Job "release" tạo release + gói mã nguồn; job "desktop" build app macOS (arm64, Intel) và Windows rồi đính kèm vào release.
 on:
   push: { tags: ["v*"] }
+  workflow_call:
+    inputs:
+      tag: { type: string, required: true }
 permissions: { contents: write }
 env:
   ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+  TAG: ${{ inputs.tag || github.ref_name }}
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.tag || github.ref_name }}" }
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
@@ -19,7 +24,7 @@ jobs:
       - run: pnpm build
       - name: Đóng gói
         run: |
-          NAME="asdlc-review-${GITHUB_REF_NAME}"
+          NAME="asdlc-review-${TAG}"
           mkdir -p "dist-release/$NAME"
           git archive HEAD | tar -x -C "dist-release/$NAME"
           mkdir -p "dist-release/$NAME/apps/web"
@@ -29,8 +34,8 @@ jobs:
       - name: Tạo GitHub Release
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          gh release create "$GITHUB_REF_NAME" --generate-notes --title "ASDLC Review $GITHUB_REF_NAME" \
-            "asdlc-review-${GITHUB_REF_NAME}.tar.gz" "asdlc-review-${GITHUB_REF_NAME}.tar.gz.sha256"
+          gh release create "$TAG" --generate-notes --title "ASDLC Review $TAG" \
+            "asdlc-review-${TAG}.tar.gz" "asdlc-review-${TAG}.tar.gz.sha256"
 
   # Bản cài đặt app desktop: build trên từng OS để native module (Prisma engine) đúng nền tảng.
   desktop:
@@ -46,6 +51,7 @@ jobs:
     name: desktop · ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
+        with: { ref: "${{ inputs.tag || github.ref_name }}" }
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
@@ -54,4 +60,4 @@ jobs:
       - name: Tải lên release
         shell: bash
         env: { GH_TOKEN: "${{ github.token }}" }
-        run: gh release upload "$GITHUB_REF_NAME" out/ASDLC-Review-*.zip out/ASDLC-Review-*.zip.sha256 --clobber
+        run: gh release upload "$TAG" out/ASDLC-Review-*.zip out/ASDLC-Review-*.zip.sha256 --clobber
