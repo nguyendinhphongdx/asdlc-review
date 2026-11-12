@@ -42,8 +42,8 @@ function startServer() {
     cwd: path.join(root, "apps/server"),
     env: {
       ...process.env, ELECTRON_RUN_AS_NODE: "1", WEB_DIST: path.join(root, "apps/web/dist"), PORT: port, MRD_SECRET_KEY: masterKey(), PATH: richPath(),
-      // Bản đóng gói: dữ liệu để ở thư mục người dùng (không ghi vào bundle), hàng đợi trong bộ nhớ, quét MR định kỳ vì máy cá nhân khó nhận webhook.
-      ...(app.isPackaged ? { DATA_DIR: path.join(app.getPath("userData"), "data"), REDIS_URL: process.env.REDIS_URL ?? "memory", POLL_INTERVAL_MIN: process.env.POLL_INTERVAL_MIN ?? "5" } : {}),
+      // Bản đóng gói: dữ liệu để ở thư mục người dùng (không ghi vào bundle), hàng đợi lưu trong SQLite, quét MR định kỳ vì máy cá nhân khó nhận webhook.
+      ...(app.isPackaged ? { DATA_DIR: path.join(app.getPath("userData"), "data"), REDIS_URL: process.env.REDIS_URL ?? "sqlite", POLL_INTERVAL_MIN: process.env.POLL_INTERVAL_MIN ?? "5" } : {}),
     },
     stdio: "inherit",
   });
