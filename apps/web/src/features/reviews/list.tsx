@@ -41,7 +41,7 @@ function useLiveRuns() {
 }
 
 const ago = (iso: string | null) => (iso ? fmtDate(iso) : "chưa lần nào");
-const INBOX_STATUS = { pending: "Chờ review", queued: "Đang chờ", running: "Đang review", failed: "Lỗi" } as const;
+const INBOX_STATUS = { pending: "Chờ review", queued: "Đang chờ", running: "Đang review", failed: "Lỗi", reviewed: "Đã review" } as const;
 const RUN_STATUS = { succeeded: "Hoàn tất", failed: "Lỗi", running: "Đang review", queued: "Đang chờ", skipped: "Bỏ qua" } as const;
 
 function InboxTab() {
@@ -60,7 +60,7 @@ function InboxTab() {
     { accessorKey: "updatedAt", header: "Cập nhật", meta: { className: "text-xs text-muted-foreground whitespace-nowrap" }, cell: ({ getValue }) => fmtDate(getValue<string>()) },
     { accessorKey: "status", header: "Trạng thái", meta: { filterLabels: INBOX_STATUS },
       cell: ({ row: { original: i } }) => (<>
-        {i.status === "running" ? <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review{i.stage && i.stage !== "start" ? ` · ${stageLabel(i.stage)}` : ""}</Badge> : i.status === "queued" ? <Badge variant="warning"><span className="size-1.5 animate-pulse rounded-full bg-current" />Đang chờ · hàng đợi</Badge> : i.status === "failed" ? <Badge variant="danger" title={i.error ?? ""}>Lỗi · bấm xem log</Badge> : <Badge variant="warning">Chờ review</Badge>}
+        {i.status === "running" ? <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review{i.stage && i.stage !== "start" ? ` · ${stageLabel(i.stage)}` : ""}</Badge> : i.status === "queued" ? <Badge variant="warning"><span className="size-1.5 animate-pulse rounded-full bg-current" />Đang chờ · hàng đợi</Badge> : i.status === "failed" ? <Badge variant="danger" title={i.error ?? ""}>Lỗi · bấm xem log</Badge> : i.status === "reviewed" ? <Badge variant="success">Đã review</Badge> : <Badge variant="warning">Chờ review</Badge>}
         {i.draft && <Badge className="ml-1.5">Draft</Badge>}
       </>) },
     { id: "review", header: () => <span className="sr-only">Review</span>, enableSorting: false, enableHiding: false, meta: { className: "w-24 text-right", headerClassName: "w-24" },
@@ -93,8 +93,8 @@ function InboxTab() {
       {run.notice && !run.error && <p role="status" className="text-[13px] text-muted-foreground">{run.notice}</p>}
       {d?.errors.map((e) => <p key={e.repo} role="alert" className="text-[13px] text-danger-fg">Không lấy được MR của {e.repo}: {e.message}</p>)}
       <DataTable<InboxItemDto>
-        aria-label="MR đang chờ review" columns={columns} data={d?.items ?? []} loading={q.isLoading} error={q.error}
-        getRowId={(i) => `${i.repoId}-${i.iid}`} unit="MR đang chờ" minWidth={860}
+        aria-label="MR đang mở" columns={columns} data={d?.items ?? []} loading={q.isLoading} error={q.error}
+        getRowId={(i) => `${i.repoId}-${i.iid}`} unit="MR đang mở" minWidth={860}
         search={{ placeholder: "Tìm theo tiêu đề, repo, tác giả…" }}
         filters={[{ columnId: "repo", label: "Repo" }, { columnId: "authorUsername", label: "Tác giả" }, { columnId: "status", label: "Trạng thái" }]}
         initialSort={[{ id: "updatedAt", desc: true }]}
@@ -104,7 +104,7 @@ function InboxTab() {
           { label: "Mở trên GitLab", onSelect: () => window.open(i.webUrl, "_blank", "noopener") },
           { label: "Sao chép link MR", onSelect: () => void navigator.clipboard?.writeText(i.webUrl) },
         ]}
-        empty={d?.openMrs ? `Có ${d.openMrs} MR đang mở nhưng tất cả đã được review ở commit hiện tại (xem tab lịch sử).` : "Không có MR nào đang chờ review. Bấm “Làm mới” để poll ngay, hoặc “Tìm MR” để chọn MR từ repo chưa thêm."}
+        empty={"Không có MR nào đang mở. Bấm “Làm mới” để poll ngay, hoặc “Tìm MR” để chọn MR từ repo chưa thêm."}
       />
     </>
   );

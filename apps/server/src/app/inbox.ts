@@ -64,11 +64,10 @@ export function createInbox(m: Modules, requestReview: RequestReview, log: Logge
         for (const mr of c.mrs) {
           const rec = await m.reviews.findMr(repoId, mr.iid);
           const run = rec ? await m.reviews.latestRunByHead(rec.id, mr.headSha) : null;
-          if (run?.status === "succeeded") continue; // đã review commit này → nằm ở Lịch sử
           items.push({
             repoId, repoPath: c.repoPath, iid: mr.iid, title: mr.title, authorUsername: mr.authorUsername, webUrl: mr.webUrl,
             sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, draft: mr.draft, updatedAt: mr.updatedAt.toISOString(), headSha: mr.headSha,
-            status: !run ? "pending" : run.status === "running" ? "running" : run.status === "failed" ? "failed" : "queued", runId: run?.id, ...(run && (run.status === "queued" || run.status === "running") && run.stage ? { stage: run.stage } : {}), ...(run?.status === "failed" ? { error: run.error ?? undefined } : {}),
+            status: !run ? "pending" : run.status === "running" ? "running" : run.status === "failed" ? "failed" : run.status === "succeeded" ? "reviewed" : "queued", runId: run?.id, ...(run && (run.status === "queued" || run.status === "running") && run.stage ? { stage: run.stage } : {}), ...(run?.status === "failed" ? { error: run.error ?? undefined } : {}),
           });
         }
       }

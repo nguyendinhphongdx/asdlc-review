@@ -11,8 +11,8 @@ export interface InboxItemDto {
   draft: boolean;
   updatedAt: string;
   headSha: string;
-  /** pending = chưa có lần review nào cho commit này. */
-  status: "pending" | "queued" | "running" | "failed";
+  /** pending = chưa có lần review nào cho commit này; reviewed = đã review xong commit hiện tại. */
+  status: "pending" | "queued" | "running" | "failed" | "reviewed";
   runId?: string;
   /** Giai đoạn hiện tại của run đang chờ/chạy (queue | clone | … | publish). */
   stage?: string;

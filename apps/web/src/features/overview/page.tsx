@@ -54,7 +54,7 @@ export function OverviewPage() {
 
   const since = Date.now() - days * 86_400_000;
   const failedRecent = (failed.data?.items ?? []).filter((r) => new Date(r.createdAt).getTime() >= since).length;
-  const awaiting = inbox.data?.items.length ?? 0;
+  const awaiting = inbox.data?.items.filter((i) => i.status === "pending").length ?? 0;
   const critical = (o.findingsBySeverity.blocker ?? 0) + (o.findingsBySeverity.critical ?? 0);
   const serious = critical + (o.findingsBySeverity.major ?? 0);
   const total = Object.values(o.findingsBySeverity).reduce((a, b) => a + b, 0);
