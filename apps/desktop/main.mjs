@@ -1,5 +1,5 @@
 // Vỏ Electron mỏng: chạy server, mở cửa sổ tới server. Không chứa logic nghiệp vụ.
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -73,6 +73,29 @@ function startServer() {
   server.on("exit", (code) => { if (!quitting) console.error(`server thoát (${code})`); });
 }
 
+/** Tắt hẳn server con (Windows: cả cây tiến trình, vì SIGTERM không đảm bảo kết thúc và tiến trình còn sống sẽ giữ cổng + file của bản cũ). */
+function killServer() {
+  if (!server?.pid) return;
+  try { if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(server.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true }); else server.kill("SIGTERM"); } catch { /* đã thoát */ }
+}
+
+/** Server của bản cũ còn sống (mồ côi sau khi cập nhật/đóng không sạch) sẽ giữ cổng và phục vụ giao diện cũ: tìm và tắt nó trước khi chạy server mới. */
+async function clearStaleServer() {
+  let h;
+  try { h = await (await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1500) })).json(); } catch { return; } // cổng trống
+  if (!h || typeof h.version !== "string") return; // không phải server của app này, không đụng
+  try {
+    const pids = process.platform === "win32"
+      ? [...new Set(execFileSync("netstat", ["-ano", "-p", "tcp"], { encoding: "utf8", windowsHide: true }).split(/\r?\n/).filter((l) => l.includes(`:${port} `) && /LISTENING/i.test(l)).map((l) => l.trim().split(/\s+/).pop()))]
+      : execFileSync("lsof", ["-ti", `tcp:${port}`, "-sTCP:LISTEN"], { encoding: "utf8" }).split(/\s+/).filter(Boolean);
+    for (const pid of pids) {
+      if (!pid || Number(pid) === process.pid) continue;
+      if (process.platform === "win32") execFileSync("taskkill", ["/PID", pid, "/T", "/F"], { stdio: "ignore", windowsHide: true }); else process.kill(Number(pid), "SIGTERM");
+    }
+    await new Promise((r) => setTimeout(r, 1200));
+  } catch (err) { console.error("không tắt được server cũ:", err.message); }
+}
+
 async function waitReady(tries = 60) {
   for (let i = 0; i < tries; i++) {
     try { if ((await fetch(`${url}/api/health`)).ok) return true; } catch { /* chưa lên */ }
@@ -89,9 +112,14 @@ async function createWindow() {
 }
 
 app.setName("ASDLC Review");
+// Chỉ một bản chạy cùng lúc: mở lần hai thì đưa cửa sổ đang có lên trước (tránh hai app tranh một cổng/DB).
+if (!app.requestSingleInstanceLock()) app.quit();
+app.on("second-instance", () => { win?.show(); win?.focus(); });
 app.whenReady().then(async () => {
+  if (!app.hasSingleInstanceLock()) return;
   // Chạy dev (`electron .`) thì Dock mặc định là icon Electron; bản đóng gói đã có icon riêng.
   if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(path.join(path.dirname(fileURLToPath(import.meta.url)), "icon.png")));
+  await clearStaleServer();
   startServer();
   await createWindow();
   tray = new Tray(nativeImage.createEmpty());
@@ -102,4 +130,4 @@ app.whenReady().then(async () => {
   setInterval(() => void backgroundCheck(), 6 * 3600_000);
 });
 app.on("activate", () => win?.show());
-app.on("before-quit", () => { quitting = true; server?.kill("SIGTERM"); });
+app.on("before-quit", () => { quitting = true; killServer(); });
