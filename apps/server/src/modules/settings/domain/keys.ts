@@ -10,7 +10,9 @@ export const SETTING_SCHEMAS = {
   codexModel: z.string().max(120),
   geminiModel: z.string().max(120),
   openaiModel: z.string().max(120),
-  /** Model riêng cho chat với agent ("" = dùng cùng model review). Nên chọn model rẻ/nhanh hơn. */
+  /** Provider riêng cho chat ("" = dùng chung provider review). Khi đặt thì `chatModel` áp dụng cho provider này. */
+  chatProvider: z.enum(["", "claude-cli", "codex-cli", "gemini-api", "openai-compatible"]),
+  /** Model riêng cho chat với agent; chỉ dùng khi đã chọn `chatProvider` riêng ("" = mặc định của provider đó). */
   chatModel: z.string().max(120),
   passScore: z.number().min(0).max(100),
   skipDrafts: z.boolean(),

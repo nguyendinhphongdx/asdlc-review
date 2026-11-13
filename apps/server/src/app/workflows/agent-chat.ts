@@ -53,9 +53,9 @@ export function createAgentChat(m: Modules, requestReview: RequestReview, log: L
     ].join("\n\n");
 
     const settings = await m.settings.snapshot();
-    const provider = (repo.provider ?? settings.reviewProvider) as typeof settings.reviewProvider;
-    const reviewModel = repo.model || providerModel(provider, settings);
-    const model = settings.chatModel || reviewModel;
+    // Chat dùng chung provider/model của review, trừ khi Cài đặt chọn provider riêng cho chat.
+    const provider = (settings.chatProvider || repo.provider || settings.reviewProvider) as typeof settings.reviewProvider;
+    const model = settings.chatProvider ? settings.chatModel || providerModel(provider, settings) : repo.model || providerModel(provider, settings);
     let raw: string;
     let steps: ChatStep[] = [];
     // Chuẩn bị checkout của MR để agent đọc code; lỗi thì vẫn trả lời được nhưng không có tool đọc repo.

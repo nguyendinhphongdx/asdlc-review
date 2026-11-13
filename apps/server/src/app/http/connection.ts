@@ -35,6 +35,10 @@ export function registerConnectionRoutes(app: FastifyInstance, c: Container, pub
     const key = credentials.geminiKey();
     return { configured: Boolean(key), source: credentials.geminiSource(), hint: m.secrets.hint(KEY.geminiKey) ?? (key ? key.slice(-4) : null), canStore: m.secrets.canStore };
   };
+  const openaiStatus = (): AiKeyStatusDto => {
+    const key = credentials.openaiKey();
+    return { configured: Boolean(key), source: credentials.openaiSource(), hint: m.secrets.hint(KEY.openaiKey) ?? (key ? key.slice(-4) : null), canStore: m.secrets.canStore };
+  };
   app.get("/api/ai-keys/gemini", () => geminiStatus());
   app.put("/api/ai-keys/gemini", async (req) => {
     const { apiKey } = z.object({ apiKey: z.string().trim().min(8).max(300) }).parse(req.body);
@@ -43,6 +47,16 @@ export function registerConnectionRoutes(app: FastifyInstance, c: Container, pub
   });
   app.delete("/api/ai-keys/gemini", async (_req, reply) => {
     await credentials.clearGeminiKey();
+    return reply.status(204).send();
+  });
+  app.get("/api/ai-keys/openai", () => openaiStatus());
+  app.put("/api/ai-keys/openai", async (req) => {
+    const { apiKey } = z.object({ apiKey: z.string().trim().min(8).max(300) }).parse(req.body);
+    await credentials.saveOpenaiKey(apiKey);
+    return openaiStatus();
+  });
+  app.delete("/api/ai-keys/openai", async (_req, reply) => {
+    await credentials.clearOpenaiKey();
     return reply.status(204).send();
   });
 

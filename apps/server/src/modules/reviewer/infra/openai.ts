@@ -3,7 +3,7 @@ import type { Provider } from "../domain/types.js";
 
 export interface OpenAiOptions {
   baseUrl: string;
-  apiKey: string;
+  apiKey: () => string;
   model: string;
   timeoutMs: number;
 }
@@ -13,7 +13,7 @@ export function openAiProvider(o: OpenAiOptions): Provider {
   const call = async (model: string, system: string, user: string, jsonMode: boolean) =>
     fetch(`${o.baseUrl.replace(/\/$/, "")}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(o.apiKey ? { Authorization: `Bearer ${o.apiKey}` } : {}) },
+      headers: { "Content-Type": "application/json", ...(o.apiKey() ? { Authorization: `Bearer ${o.apiKey()}` } : {}) },
       body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: user }], ...(jsonMode ? { response_format: { type: "json_object" } } : {}) }),
       signal: AbortSignal.timeout(o.timeoutMs),
     });

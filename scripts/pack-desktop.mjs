@@ -30,7 +30,7 @@ for (const d of ["out", "scripts"]) rmSync(`${stage}/apps/server/${d}`, { recurs
 execFileSync(process.execPath, ["node_modules/prisma/build/index.js", "generate", "--schema", "prisma/schema"], { cwd: `${stage}/apps/server`, stdio: "inherit" });
 cpSync("apps/web/dist", `${stage}/apps/web/dist`, { recursive: true });
 cpSync("frameworks", `${stage}/frameworks`, { recursive: true });
-for (const f of ["main.mjs", "updater.mjs", "preload.cjs", "icon.png"]) cpSync(`apps/desktop/${f}`, `${stage}/apps/desktop/${f}`);
+for (const f of ["main.mjs", "updater.mjs", "preload.cjs", "icon.png", "icon-mac.png"]) cpSync(`apps/desktop/${f}`, `${stage}/apps/desktop/${f}`);
 writeFileSync(`${stage}/package.json`, JSON.stringify({ name: "asdlc-review", productName: "ASDLC Review", description: "AI review cho merge request", author: "ASDLC Review", version: pkg.version, main: "apps/desktop/main.mjs", type: "module" }, null, 2));
 // Bỏ test khỏi gói
 const prune = (dir) => { for (const e of readdirSync(dir, { withFileTypes: true })) { const p = path.join(dir, e.name); if (e.isDirectory()) e.name === "__tests__" ? rmSync(p, { recursive: true, force: true }) : prune(p); } };
@@ -41,8 +41,8 @@ let icon = "";
 if (mac) {
   mkdirSync("out/icon.iconset", { recursive: true });
   for (const s of [16, 32, 128, 256, 512]) {
-    execFileSync("sips", ["-z", String(s), String(s), "apps/desktop/icon.png", "--out", `out/icon.iconset/icon_${s}x${s}.png`], { stdio: "ignore" });
-    execFileSync("sips", ["-z", String(s * 2), String(s * 2), "apps/desktop/icon.png", "--out", `out/icon.iconset/icon_${s}x${s}@2x.png`], { stdio: "ignore" });
+    execFileSync("sips", ["-z", String(s), String(s), "apps/desktop/icon-mac.png", "--out", `out/icon.iconset/icon_${s}x${s}.png`], { stdio: "ignore" });
+    execFileSync("sips", ["-z", String(s * 2), String(s * 2), "apps/desktop/icon-mac.png", "--out", `out/icon.iconset/icon_${s}x${s}@2x.png`], { stdio: "ignore" });
   }
   execFileSync("iconutil", ["-c", "icns", "out/icon.iconset", "-o", "out/icon.icns"]);
   icon = "out/icon.icns";

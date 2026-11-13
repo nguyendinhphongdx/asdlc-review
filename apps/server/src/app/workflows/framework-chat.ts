@@ -43,8 +43,8 @@ export function createFrameworkChat(m: Modules, log: Logger, tools: FrameworkToo
       `Chat so far:\n${history.map((h) => `${h.role}: ${h.text.slice(0, 600)}`).join("\n") || "(empty)"}`,
     ].join("\n\n");
 
-    const provider = settings.reviewProvider;
-    const model = settings.chatModel || providerModel(provider, settings);
+    const provider = (settings.chatProvider || settings.reviewProvider) as typeof settings.reviewProvider;
+    const model = settings.chatProvider ? settings.chatModel || providerModel(provider, settings) : providerModel(provider, settings);
     let session: ReturnType<FrameworkTools["open"]> | undefined;
     let raw: string;
     let steps: ChatStep[] = [];

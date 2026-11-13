@@ -118,7 +118,7 @@ app.on("second-instance", () => { win?.show(); win?.focus(); });
 app.whenReady().then(async () => {
   if (!app.hasSingleInstanceLock()) return;
   // Chạy dev (`electron .`) thì Dock mặc định là icon Electron; bản đóng gói đã có icon riêng.
-  if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(path.join(path.dirname(fileURLToPath(import.meta.url)), "icon.png")));
+  if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(path.join(path.dirname(fileURLToPath(import.meta.url)), "icon-mac.png")));
   await clearStaleServer();
   startServer();
   await createWindow();

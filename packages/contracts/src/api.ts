@@ -155,6 +155,8 @@ export interface SettingsDto {
   codexModel: string;
   geminiModel: string;
   openaiModel: string;
+  /** Provider riêng cho chat; rỗng = dùng chung provider review. */
+  chatProvider: "" | "claude-cli" | "codex-cli" | "gemini-api" | "openai-compatible";
   chatModel: string;
   passScore: number;
   /** Bỏ qua MR nháp (Draft/WIP) khi review tự động. */

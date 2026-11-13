@@ -45,7 +45,7 @@ const EnvSchema = z.object({
   /** Gemini API (cloud). Khoá nhập ở giao diện được ưu tiên; biến này chỉ là dự phòng. */
   GEMINI_API_KEY: z.string().default(""),
   GEMINI_BASE_URL: z.string().default("https://generativelanguage.googleapis.com/v1beta"),
-  GEMINI_MODEL: z.string().default("gemini-2.5-pro"),
+  GEMINI_MODEL: z.string().default("gemini-3.1-pro-preview"),
   OPENAI_BASE_URL: z.string().default("https://api.openai.com/v1"),
   OPENAI_API_KEY: z.string().default(""),
   OPENAI_MODEL: z.string().default(""),

@@ -44,13 +44,18 @@ function useViewed(mrId: string) {
 
 interface Item { path: string; additions: number; deletions: number; reviewed: boolean; binary: boolean; diff?: MrFileDiffDto }
 
+/** Văn bản AI viết: phần trong `dấu huyền` (tên file, hàm, symbol AI nhắc đến) được bôi vàng. */
+function Mentions({ text }: { text: string }) {
+  return <>{text.split(/(`[^`\n]+`)/g).map((p, i) => (p.length > 2 && p.startsWith("`") && p.endsWith("`") ? <mark key={i} className="rounded bg-warning-bg px-1 font-mono text-[12px] text-warning-fg">{p.slice(1, -1)}</mark> : <span key={i}>{p}</span>))}</>;
+}
+
 function FindingBubble({ f }: { f: FindingDto }) {
   return (
     <div className="mx-3 my-2 flex flex-col gap-1.5 rounded-lg border border-primary/30 bg-info-bg/40 p-3 font-sans text-[13px] shadow-xs">
       <div className="flex flex-wrap items-center gap-2"><span className="flex size-[22px] items-center justify-center rounded-md bg-primary text-primary-foreground"><Bot className="size-3.5" aria-hidden="true" /></span><span className="font-semibold">AI review</span><span className="rounded bg-info-bg px-1.5 text-[10.5px] font-bold text-info-fg">AI</span><SeverityBadge severity={f.severity} />{f.ruleId && <Badge className="font-mono">{f.ruleId}</Badge>}<span className="text-xs text-muted-foreground">tin cậy {Math.round(f.confidence * 100)}%</span></div>
-      <div className="font-medium">{f.title}</div>
-      {f.why && <p className="text-muted-foreground">{f.why}</p>}
-      {f.suggestion && <div className="rounded-md bg-success-bg px-3 py-2 text-success-fg"><b>Gợi ý.</b> {f.suggestion}</div>}
+      <div className="font-medium"><Mentions text={f.title} /></div>
+      {f.why && <p className="text-muted-foreground"><Mentions text={f.why} /></p>}
+      {f.suggestion && <div className="rounded-md bg-success-bg px-3 py-2 text-success-fg"><b>Gợi ý.</b> <Mentions text={f.suggestion} /></div>}
     </div>
   );
 }
@@ -68,7 +73,14 @@ function DiffBody({ file, findings }: { file: MrFileDiffDto; findings: FindingDt
       if (ln && lines.has(ln)) m.set(ln, [...(m.get(ln) ?? []), f]);
       else orphans.push(f);
     }
-    return { m, orphans };
+    // Các dòng AI nhắc đến (cả khoảng lineStart..lineEnd) được bôi vàng trong diff.
+    const hl = new Set<number>();
+    for (const f of findings) {
+      if (!f.lineStart) continue;
+      const end = Math.min(f.lineEnd ?? f.lineStart, f.lineStart + 200);
+      for (let n = f.lineStart; n <= end; n++) if (lines.has(n)) hl.add(n);
+    }
+    return { m, orphans, hl };
   }, [rows, findings]);
   if (file.truncated || !file.diff) return <p className="px-4 py-3 text-xs text-muted-foreground">Nền tảng không trả nội dung diff cho file này (quá lớn hoặc nhị phân).</p>;
   return (
@@ -79,9 +91,10 @@ function DiffBody({ file, findings }: { file: MrFileDiffDto; findings: FindingDt
           {shown.map((r, i) => {
             if (r.kind === "hunk") return <tr key={i} className="bg-muted/60 text-muted-foreground"><td colSpan={3} className="px-3 py-1">{r.text}</td></tr>;
             const fs = r.newNo !== undefined && r.kind !== "del" ? byLine.m.get(r.newNo) : undefined;
+            const hot = r.newNo !== undefined && r.kind !== "del" && byLine.hl.has(r.newNo);
             return (
               <>
-                <tr key={i} className={cn(r.kind === "add" && "bg-success/10", r.kind === "del" && "bg-danger/10", fs && "outline outline-1 -outline-offset-1 outline-primary/40")}>
+                <tr key={i} className={cn(r.kind === "add" && "bg-success/10", r.kind === "del" && "bg-danger/10", hot && "bg-warning/25 shadow-[inset_3px_0_0_var(--warning)]")}>
                   <td className="w-12 select-none px-2 text-right text-muted-foreground/70">{r.oldNo ?? ""}</td>
                   <td className="w-12 select-none border-r px-2 text-right text-muted-foreground/70">{r.newNo ?? ""}</td>
                   <td className="whitespace-pre pl-3 pr-4"><span className="select-none text-muted-foreground">{r.kind === "add" ? "+" : r.kind === "del" ? "-" : " "}</span> {r.text}</td>

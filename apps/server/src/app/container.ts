@@ -48,7 +48,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     db, events,
     defaults: {
       reviewProvider: config.REVIEW_PROVIDER, defaultFramework: "asdlc",
-      claudeModel: config.CLAUDE_MODEL, codexModel: config.CODEX_MODEL, geminiModel: config.GEMINI_MODEL, openaiModel: config.OPENAI_MODEL, chatModel: "",
+      claudeModel: config.CLAUDE_MODEL, codexModel: config.CODEX_MODEL, geminiModel: config.GEMINI_MODEL, openaiModel: config.OPENAI_MODEL, chatProvider: "", chatModel: "",
       passScore: 70, skipDrafts: true, diffBudgetChars: config.DIFF_BUDGET_CHARS, maxBudgetUsd: config.CLAUDE_MAX_BUDGET_USD,
       workDir: "", triggerMode: "polling", pollIntervalMin: config.POLL_INTERVAL_MIN > 0 ? config.POLL_INTERVAL_MIN : 5,
     },
@@ -77,7 +77,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
       claude: { bin: config.CLAUDE_BIN, model: config.CLAUDE_MODEL, maxBudgetUsd: config.CLAUDE_MAX_BUDGET_USD },
       codex: { bin: config.CODEX_BIN, model: config.CODEX_MODEL },
       gemini: { apiKey: () => credentials.geminiKey(), baseUrl: config.GEMINI_BASE_URL, model: config.GEMINI_MODEL },
-      openai: { baseUrl: config.OPENAI_BASE_URL, apiKey: config.OPENAI_API_KEY, model: config.OPENAI_MODEL },
+      openai: { baseUrl: config.OPENAI_BASE_URL, apiKey: () => credentials.openaiKey(), model: config.OPENAI_MODEL },
       timeoutMs: config.REVIEW_TIMEOUT_MIN * 60_000,
       logger: log.child("reviewer"),
     }),

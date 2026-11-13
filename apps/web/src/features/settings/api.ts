@@ -14,6 +14,9 @@ export const getWebhookSecret = () => request<WebhookSecretDto>("/api/connection
 export const regenerateWebhookSecret = () => request<WebhookSecretDto>("/api/connection/webhook-secret/regenerate", { method: "POST", json: {} });
 export const getStorage = () => request<StorageDto>("/api/storage");
 export const checkStorage = (path: string) => request<StorageCheckDto>("/api/storage/check", { method: "POST", json: { path } });
+export const getAiKey = (p: "gemini" | "openai") => request<AiKeyStatusDto>(`/api/ai-keys/${p}`);
+export const saveAiKey = (p: "gemini" | "openai", apiKey: string) => request<AiKeyStatusDto>(`/api/ai-keys/${p}`, { method: "PUT", json: { apiKey } });
+export const deleteAiKey = (p: "gemini" | "openai") => request<void>(`/api/ai-keys/${p}`, { method: "DELETE" });
 export const getGeminiKey = () => request<AiKeyStatusDto>("/api/ai-keys/gemini");
 export const saveGeminiKey = (apiKey: string) => request<AiKeyStatusDto>("/api/ai-keys/gemini", { method: "PUT", json: { apiKey } });
 export const deleteGeminiKey = () => request<void>("/api/ai-keys/gemini", { method: "DELETE" });

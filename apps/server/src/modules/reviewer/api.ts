@@ -13,7 +13,7 @@ export interface ReviewerDeps {
   claude: { bin: string; model: string; maxBudgetUsd: number };
   codex: { bin: string; model: string };
   gemini: { apiKey: () => string; baseUrl: string; model: string };
-  openai: { baseUrl: string; apiKey: string; model: string };
+  openai: { baseUrl: string; apiKey: () => string; model: string };
   timeoutMs: number;
   logger?: Logger;
 }

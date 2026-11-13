@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 
 export interface ExecResult {
   code: number;
@@ -30,10 +32,42 @@ export function redact(text: string, secrets: string[] = []): string {
   return out;
 }
 
+export interface WinFs { exists(p: string): boolean; read(p: string): string }
+
+/**
+ * Windows: CLI cài bằng npm (codex, claude…) là file shim `.cmd`, mà `spawn` không qua shell không chạy được (ENOENT/EINVAL).
+ * Tìm lệnh theo PATH + PATHEXT; nếu là `.exe` thì chạy thẳng; nếu là shim npm thì đọc ra file JS thật và chạy bằng node (không cần shell).
+ */
+export function resolveWindowsCommand(cmd: string, pathEnv: string, fs: WinFs = { exists: existsSync, read: (p) => readFileSync(p, "utf8") }): { cmd: string; args: string[] } | null {
+  const hasDir = /[\\/]/.test(cmd);
+  const dirs = hasDir ? [""] : pathEnv.split(";").filter(Boolean);
+  const exts = path.extname(cmd) ? [""] : [".exe", ".com", ".cmd", ".bat"];
+  for (const d of dirs) for (const e of exts) {
+    const file = d ? path.win32.join(d, cmd + e) : cmd + e;
+    if (!fs.exists(file)) continue;
+    if (/\.(exe|com)$/i.test(file)) return { cmd: file, args: [] };
+    if (/\.(cmd|bat)$/i.test(file)) {
+      const m = /"?%(?:~dp0|dp0%)\\?([^"\r\n]+?\.(?:c|m)?js)"?/i.exec(fs.read(file));
+      if (!m) return null;
+      const js = path.win32.join(path.win32.dirname(file), m[1]!.replace(/^[\\/]+/, ""));
+      if (fs.exists(js)) return { cmd: process.execPath, args: [js] };
+    }
+  }
+  return null;
+}
+
 /** Chạy tiến trình con không qua shell (tránh injection), có timeout. Chỉ dùng từ thư mục infra của module. */
 export function run(cmd: string, args: string[], opts: ExecOptions = {}): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd: opts.cwd, env: { ...process.env, ...opts.env }, stdio: ["pipe", "pipe", "pipe"] });
+    const env = { ...process.env, ...opts.env };
+    let exe = cmd;
+    let argv = args;
+    if (process.platform === "win32") {
+      const pathKey = Object.keys(env).find((k) => k.toLowerCase() === "path") ?? "PATH";
+      const r = resolveWindowsCommand(cmd, env[pathKey] ?? "");
+      if (r) { exe = r.cmd; argv = [...r.args, ...args]; if (r.args.length) env.ELECTRON_RUN_AS_NODE = "1"; }
+    }
+    const child = spawn(exe, argv, { cwd: opts.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     let timedOut = false;

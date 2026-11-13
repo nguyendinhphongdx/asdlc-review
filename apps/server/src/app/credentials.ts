@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { SecretsApi } from "../modules/secrets/index.js";
 import type { Config } from "../kernel/config.js";
 
-export const KEY = { gitlabToken: "gitlab.token", gitlabUrl: "gitlab.url", gitlabWebhook: "gitlab.webhookSecret", geminiKey: "ai.gemini.apiKey" } as const;
+export const KEY = { gitlabToken: "gitlab.token", gitlabUrl: "gitlab.url", gitlabWebhook: "gitlab.webhookSecret", geminiKey: "ai.gemini.apiKey", openaiKey: "ai.openai.apiKey" } as const;
 
 /**
  * Nguồn sự thật cho thông tin đăng nhập nền tảng: ưu tiên giá trị lưu trong DB (nhập từ UI),
@@ -22,6 +22,11 @@ export function createCredentials(config: Config, secrets: SecretsApi) {
     geminiSource: (): "db" | "env" | "none" => (secrets.peek(KEY.geminiKey) ? "db" : config.GEMINI_API_KEY ? "env" : "none"),
     saveGeminiKey: (key: string) => secrets.set(KEY.geminiKey, key),
     clearGeminiKey: () => secrets.delete(KEY.geminiKey),
+    /** Khoá cho provider OpenAI-compatible (tuỳ chọn: Ollama/LM Studio nội bộ không cần). */
+    openaiKey: (): string => secrets.peek(KEY.openaiKey) ?? config.OPENAI_API_KEY,
+    openaiSource: (): "db" | "env" | "none" => (secrets.peek(KEY.openaiKey) ? "db" : config.OPENAI_API_KEY ? "env" : "none"),
+    saveOpenaiKey: (key: string) => secrets.set(KEY.openaiKey, key),
+    clearOpenaiKey: () => secrets.delete(KEY.openaiKey),
     tokenSource: (): "db" | "env" | "none" => (secrets.peek(KEY.gitlabToken) ? "db" : config.GITLAB_TOKEN ? "env" : "none"),
     async saveGitlab(input: { baseUrl: string; token?: string }) {
       await secrets.set(KEY.gitlabUrl, input.baseUrl.replace(/\/+$/, ""));
