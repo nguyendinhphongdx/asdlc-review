@@ -1,6 +1,6 @@
 import type { RunActivityEntry, RunDetailDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Bot, Check, ChevronDown, CircleAlert, ExternalLink, RotateCw, ThumbsDown, ThumbsUp, TriangleAlert } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Avatar } from "@/components/ui/avatar";
@@ -19,6 +19,8 @@ import { HarnessPanel } from "../../kernel/harness.js";
 import { addNote, deleteNote, getRun, listFrameworks, listNotes, openRunStream, setFeedback } from "./api.js";
 import { useReviewRequest } from "./use-review-request.js";
 import { LogTab } from "./log-tab.js";
+import { ResizeHandle, usePersistedNumber } from "../../kernel/resize.js";
+import { Tip } from "../../kernel/tip.js";
 import { OverviewBlocks, sectionsToBlocks } from "./overview/blocks.js";
 import { DEMO_BLOCKS } from "./overview/fixtures.js";
 import { PanelStatus, ProgressTab } from "./progress-tab.js";
@@ -33,6 +35,9 @@ const SEV_COLOR: Record<string, string> = { blocker: "bg-danger", critical: "bg-
 const SEV_HINT: Record<string, string> = { blocker: "chặn merge", critical: "cần sửa ngay", major: "cần sửa trước khi merge", minor: "nên cải thiện", nit: "tuỳ chọn" };
 const FB = { agree: "Đồng ý", disagree: "Không đồng ý", fixed: "Đã sửa" } as const;
 
+const PANEL_MIN = 380;
+const CHAT_MIN = 320;
+
 type TabId = "overview" | "progress" | "changes" | "findings" | "context" | "log";
 
 export function ReviewDetailPage() {
@@ -44,8 +49,11 @@ export function ReviewDetailPage() {
   const [openStage, setOpenStage] = useState("review");
   const [ask, setAsk] = useState<{ id: number; text: string } | null>(null);
   const [focus, setFocus] = useState<{ id: number; path: string } | null>(null);
-  const [wide, setWide] = useState(() => { try { return localStorage.getItem("mrd.panel.wide") === "1"; } catch { return false; } });
-  const toggleWide = () => setWide((w) => { const n = !w; try { localStorage.setItem("mrd.panel.wide", n ? "1" : "0"); } catch { /* không lưu được thì thôi */ } return n; });
+  const PANEL_DEFAULT = 560;
+  const [panelW, setPanelW] = usePersistedNumber("mrd.panel.w", PANEL_DEFAULT);
+  const panelMax = () => Math.max(PANEL_MIN, window.innerWidth - CHAT_MIN - 240);
+  const wide = panelW >= 760;
+  const toggleWide = () => setPanelW(wide ? PANEL_DEFAULT : Math.min(920, panelMax()));
   const q = useQuery({ queryKey: ["run", id], queryFn: () => getRun(id), refetchInterval: (s) => (s.state.data && ["queued", "running"].includes(s.state.data.status) ? (connected ? 15000 : 3000) : false) });
   const active = q.data ? ["queued", "running"].includes(q.data.status) : false;
   // SSE: nhận tiến trình từng bước; khi xong/lỗi thì tải lại chi tiết.
@@ -75,6 +83,7 @@ export function ReviewDetailPage() {
   const openFile = (path: string) => { setFocus({ id: Date.now(), path }); setTab("changes"); };
   const openLog = (stage: string) => { setOpenStage(stage); setTab("log"); };
   const openFindings = r.findings.filter((f) => f.feedback !== "fixed" && f.feedback !== "disagree").length;
+  const TAB_TIPS: Record<TabId, string> = {"overview": "Mục đích MR, sơ đồ luồng/kiến trúc do AI vẽ, điểm và kết luận", "progress": "Từng bước của pipeline review, thời gian và log gần nhất", "changes": "Diff đầy đủ theo file, kèm góp ý của AI ngay trên dòng code", "findings": "Danh sách góp ý của AI; số trong ô là góp ý chưa xử lý", "log": "Nhật ký chi tiết từng bước, thời gian và chi phí", "context": "Những gì AI đã nhận: bộ nhớ repo, ghi chú MR, kết quả vòng trước"};
   const tabs: { id: TabId; label: string; count?: number | string; tone?: "live" | "warn" }[] = [
     { id: "overview", label: "Tổng quan" },
     { id: "progress", label: "Tiến trình", count: active ? "LIVE" : undefined, tone: "live" },
@@ -105,15 +114,16 @@ export function ReviewDetailPage() {
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <section aria-label="Trò chuyện với trợ lý" className="min-h-[520px] min-w-0 flex-1 lg:min-h-0"><AgentChat dock mrId={r.mr.id} active={active} connected={connected} incoming={ask} /></section>
 
-        <aside aria-label="Kết quả review" className={cn("flex min-h-[520px] min-w-0 flex-col border-t bg-muted/20 lg:min-h-0 lg:flex-none lg:border-l lg:border-t-0", wide ? "lg:w-[min(920px,62vw)]" : "lg:w-[560px]")}>
+        <aside aria-label="Kết quả review" style={{ "--pw": `${Math.min(panelW, panelMax())}px` } as CSSProperties} className="relative flex min-h-[520px] min-w-0 flex-col border-t bg-muted/20 lg:min-h-0 lg:w-[var(--pw)] lg:flex-none lg:border-l lg:border-t-0">
+          <ResizeHandle edge="left" label="Đổi độ rộng khung kết quả" value={panelW} min={PANEL_MIN} max={panelMax} onChange={setPanelW} onReset={() => setPanelW(PANEL_DEFAULT)} className="absolute inset-y-0 -left-1 hidden lg:flex" />
           <PanelStatus r={r} entries={entries} onRetry={() => re.mutate({ mrId: r.mr.id })} retrying={re.isPending} retried={re.isSuccess} wide={wide} onToggleWide={toggleWide} />
           <div role="tablist" aria-label="Nội dung review" className="flex flex-none overflow-x-auto border-b bg-card px-2">
             {tabs.map((t) => (
-              <button key={t.id} type="button" role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} onClick={() => setTab(t.id)}
+              <Tip key={t.id} text={TAB_TIPS[t.id]} side="bottom"><button type="button" role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} onClick={() => setTab(t.id)}
                 className={cn("-mb-px inline-flex h-10 flex-none items-center gap-2 whitespace-nowrap border-b-2 px-3 text-[13.5px] outline-none focus-visible:ring-2 focus-visible:ring-ring", tab === t.id ? "border-primary font-semibold text-foreground" : "border-transparent font-medium text-muted-foreground hover:text-foreground")}>
                 {t.label}
                 {t.count != null && <span className={cn("rounded-full px-1.5 text-[11.5px] font-semibold tabular-nums", t.tone === "live" ? "bg-info-bg text-info-fg" : t.tone === "warn" ? "bg-warning-bg text-warning-fg" : "bg-muted text-muted-foreground")}>{t.count}</span>}
-              </button>
+              </button></Tip>
             ))}
           </div>
           <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">

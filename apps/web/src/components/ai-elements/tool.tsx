@@ -1,6 +1,5 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import {
   Collapsible,
   CollapsibleContent,
@@ -24,13 +23,15 @@ export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
   <Collapsible
-    className={cn("not-prose mb-4 w-full rounded-md border", className)}
+    className={cn("not-prose group mb-1 w-full rounded-md border bg-card/50", className)}
     {...props}
   />
 );
 
 export type ToolHeaderProps = {
   title?: string;
+  /** Tóm tắt tham số (vd đường dẫn file, mẫu tìm kiếm), hiện mờ cạnh tên. */
+  hint?: string;
   type: ToolUIPart["type"];
   state: ToolUIPart["state"];
   className?: string;
@@ -38,13 +39,13 @@ export type ToolHeaderProps = {
 
 const getStatusBadge = (status: ToolUIPart["state"]) => {
   const labels: Record<ToolUIPart["state"], string> = {
-    "input-streaming": "Pending",
-    "input-available": "Running",
-    "approval-requested": "Awaiting Approval",
-    "approval-responded": "Responded",
-    "output-available": "Completed",
-    "output-error": "Error",
-    "output-denied": "Denied",
+    "input-streaming": "Đang chờ",
+    "input-available": "Đang chạy",
+    "approval-requested": "Chờ duyệt",
+    "approval-responded": "Đã phản hồi",
+    "output-available": "Hoàn tất",
+    "output-error": "Lỗi",
+    "output-denied": "Bị từ chối",
   };
 
   const icons: Record<ToolUIPart["state"], ReactNode> = {
@@ -57,36 +58,38 @@ const getStatusBadge = (status: ToolUIPart["state"]) => {
     "output-denied": <XCircleIcon className="size-4 text-orange-600" />,
   };
 
+  // Chỉ hiện biểu tượng (gọn); nhãn chữ nằm ở title/aria-label.
   return (
-    <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
+    <span className="inline-flex flex-none items-center [&_svg]:size-3.5" role="img" aria-label={labels[status]} title={labels[status]}>
       {icons[status]}
-      {labels[status]}
-    </Badge>
+    </span>
   );
 };
 
 export const ToolHeader = ({
   className,
   title,
+  hint,
   type,
   state,
   ...props
 }: ToolHeaderProps) => (
   <CollapsibleTrigger
     className={cn(
-      "flex w-full items-center justify-between gap-4 p-3",
+      "flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left",
       className
     )}
     {...props}
   >
-    <div className="flex items-center gap-2">
-      <WrenchIcon className="size-4 text-muted-foreground" />
-      <span className="font-medium text-sm">
+    <div className="flex min-w-0 items-center gap-2">
+      <WrenchIcon className="size-3.5 flex-none text-muted-foreground" />
+      <span className="flex-none font-medium text-[13px]">
         {title ?? type.split("-").slice(1).join("-")}
       </span>
+      {hint && <span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground" title={hint}>{hint}</span>}
       {getStatusBadge(state)}
     </div>
-    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+    <ChevronDownIcon className="size-3.5 flex-none text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
   </CollapsibleTrigger>
 );
 
@@ -107,9 +110,9 @@ export type ToolInputProps = ComponentProps<"div"> & {
 };
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
-    <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-      Parameters
+  <div className={cn("space-y-1.5 overflow-hidden border-t p-2.5", className)} {...props}>
+    <h4 className="font-medium text-muted-foreground text-[11px] uppercase tracking-wide">
+      Tham số
     </h4>
     <div className="rounded-md bg-muted/50">
       <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
@@ -143,9 +146,9 @@ export const ToolOutput = ({
   }
 
   return (
-    <div className={cn("space-y-2 p-4", className)} {...props}>
-      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-        {errorText ? "Error" : "Result"}
+    <div className={cn("space-y-1.5 border-t p-2.5", className)} {...props}>
+      <h4 className="font-medium text-muted-foreground text-[11px] uppercase tracking-wide">
+        {errorText ? "Lỗi" : "Kết quả"}
       </h4>
       <div
         className={cn(

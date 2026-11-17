@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fmtDur, fmtMs } from "../../kernel/format.js";
 import { STAGES, stageLabel } from "../../kernel/stages.js";
+import { Tip } from "../../kernel/tip.js";
 import { clock, since, stageState, useTick } from "./strip.js";
 
 /** Dải trạng thái luôn hiện ở đầu panel: đang làm gì, ở bước mấy, bao lâu, tốn bao nhiêu; lỗi thì có nút thử lại. */
@@ -23,11 +24,11 @@ export function PanelStatus({ r, entries, onRetry, retrying, retried, wide, onTo
   return (
     <div className="border-b bg-card px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <Badge variant={variant}>{live && <Loader2 className="size-3 animate-spin" aria-hidden="true" />}{label}</Badge>
-        <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground tabular-nums">
+        <Tip text={`Trạng thái lần review này. Pipeline có ${STAGES.length} bước; mở tab Tiến trình để xem từng bước.`}><span><Badge variant={variant}>{live && <Loader2 className="size-3 animate-spin" aria-hidden="true" />}{label}</Badge></span></Tip>
+        <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground tabular-nums" title="Thời gian · chi phí · model của lần review này">
           {r.status === "succeeded" ? `${fmtDur(r.durationMs)}${r.costUsd != null ? ` · $${r.costUsd.toFixed(2)}` : ""}${r.model ? ` · ${r.model}` : ""}` : live ? `${stageLabel(r.stage)} · ${clock(elapsed ?? 0)}${last ? ` · ${last.message.slice(0, 48)}` : ""}` : (r.error ?? "").slice(0, 80)}
         </span>
-        <Button size="sm" variant="ghost" onClick={onToggleWide} aria-pressed={wide} aria-label={wide ? "Thu nhỏ panel" : "Mở rộng panel"}>{wide ? "Thu nhỏ" : "Mở rộng"}</Button>
+        <Tip text="Mở rộng hoặc thu nhỏ khung kết quả. Cũng có thể kéo thanh ở mép trái khung để chỉnh tuỳ ý."><Button size="sm" variant="ghost" onClick={onToggleWide} aria-pressed={wide} aria-label={wide ? "Thu nhỏ panel" : "Mở rộng panel"}>{wide ? "Thu nhỏ" : "Mở rộng"}</Button></Tip>
       </div>
       <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true"><div className={cn("h-full transition-all", r.status === "failed" ? "bg-danger" : r.status === "succeeded" ? "bg-success" : "bg-primary")} style={{ width: `${pct}%` }} /></div>
       {r.status === "failed" && (

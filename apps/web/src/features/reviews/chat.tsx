@@ -1,13 +1,14 @@
 import type { ActionDto, ChatImageDto, ChatStepDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Minus, MessageSquare, Sparkles, X } from "lucide-react";
+import { ChevronDown, FileText, Minus, MessageSquare, Sparkles, Wrench, X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
-import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputHeader, PromptInputSubmit, PromptInputTextarea, PromptInputTools, usePromptInputAttachments, usePromptInputController, PromptInputProvider } from "@/components/ai-elements/prompt-input";
+import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputHeader, PromptInputSubmit, PromptInputTextarea, usePromptInputAttachments, usePromptInputController, PromptInputProvider } from "@/components/ai-elements/prompt-input";
 import { ErrorBox } from "../../kernel/page.js";
 import { Confirmation, ConfirmationAccepted, ConfirmationAction, ConfirmationActions, ConfirmationRequest, ConfirmationTitle } from "@/components/ai-elements/confirmation";
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning";
@@ -21,26 +22,63 @@ const TOOL_LABEL: Record<string, string> = { Read: "Đọc file", Grep: "Tìm tr
 const TEXT_EXT = /\.(txt|md|log|json|diff|patch|ya?ml|toml|csv|tsx?|jsx?|py|go|rs|java|kt|rb|php|sh|sql|html|css|xml)$/i;
 const MAX_TEXT = 24_000;
 
+/** Tóm tắt tham số của một lệnh gọi tool thành một chuỗi ngắn (đường dẫn, mẫu tìm kiếm, id…). */
+function hintOf(input: Record<string, unknown>): string {
+  const v = input.file_path ?? input.path ?? input.pattern ?? input.query ?? input.command ?? input.id ?? Object.values(input).find((x) => typeof x === "string");
+  return typeof v === "string" ? v.replace(/^\/(?:private\/)?(?:var|tmp)\/[^ ]*?\/(?=[^/]+\/)/, "").slice(0, 120) : "";
+}
+
+type ToolStep = Extract<ChatStepDto, { kind: "tool" }>;
+function ToolRow({ st }: { st: ToolStep }) {
+  return (
+    <Tool>
+      <ToolHeader type={`tool-${st.name}`} title={TOOL_LABEL[st.name] ?? st.name} hint={hintOf(st.input)} state={st.error ? "output-error" : st.output !== undefined ? "output-available" : "input-available"} />
+      <ToolContent>
+        <ToolInput input={st.input} />
+        <ToolOutput output={st.output && !st.error ? st.output.slice(0, 1500) : undefined} errorText={st.error ? st.output : undefined} />
+      </ToolContent>
+    </Tool>
+  );
+}
+
+/** Nhiều lệnh tool liên tiếp gộp thành một dòng tóm tắt gập được ("Đã dùng 5 công cụ: Đọc file ×3, …"); 1–2 lệnh thì hiện thẳng. */
+function ToolGroup({ tools, live }: { tools: ToolStep[]; live?: boolean }) {
+  if (tools.length <= 2) return <>{tools.map((t) => <ToolRow key={t.id} st={t} />)}</>;
+  const counts = new Map<string, number>();
+  for (const t of tools) counts.set(TOOL_LABEL[t.name] ?? t.name, (counts.get(TOOL_LABEL[t.name] ?? t.name) ?? 0) + 1);
+  const failed = tools.filter((t) => t.error).length;
+  return (
+    <Collapsible defaultOpen={false} className="not-prose group mb-1 w-full rounded-md border bg-card/50">
+      <CollapsibleTrigger className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px]">
+        <Wrench className="size-3.5 flex-none text-muted-foreground" aria-hidden="true" />
+        <span className="font-medium">{live ? "Đang dùng" : "Đã dùng"} {tools.length} công cụ</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">{[...counts].map(([k, n]) => (n > 1 ? `${k} ×${n}` : k)).join(" · ")}</span>
+        {failed > 0 && <span className="flex-none text-[12px] text-danger-fg">{failed} lỗi</span>}
+        <ChevronDown className="size-3.5 flex-none text-muted-foreground transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
+      </CollapsibleTrigger>
+      <CollapsibleContent><div className="flex flex-col gap-1 border-t p-1.5">{tools.map((t) => <ToolRow key={t.id} st={t} />)}</div></CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 function Steps({ steps, live }: { steps: ChatStepDto[]; live?: boolean }) {
   if (!steps.length) return null;
+  // Gộp các tool liên tiếp thành nhóm; suy luận đứng riêng.
+  const blocks: ({ kind: "thinking"; text: string; idx: number } | { kind: "tools"; tools: ToolStep[] })[] = [];
+  steps.forEach((st, i) => {
+    if (st.kind === "thinking") blocks.push({ kind: "thinking", text: st.text, idx: i });
+    else { const last = blocks[blocks.length - 1]; if (last?.kind === "tools") last.tools.push(st); else blocks.push({ kind: "tools", tools: [st] }); }
+  });
   return (
     <div className="flex w-full flex-col gap-1">
-      {steps.map((st, i) => st.kind === "thinking"
+      {blocks.map((b, i) => b.kind === "thinking"
         ? (
-          <Reasoning key={i} isStreaming={Boolean(live) && i === steps.length - 1} defaultOpen={false}>
+          <Reasoning key={`t${b.idx}`} isStreaming={Boolean(live) && b.idx === steps.length - 1} defaultOpen={false}>
             <ReasoningTrigger getThinkingMessage={(streaming) => (streaming ? <Shimmer duration={1}>Đang suy luận…</Shimmer> : <span>Đã suy luận</span>)} />
-            <ReasoningContent>{st.text}</ReasoningContent>
+            <ReasoningContent>{b.text}</ReasoningContent>
           </Reasoning>
         )
-        : (
-          <Tool key={st.id} className="mb-1">
-            <ToolHeader type={`tool-${st.name}`} title={TOOL_LABEL[st.name] ?? st.name} state={st.error ? "output-error" : st.output !== undefined ? "output-available" : "input-available"} />
-            <ToolContent>
-              <ToolInput input={st.input} />
-              <ToolOutput output={st.output && !st.error ? st.output.slice(0, 1500) : undefined} errorText={st.error ? st.output : undefined} />
-            </ToolContent>
-          </Tool>
-        ))}
+        : <ToolGroup key={`g${i}`} tools={b.tools} live={Boolean(live) && i === blocks.length - 1} />)}
     </div>
   );
 }
@@ -91,7 +129,7 @@ function QuickPrompts({ disabled, onSend }: { disabled: boolean; onSend: (t: str
   const ctl = usePromptInputController();
   return (
     <Suggestions>
-      {SUGGEST.map((s) => <Suggestion key={s} suggestion={s} disabled={disabled} onClick={(t) => (t.endsWith(": ") ? ctl.textInput.setInput(t) : onSend(t))} />)}
+      {SUGGEST.map((s) => <Suggestion key={s} suggestion={s} disabled={disabled} className="h-7 rounded-full px-2.5 text-xs" onClick={(t) => (t.endsWith(": ") ? ctl.textInput.setInput(t) : onSend(t))} />)}
     </Suggestions>
   );
 }
@@ -110,13 +148,15 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
   const mode: Mode = dock ? "open" : modeRaw;
   const setMode = (m: Mode) => { setModeState(m); try { localStorage.setItem("mrd.chat.mode", m); } catch { /* không lưu được thì thôi */ } };
   const [pending, setPending] = useState<string | null>(null);
+  // Số tin đã có lúc bấm gửi: khi server lưu tin của bạn (số tin tăng) thì bỏ tin tạm để không hiện trùng.
+  const baseline = useRef(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const q = useQuery({ queryKey: ["chat", mrId], queryFn: () => getChat(mrId), refetchInterval: busy ? 1200 : false });
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["chat", mrId] }); void qc.invalidateQueries({ queryKey: ["runs"] }); };
   const send = useMutation({
     mutationFn: (a: { t: string; imgs: ChatImageDto[] }) => sendChat(mrId, a.t, a.imgs),
-    onMutate: (a) => { setBusy(true); setPending(a.imgs.length ? `${a.t}\n📎 ${a.imgs.length} ảnh đính kèm` : a.t); },
+    onMutate: (a) => { baseline.current = q.data?.messages.length ?? 0; setBusy(true); setPending(a.imgs.length ? `${a.t}\n📎 ${a.imgs.length} ảnh đính kèm` : a.t); },
     onSettled: () => { setBusy(false); setPending(null); refresh(); },
   });
   const msgs = q.data?.messages ?? [];
@@ -179,7 +219,7 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
                 </MessageContent>
               </Message>
             ))}
-          {pending && <Message from="user"><MessageContent><span className="whitespace-pre-wrap">{pending}</span></MessageContent></Message>}
+          {pending && msgs.length <= baseline.current && <Message from="user"><MessageContent><span className="whitespace-pre-wrap">{pending}</span></MessageContent></Message>}
           {busy && <Message from="assistant"><MessageContent><Steps steps={liveSteps} live /><Shimmer duration={1.2}>Agent đang làm việc…</Shimmer></MessageContent></Message>}
           {actions.map((a) => <ActionCard key={a.id} a={a} onDone={refresh} />)}
         </ConversationContent>
@@ -187,7 +227,7 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
       </Conversation>
       {send.error && <div className="px-3"><ErrorBox error={send.error} /></div>}
       {notice && <p role="alert" className="px-3 text-[13px] text-danger-fg">{notice}</p>}
-      <div className="flex flex-col gap-2 border-t p-3">
+      <div className="flex flex-col gap-1.5 border-t px-3 py-2">
         <PromptInputProvider>
           <QuickPrompts disabled={send.isPending} onSend={(t) => submit(t)} />
           <PromptInput
@@ -206,11 +246,10 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
               submit(text, imgs);
             }}
           >
-            <PromptInputHeader><Attachments /></PromptInputHeader>
-            <PromptInputBody><PromptInputTextarea placeholder="Hỏi, nhờ đọc code, soạn comment… (dán ảnh bằng Cmd/Ctrl+V)" /></PromptInputBody>
-            <PromptInputFooter>
-              <PromptInputTools />
-              <PromptInputSubmit status={send.isPending ? "submitted" : undefined} />
+            <PromptInputHeader className="empty:hidden"><Attachments /></PromptInputHeader>
+            <PromptInputBody><PromptInputTextarea rows={1} className="min-h-10 max-h-40 py-2.5 pr-12 text-sm" placeholder="Hỏi hoặc nhờ agent…" title="Dán ảnh bằng Cmd/Ctrl+V" /></PromptInputBody>
+            <PromptInputFooter className="absolute bottom-1 right-1 w-auto p-0">
+              <PromptInputSubmit className="size-8" status={send.isPending ? "submitted" : undefined} />
             </PromptInputFooter>
           </PromptInput>
         </PromptInputProvider>

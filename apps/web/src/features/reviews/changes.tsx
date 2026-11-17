@@ -1,7 +1,9 @@
 import type { FileReviewDto, FindingDto, MrFileDiffDto } from "@mrd/contracts";
+import { ResizeHandle, usePersistedNumber } from "../../kernel/resize.js";
+import { Tip } from "../../kernel/tip.js";
 import { useQuery } from "@tanstack/react-query";
 import { Bot, ChevronDown, ChevronRight, FileCode2, Folder, Search, TriangleAlert } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, SeverityBadge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -120,8 +122,8 @@ function FileCard({ item, findings, open, onToggle, id, viewed, onViewed }: { it
       <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")} aria-hidden="true" />
         <span className="min-w-0 flex-1 break-all font-mono text-[13px]"><span className="text-muted-foreground">{dir}</span><b className="font-semibold">{name}</b></span>
-        {!item.reviewed && <Badge variant="warning">AI chưa xem (bị bỏ qua)</Badge>}
-        {item.reviewed && findings.length === 0 && <Badge variant="success">AI: sạch</Badge>}
+        {!item.reviewed && <Tip text="File này vượt ngân sách diff nên không được gửi cho AI; điểm không phản ánh nó. Tăng ngân sách ở Cài đặt → Review hoặc chia nhỏ MR."><span><Badge variant="warning">AI chưa xem (bị bỏ qua)</Badge></span></Tip>}
+        {item.reviewed && findings.length === 0 && <Tip text="AI đã xem file này và không có góp ý nào"><span><Badge variant="success">AI: sạch</Badge></span></Tip>}
         {findings.length > 0 && <span className="inline-flex items-center gap-1">{[...findings].sort((a, b) => (SEV_RANK[a.severity] ?? 9) - (SEV_RANK[b.severity] ?? 9)).slice(0, 4).map((f) => <SeverityBadge key={f.id} severity={f.severity} />)}{findings.length > 4 && <span className="text-xs text-muted-foreground">+{findings.length - 4}</span>}</span>}
         {item.binary ? <span className="text-xs text-muted-foreground">binary</span> : <span className="font-mono text-xs tabular-nums"><span className="text-success-fg">+{item.additions}</span> <span className="text-danger-fg">−{item.deletions}</span></span>}
       </button>
@@ -162,12 +164,12 @@ function TreeNode({ n, depth, onPick, active, counts, viewed, onViewed }: { n: N
     const worst = fs?.reduce((w, f) => ((SEV_RANK[f.severity] ?? 9) < (SEV_RANK[w] ?? 9) ? f.severity : w), "nit");
     return (
       <div style={pad} className={cn("flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-[13px] hover:bg-muted", active === n.file.path && "bg-muted font-medium", (!n.file.reviewed || viewed.has(n.file.path)) && "text-muted-foreground")}>
-        <input type="checkbox" checked={viewed.has(n.file.path)} onChange={() => onViewed(n.file!.path)} aria-label={`Đã xem ${n.file.path}`} className="size-3.5 shrink-0 accent-[var(--primary)]" />
+        <Tip text="Đánh dấu đã xem (chỉ lưu trên máy này)" side="left"><input type="checkbox" checked={viewed.has(n.file.path)} onChange={() => onViewed(n.file!.path)} aria-label={`Đã xem ${n.file.path}`} className="size-3.5 shrink-0 accent-[var(--primary)]" /></Tip>
       <button type="button" onClick={() => onPick(n.file!.path)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <FileCode2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate" title={n.file.path}>{n.name}</span>
-        {!n.file.reviewed && <TriangleAlert className="size-3.5 shrink-0 text-warning-fg" aria-label="Bị bỏ qua" />}
-        {fs && worst && <span className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-muted-foreground"><span className={cn("size-2 rounded-full", SEV_DOT[worst])} />{fs.length}</span>}
+        <Tip text={n.file.path} side="right"><span className="min-w-0 flex-1 truncate">{n.name}</span></Tip>
+        {!n.file.reviewed && <Tip text="Bị bỏ qua: AI không xem file này (vượt ngân sách diff)"><TriangleAlert className="size-3.5 shrink-0 text-warning-fg" aria-label="Bị bỏ qua" /></Tip>}
+        {fs && worst && <Tip text={`${fs.length} góp ý của AI, nặng nhất: ${worst}`}><span className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-muted-foreground"><span className={cn("size-2 rounded-full", SEV_DOT[worst])} />{fs.length}</span></Tip>}
         <span className="shrink-0 font-mono text-[11px] tabular-nums"><span className="text-success-fg">+{n.file.additions}</span> <span className="text-danger-fg">−{n.file.deletions}</span></span>
       </button>
       </div>
@@ -177,7 +179,7 @@ function TreeNode({ n, depth, onPick, active, counts, viewed, onViewed }: { n: N
     <div>
       <button type="button" style={pad} onClick={() => setOpen(!open)} className="flex w-full items-center gap-1.5 rounded-md py-1 pr-2 text-left text-[13px] hover:bg-muted">
         {open ? <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /> : <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />}
-        <Folder className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /><span className="min-w-0 truncate" title={n.name}>{n.name}</span>
+        <Folder className="size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" /><Tip text={n.path} side="right"><span className="min-w-0 truncate">{n.name}</span></Tip>
       </button>
       {open && n.children.map((c) => <TreeNode key={c.name + c.path} n={c} depth={depth + 1} onPick={onPick} active={active} counts={counts} viewed={viewed} onViewed={onViewed} />)}
     </div>
@@ -192,6 +194,21 @@ export function FileChanges({ mrId, files, findings, focus = null }: { mrId: str
   const [search, setSearch] = useState("");
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const [active, setActive] = useState<string | null>(null);
+  // Khung đủ rộng (đo theo chính nó, không theo cả cửa sổ) thì chia đôi cây file | diff, kéo được; hẹp thì cây nằm trên, cuộn riêng.
+  const box = useRef<HTMLElement | null>(null);
+  const [boxW, setBoxW] = useState(0);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => setBoxW(e?.contentRect.width ?? 0));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const split = boxW >= 640;
+  const TREE_DEFAULT = 300;
+  const [treeW, setTreeW] = usePersistedNumber("mrd.tree.w", TREE_DEFAULT);
+  const treeMax = () => Math.max(200, Math.min(720, boxW - 320));
+  const tw = Math.min(treeW, treeMax());
 
   const byFile = useMemo(() => {
     const m = new Map<string, FindingDto[]>();
@@ -240,7 +257,7 @@ export function FileChanges({ mrId, files, findings, focus = null }: { mrId: str
   };
 
   return (
-    <section aria-label="Thay đổi của MR" className="flex flex-col gap-3">
+    <section ref={box} aria-label="Thay đổi của MR" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h2 className="text-base font-semibold">Changes <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs font-normal tabular-nums">{items.length}</span></h2>
         <span className="font-mono text-xs tabular-nums"><span className="text-success-fg">+{total.a}</span> <span className="text-danger-fg">−{total.d}</span></span>
@@ -249,17 +266,18 @@ export function FileChanges({ mrId, files, findings, focus = null }: { mrId: str
           {([["all", `Tất cả ${items.length}`], ["unviewed", `Chưa xem ${items.length - viewedCount}`], ["issues", `Có vấn đề ${items.filter((f) => byFile.has(f.path) || !f.reviewed).length}`]] as const).map(([k, l]) => (
             <button key={k} type="button" aria-pressed={filter === k} onClick={() => setFilter(k)} className={cn("h-7 rounded-full border px-3 text-[12.5px] font-medium", filter === k ? "border-primary bg-info-bg text-info-fg" : "text-muted-foreground hover:text-foreground")}>{l}</button>
           ))}
-          <button type="button" onClick={nextUnviewed} className="h-7 rounded-md border px-3 text-[12.5px] font-medium hover:bg-muted">Chưa xem tiếp →</button>
+          <Tip text="Nhảy tới file kế tiếp chưa đánh dấu “đã xem”"><button type="button" onClick={nextUnviewed} className="h-7 rounded-md border px-3 text-[12.5px] font-medium hover:bg-muted">Chưa xem tiếp →</button></Tip>
         </div>
       </div>
       {skipped > 0 && <p className="text-xs text-muted-foreground">File bị bỏ qua (vượt ngân sách diff) không được AI xem trong diff; điểm không phản ánh chúng.</p>}
       {diff.isLoading && <p className="text-xs text-muted-foreground">Đang tải nội dung diff…</p>}
       {diff.error && <p role="alert" className="text-xs text-warning-fg">Không tải được nội dung diff từ nền tảng ({String((diff.error as Error).message).slice(0, 160)}). Vẫn hiện danh sách file.</p>}
-      <div className="grid items-start gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <Card className="gap-0 overflow-hidden py-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
+      <div className={split ? "grid items-start" : "flex flex-col gap-3"} style={split ? { gridTemplateColumns: `${tw}px 12px minmax(0,1fr)` } : undefined}>
+        <Card className={cn("flex min-h-0 flex-col gap-0 overflow-hidden py-0", split ? "sticky top-0 max-h-[calc(100vh-17rem)]" : "max-h-[45vh]")}>
           <div className="relative border-b p-2"><Search className="absolute left-4 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><input aria-label="Tìm file" placeholder="Tìm file (vd *.tsx)" value={search} onChange={(e) => setSearch(e.target.value)} className="h-8 w-full rounded-md border bg-background pl-7 pr-2 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring" /></div>
-          <div className="min-h-0 overflow-y-auto p-1.5">{tree.length ? tree.map((n) => <TreeNode key={n.name + n.path} n={n} depth={0} onPick={pick} active={active} counts={byFile} viewed={viewed} onViewed={toggleViewed} />) : <p className="p-3 text-xs text-muted-foreground">Không có file khớp.</p>}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">{tree.length ? tree.map((n) => <TreeNode key={n.name + n.path} n={n} depth={0} onPick={pick} active={active} counts={byFile} viewed={viewed} onViewed={toggleViewed} />) : <p className="p-3 text-xs text-muted-foreground">Không có file khớp.</p>}</div>
         </Card>
+        {split && <ResizeHandle edge="right" label="Đổi độ rộng cây file" value={tw} min={200} max={treeMax} onChange={setTreeW} onReset={() => setTreeW(TREE_DEFAULT)} className="mx-auto h-[calc(100vh-17rem)] self-start" />}
         <div className="flex min-w-0 flex-col gap-3">
           {visible.map((f) => <FileCard key={f.path} id={`file-${encodeURIComponent(f.path)}`} item={f} findings={byFile.get(f.path) ?? []} open={isOpen(f)} onToggle={() => setToggled((t) => ({ ...t, [f.path]: !isOpen(f) }))} viewed={viewed.has(f.path)} onViewed={() => toggleViewed(f.path)} />)}
           {visible.length === 0 && <Card><p className="px-6 py-10 text-center text-sm text-muted-foreground">Không có file nào khớp bộ lọc.</p></Card>}
