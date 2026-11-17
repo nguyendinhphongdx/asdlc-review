@@ -1,3 +1,4 @@
+import type { OverviewBlock } from "@mrd/contracts";
 import type { Clock } from "../../kernel/clock.js";
 import { systemClock } from "../../kernel/clock.js";
 import type { Db } from "../../kernel/db.js";
@@ -39,6 +40,10 @@ export interface ReviewsApi {
   failStale(opts: { olderThanMs: number; statuses: ("running" | "queued")[]; reason: string }): Promise<number>;
   latestSucceeded(mrId: string): Promise<RunDetail | null>;
   getRun(id: string): Promise<RunDetail>;
+  /** Thêm một khối sơ đồ vào tổng quan của lần review hoàn tất gần nhất của MR (do agent chat tạo theo yêu cầu). Trả null nếu MR chưa có review. */
+  appendBlock(mrId: string, block: OverviewBlock): Promise<{ runId: string; total: number } | null>;
+  /** Ghi link comment tổng hợp sau khi người dùng đăng tay. */
+  setCommentUrl(runId: string, url: string | null): Promise<void>;
   listRuns(filter: RunFilter): Promise<{ items: RunListItem[]; total: number }>;
   setFindingFeedback(findingId: string, feedback: "agree" | "disagree" | "fixed" | null): Promise<void>;
 
@@ -101,6 +106,13 @@ export function createReviewsModule(deps: ReviewsDeps): ReviewsApi {
       if (!r) throw new ModuleError("reviews", "not_found", `Không có lần review ${id}`);
       return r;
     },
+    async appendBlock(mrId, block) {
+      const run = await repo.latestSucceeded(mrId);
+      if (!run) return null;
+      const all = await repo.appendBlock(run.id, block);
+      return { runId: run.id, total: all.length };
+    },
+    setCommentUrl: (id, url) => repo.setCommentUrl(id, url),
     listRuns: (f) => repo.listRuns(f),
     setFindingFeedback: (id, fb) => repo.setFeedback(id, fb),
     usageRows: (r) => repo.usageRows(r.from, r.to),

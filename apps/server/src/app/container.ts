@@ -25,6 +25,7 @@ import { resolveMasterKey } from "./secret-key.js";
 import { memberDirectoryAdapter, paramsAdapter, runFactsAdapter, usageAdapter } from "./adapters/analytics.js";
 import type { AppSettings, Modules } from "./modules.js";
 import { createAgentChat } from "./workflows/agent-chat.js";
+import { createReviewActions } from "./workflows/review-actions.js";
 import { createAgentActions } from "./workflows/agent-actions.js";
 import { createAgentTools } from "./agent-tools.js";
 import { createFrameworkTools } from "./framework-tools.js";
@@ -108,6 +109,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     chatCommand: createChatCommand(modules, requestReview, { publicUrl: config.PUBLIC_URL }),
     registerRepo: createRegisterRepo(modules),
     agentChat: createAgentChat(modules, requestReview, log.child("agent"), agentTools, `http://127.0.0.1:${config.PORT}`, chatLive),
+    reviewActions: createReviewActions(modules, log.child("review")),
     agentActions: createAgentActions(modules, requestReview, log.child("agent")),
     frameworkChat: createFrameworkChat(modules, log.child("fw-chat"), frameworkTools, `http://127.0.0.1:${config.PORT}`, chatLive),
   };

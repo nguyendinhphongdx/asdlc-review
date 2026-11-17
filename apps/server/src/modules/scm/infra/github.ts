@@ -79,6 +79,10 @@ export class GitHubClient implements PlatformClient {
     await this.api("POST", `/repos/${mr.projectPath}/issues/${mr.iid}/comments`, { body });
   }
 
+  async mergeMergeRequest(mr: MrInfo) {
+    await this.api("PUT", `/repos/${mr.projectPath}/pulls/${mr.iid}/merge`, { sha: mr.headSha });
+  }
+
   gitAuth(): GitAuth {
     if (!this.token) return { secrets: [] };
     const b64 = Buffer.from(`x-access-token:${this.token}`).toString("base64");

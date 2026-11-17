@@ -92,6 +92,7 @@ export interface RunResult {
   tokens?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number } | null;
   model?: string | null;
   commentUrl?: string | null;
+  commentDraft?: string | null;
   stageTimings?: Record<string, number>;
   omittedFiles?: string[];
   frameworkId?: string | null;
@@ -152,6 +153,7 @@ export interface RunDetail extends RunSummary {
   harnessFiles: string[];
   commits: number;
   commentUrl: string | null;
+  commentDraft: string | null;
   stageTimings: Record<string, number>;
   omittedFiles: string[];
   harnessReport: HarnessReportDto | null;

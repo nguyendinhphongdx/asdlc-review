@@ -29,6 +29,8 @@ export interface ScmApi {
   /** Trả false nếu dòng không nằm trong diff (caller gộp vào comment tổng). */
   postInline(mr: MrInfo, comment: InlineComment): Promise<boolean>;
   reply(mr: MrInfo, body: string): Promise<void>;
+  /** Merge MR (hành động không hoàn tác; caller phải có xác nhận của người dùng). Lỗi nền tảng (xung đột, pipeline, quyền) được ném ra nguyên văn. */
+  mergeMergeRequest(mr: MrInfo): Promise<void>;
   /** Diff từng file của MR (hiển thị như trang Changes của GitLab). */
   getDiffs(platform: Platform, projectPath: string, iid: number): Promise<FileDiff[]>;
   gitAuth(platform: Platform): GitAuth;
@@ -103,6 +105,7 @@ export function createScmModule(deps: ScmDeps): ScmApi {
     upsertSummaryNote: (mr, body, marker) => client(mr.platform).upsertSummaryNote(mr, body, marker),
     postInline: (mr, c) => client(mr.platform).postInline(mr, c),
     reply: (mr, body) => client(mr.platform).reply(mr, body),
+    mergeMergeRequest: (mr) => client(mr.platform).mergeMergeRequest(mr),
     getDiffs: (platform, projectPath, iid) => client(platform).getDiffs(projectPath, iid),
     gitAuth: (p) => client(p).gitAuth(),
     webhookConfigured: (p) => Boolean(p === "gitlab" ? gl().webhookSecret : gh().webhookSecret),

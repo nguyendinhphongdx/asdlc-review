@@ -198,13 +198,13 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         });
       }
 
-      if (!publishComments) emit("publish", "info", "Không đăng comment lên MR (đã tắt ở repo hoặc framework), chỉ lưu kết quả");
+      if (!publishComments) emit("publish", "info", "Không tự đăng comment lên MR (đã tắt ở repo hoặc framework); sửa bản nháp bên dưới rồi bấm Đăng nếu muốn");
       emit("publish", "done", "Hoàn tất review");
       await m.reviews.completeRun(runId, {
         activity: hub?.backlog(runId),
         score: score.total, rawScore: score.rawTotal, grade: score.grade, verdict: score.verdict, gates: score.gates,
         summary, intent: ai.review.intent, strengths: ai.review.strengths, harnessFiles: report.harnessFiles, ...stats,
-        blocks: ai.blocks, mrKind, durationMs: Date.now() - started, costUsd: ai.usage.costUsd, tokens: ai.usage.tokens ?? null, model: ai.usage.model, commentUrl, stageTimings: timings, omittedFiles: ws.omittedFiles, ruleChecks, harnessLoad, overview, mrDescription, aiContext, files: fileList, harnessReport, frameworkId: fw.rubric.id, frameworkVersion: fw.rubric.version,
+        blocks: ai.blocks, mrKind, durationMs: Date.now() - started, costUsd: ai.usage.costUsd, tokens: ai.usage.tokens ?? null, model: ai.usage.model, commentUrl, commentDraft: m.publisher.renderSummary(report).replace(m.publisher.summaryMarker, "").trim(), stageTimings: timings, omittedFiles: ws.omittedFiles, ruleChecks, harnessLoad, overview, mrDescription, aiContext, files: fileList, harnessReport, frameworkId: fw.rubric.id, frameworkVersion: fw.rubric.version,
         findings: scored.map((f) => ({ ...f })),
         categoryScores: score.categories,
       });

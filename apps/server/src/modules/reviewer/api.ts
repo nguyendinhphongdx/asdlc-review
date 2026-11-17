@@ -1,4 +1,4 @@
-import { viewFor, type ProviderAuth, ProviderCapabilities, ProviderInfoDto } from "@mrd/contracts";
+import { AiBlockSchema, viewFor, type OverviewBlock, type ProviderAuth, ProviderCapabilities, ProviderInfoDto } from "@mrd/contracts";
 import { ModuleError } from "../../kernel/errors.js";
 import type { Logger } from "../../kernel/logger.js";
 import { buildBlocks } from "./domain/blocks.js";
@@ -31,6 +31,8 @@ export interface ReviewerApi {
   classify(files: ChangedFile[], title?: string): MrKindResult;
   /** Hỏi đáp tự do với agent (không công cụ, không đọc repo). */
   ask(req: { provider: ProviderId; model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
+  /** Làm sạch một khối sơ đồ do agent chat tạo theo yêu cầu (cùng luật bằng chứng/cỡ như khối của review). Trả lỗi dạng chữ để agent sửa lại. */
+  sanitizeBlock(raw: unknown, knownPaths: Iterable<string>): { block: OverviewBlock } | { error: string };
   /** Danh sách provider kèm khả năng, cách xác thực, model gợi ý và trạng thái sẵn sàng. */
   providers(): Promise<ProviderInfo[]>;
   /** Mô tả tĩnh (không I/O) của một provider; null nếu id lạ. */
@@ -51,6 +53,13 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
 
   return {
     classify: classifyMr,
+    sanitizeBlock(raw, knownPaths) {
+      const p = AiBlockSchema.safeParse(raw);
+      if (!p.success) return { error: `Dữ liệu sơ đồ không hợp lệ: ${p.error.issues.slice(0, 3).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}` };
+      const k = p.data.kind;
+      const [block] = buildBlocks([p.data], { required: [], optional: [k] }, knownPaths);
+      return block ? { block } : { error: k === "sequence" ? "Sơ đồ trình tự cần ≥2 actor và ít nhất 1 message nối các actor đó." : "Sơ đồ không có nút hợp lệ (cần nodes có id, label; edges nối đúng id nút)." };
+    },
     async review(req) {
       const provider = providers[req.provider];
       if (!provider) throw new ModuleError("reviewer", "invalid_input", `Provider không hỗ trợ: ${req.provider}`);

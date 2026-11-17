@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { fmtMs } from "../../kernel/format.js";
 import { STAGES } from "../../kernel/stages.js";
+import { CommentEditor } from "./comment-editor.js";
 import { StageLog } from "./live-log.js";
 import { clock, since, stageState, useTick } from "./strip.js";
 
@@ -75,7 +76,7 @@ export function LogTab({ r, entries, open, onOpen }: { r: RunDetailDto; entries:
                 <span className="w-16 text-right text-xs text-muted-foreground">{shown.length} dòng</span>
                 <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", !isOpen && "-rotate-90")} aria-hidden="true" />
               </button>
-              {isOpen && <div className="px-5 pb-4">{x.state === "pending" ? <p className="text-xs text-muted-foreground">Chưa chạy.</p> : <StageLog entries={shown} live={x.state === "running"} />}</div>}
+              {isOpen && <div className="px-5 pb-4">{x.state === "pending" ? <p className="text-xs text-muted-foreground">Chưa chạy.</p> : <StageLog entries={shown} live={x.state === "running"} />}{x.id === "publish" && x.state === "done" && r.commentDraft && <CommentEditor runId={r.id} draft={r.commentDraft} commentUrl={r.commentUrl} />}</div>}
             </div>
           );
         })}

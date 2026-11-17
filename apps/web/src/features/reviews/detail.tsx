@@ -1,12 +1,13 @@
 import type { ChatSelectionDto, RunActivityEntry, RunDetailDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type CSSProperties } from "react";
-import { Bot, Check, ChevronDown, CircleAlert, ExternalLink, RotateCw, ThumbsDown, ThumbsUp, TriangleAlert } from "lucide-react";
+import { Bot, Check, GitMerge, ChevronDown, CircleAlert, ExternalLink, RotateCw, ThumbsDown, ThumbsUp, TriangleAlert } from "lucide-react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge, GradeBadge, SeverityBadge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { CodeBlock } from "@/components/code-block";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ScoreRing } from "@/components/ui/score-ring";
@@ -16,7 +17,7 @@ import { Empty, ErrorBox, Loading } from "../../kernel/page.js";
 import { FileChanges } from "./changes.js";
 import { HarnessLoad, RuleChecklist } from "./coverage.js";
 import { HarnessPanel } from "../../kernel/harness.js";
-import { addNote, deleteNote, getRun, listFrameworks, listNotes, openRunStream, setFeedback } from "./api.js";
+import { addNote, deleteNote, getRun, mergeMr, listFrameworks, listNotes, openRunStream, setFeedback } from "./api.js";
 import { useReviewRequest } from "./use-review-request.js";
 import { LogTab } from "./log-tab.js";
 import { ResizeHandle, usePersistedNumber } from "../../kernel/resize.js";
@@ -73,6 +74,9 @@ export function ReviewDetailPage() {
   }, [active, id, qc]);
   // Bấm "Review lại" → chuyển ngay sang trang theo dõi của run mới (đang chờ → đang chạy), không ở lại trang cũ.
   const re = useReviewRequest({ open: true });
+  // Merge MR: không hoàn tác được nên luôn qua hộp xác nhận; chỉ khi MR còn mở.
+  const [confirmMerge, setConfirmMerge] = useState(false);
+  const merge = useMutation({ mutationFn: (mrId: string) => mergeMr(mrId), onSuccess: () => { setConfirmMerge(false); void qc.invalidateQueries({ queryKey: ["run", id] }); void qc.invalidateQueries({ queryKey: ["runs"] }); } });
   const fws = useQuery({ queryKey: ["frameworks"], queryFn: listFrameworks, staleTime: 60_000 });
   const fb = useMutation({ mutationFn: (a: { id: string; v: keyof typeof FB | null }) => setFeedback(a.id, a.v), onSuccess: () => qc.invalidateQueries({ queryKey: ["run", id] }) });
   if (q.isLoading) return <Loading />;
@@ -110,6 +114,21 @@ export function ReviewDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button disabled={re.isPending || active} onClick={() => re.mutate({ mrId: r.mr.id })} title={active ? "Đang có một lần review chạy cho MR này" : undefined}><RotateCw />{re.isPending ? "Đang xếp hàng…" : "Review lại"}</Button>
+          {r.mr.state === "opened" && <Button variant="outline" onClick={() => { merge.reset(); setConfirmMerge(true); }} title="Merge MR này trên GitLab"><GitMerge />Merge</Button>}
+          {r.mr.state === "merged" && <Badge variant="success">Đã merge</Badge>}
+          <Dialog open={confirmMerge} onOpenChange={(o) => { if (!merge.isPending) setConfirmMerge(o); }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Merge !{r.mr.iid} vào {r.mr.targetBranch}?</DialogTitle>
+                <DialogDescription>Việc này merge ngay trên nền tảng và không hoàn tác được.{r.score != null && r.score < 70 ? ` Lưu ý: điểm review ${r.score}/100, thấp hơn mức đạt.` : ""}{r.findings.some((f) => f.severity === "blocker" || f.severity === "critical") ? " Review còn góp ý mức blocker/critical." : ""}</DialogDescription>
+              </DialogHeader>
+              {merge.isError && <ErrorBox error={merge.error} />}
+              <DialogFooter>
+                <Button variant="ghost" disabled={merge.isPending} onClick={() => setConfirmMerge(false)}>Huỷ</Button>
+                <Button disabled={merge.isPending} onClick={() => merge.mutate(r.mr.id)}><GitMerge />{merge.isPending ? "Đang merge…" : "Merge"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <a className={buttonVariants({ variant: "ghost", size: "icon" })} href={r.mr.webUrl} target="_blank" rel="noreferrer" aria-label="Mở MR trên GitLab (tab mới)" title="Mở trên GitLab"><ExternalLink /></a>
         </div>
       </div>
@@ -151,7 +170,7 @@ function OverviewTab({ r, frameworkName, onAsk, onOpenFile, onSelectNode }: { r:
   return (
     <>
       <MrDescription d={r.mrDescription} />
-      <OverviewCard sections={r.overview ?? []} blocks={r.blocks ?? []} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} />
+      <OverviewCard runId={r.id} sections={r.overview ?? []} blocks={r.blocks ?? []} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} />
       {r.omittedFiles.length > 0 && (
         <section role="status" className="flex gap-3 rounded-xl border border-warning bg-warning-bg px-5 py-4 text-warning-fg">
           <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
@@ -226,7 +245,7 @@ function OverviewTab({ r, frameworkName, onAsk, onOpenFile, onSelectNode }: { r:
 }
 
 /** "Đánh giá tổng quan" do AI viết theo khung framework (mục, dạng hiển thị, nhãn kết luận đều do framework quyết định). */
-function OverviewCard({ sections, blocks: diagrams, onAsk, onOpenFile, onSelectNode }: { sections: RunDetailDto["overview"]; blocks: RunDetailDto["blocks"]; onAsk: (t: string) => void; onOpenFile: (p: string) => void; onSelectNode: (l: string | null) => void }) {
+function OverviewCard({ runId, sections, blocks: diagrams, onAsk, onOpenFile, onSelectNode }: { runId?: string | undefined; sections: RunDetailDto["overview"]; blocks: RunDetailDto["blocks"]; onAsk: (t: string) => void; onOpenFile: (p: string) => void; onSelectNode: (l: string | null) => void }) {
   const [sp] = useSearchParams();
   const demo = sp.get("overview") === "demo";
   const blocks = demo ? DEMO_BLOCKS : [...sectionsToBlocks(sections), ...diagrams];
@@ -237,7 +256,7 @@ function OverviewCard({ sections, blocks: diagrams, onAsk, onOpenFile, onSelectN
         <div className="flex items-center gap-2.5"><span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Bot className="size-4" aria-hidden="true" /></span><div><h2 className="text-[15px] font-semibold">Đánh giá tổng quan</h2><p className="text-xs text-muted-foreground">AI nhìn MR từ xa, theo khung của framework</p></div></div>
         <Badge variant="info">{demo ? "Dữ liệu mẫu" : "Do AI viết"}</Badge>
       </div>
-      <div className="px-5 py-4"><OverviewBlocks blocks={blocks} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} /></div>
+      <div className="px-5 py-4"><OverviewBlocks gen={runId ? { runId, ask: onAsk } : undefined} blocks={blocks} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} /></div>
     </Card>
   );
 }

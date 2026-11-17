@@ -186,7 +186,7 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const q = useQuery({ queryKey: ["chat", mrId], queryFn: () => getChat(mrId), refetchInterval: busy ? 1200 : false });
-  const refresh = () => { void qc.invalidateQueries({ queryKey: ["chat", mrId] }); void qc.invalidateQueries({ queryKey: ["runs"] }); };
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ["chat", mrId] }); void qc.invalidateQueries({ queryKey: ["runs"] }); void qc.invalidateQueries({ queryKey: ["run"] }); };
   const send = useMutation({
     mutationFn: (a: { t: string; imgs: ChatImageDto[]; refs: ChatRefDto[] }) => sendChat(mrId, a.t, a.imgs, viewRef.current, a.refs),
     onMutate: (a) => { baseline.current = q.data?.messages.length ?? 0; setBusy(true); setPending(a.imgs.length ? `${a.t}\n📎 ${a.imgs.length} ảnh đính kèm` : a.t); },

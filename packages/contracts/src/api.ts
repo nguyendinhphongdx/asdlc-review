@@ -86,6 +86,8 @@ export interface RunDetailDto extends RunSummaryDto {
   harnessFiles: string[];
   commits: number;
   commentUrl: string | null;
+  /** Comment tổng hợp dựng sẵn (Markdown) để người dùng sửa và đăng tay. */
+  commentDraft: string | null;
   stageTimings: Record<string, number>;
   /** File bị bỏ qua vì diff vượt ngân sách (review một phần nếu khác rỗng). */
   omittedFiles: string[];

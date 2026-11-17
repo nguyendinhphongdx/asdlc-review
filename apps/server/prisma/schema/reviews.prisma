@@ -63,6 +63,7 @@ model ReviewRun {
   cacheReadTokens  Int?
   cacheWriteTokens Int?
   commentUrl       String?
+  commentDraft     String? // Markdown comment tổng hợp đã dựng sẵn; người dùng sửa và đăng tay khi repo/framework tắt tự đăng
   stageTimings     String          @default("{}")
   harnessReport    String? // JSON HarnessReportDto: độ phủ harness lúc review
   omittedFiles     String          @default("[]") // file bị bỏ qua vì diff vượt ngân sách

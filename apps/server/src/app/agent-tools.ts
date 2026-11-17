@@ -105,6 +105,30 @@ export function createAgentTools(m: Modules) {
       },
     },
     {
+      name: "add_overview_view",
+      description: "Thêm MỘT sơ đồ (view) vào tab Tổng quan của MR để người dùng xem ngay. Dùng khi người dùng bấm thêm view hoặc nhờ vẽ lại luồng/kiến trúc/trình tự. Hãy đọc diff và code bằng Read/Grep/get_diff TRƯỚC, mọi nút/cạnh/message phải có `evidence` dạng \"path/file.ts:120 symbol\" trỏ tới file có thật (bằng chứng bịa sẽ bị loại và nút hiện 'chưa xác minh'). Tối đa 12 nút. kind=flow|architecture: điền nodes/edges (status added|changed|removed|unchanged so với nhánh đích, violation=true cho cạnh phạm quy tắc kiến trúc). kind=sequence: điền actors (2-8) và messages có thứ tự. Mỗi view một `title` riêng; trùng title thì thay thế view cũ. Với view đề xuất (luồng đúng hơn/phương án khác) đặt title bắt đầu bằng \"Đề xuất:\" và nêu lý do ở `note` của nút khác biệt.",
+      inputSchema: obj({
+        kind: { type: "string", enum: ["flow", "architecture", "sequence"] },
+        title: { type: "string" },
+        nodes: { type: "array", items: { type: "object" } },
+        edges: { type: "array", items: { type: "object" } },
+        actors: { type: "array", items: { type: "string" } },
+        messages: { type: "array", items: { type: "object" } },
+      }, ["kind", "title"]),
+      async run(ctx, a) {
+        const paths = new Set<string>();
+        for (const mt of ctx.diff.matchAll(/^diff --git a\/(.+?) b\//gm)) paths.add(mt[1]!);
+        const latest = await m.reviews.latestSucceeded(ctx.mrId);
+        for (const f of latest?.files ?? []) paths.add(f.path);
+        for (const h of latest?.harnessLoad?.items ?? []) paths.add(h.path);
+        const res = m.reviewer.sanitizeBlock({ kind: a.kind, title: str(a.title, 80), nodes: a.nodes ?? [], edges: a.edges ?? [], actors: a.actors ?? [], messages: a.messages ?? [] }, paths);
+        if ("error" in res) return `Lỗi: ${res.error} Hãy sửa dữ liệu rồi gọi lại.`;
+        const saved = await m.reviews.appendBlock(ctx.mrId, { ...res.block, id: `${res.block.kind}-${Date.now().toString(36)}` });
+        if (!saved) return "Lỗi: MR này chưa có review hoàn tất nên chưa có tổng quan để thêm view.";
+        return `Đã thêm view "${res.block.title}" vào tab Tổng quan (hiện ${saved.total} view). Hãy nói ngắn gọn với người dùng view đó cho thấy gì.`;
+      },
+    },
+    {
       name: "propose_comment",
       description: "ĐỀ XUẤT đăng một comment lên MR trên nền tảng (GitLab). Không đăng ngay: người dùng sẽ duyệt trong chat. Có `file`+`line` thì là inline comment, không thì là comment chung. Viết comment ngắn, cụ thể, tiếng Việt.",
       inputSchema: obj({ body: { type: "string" }, file: { type: "string" }, line: { type: "integer", minimum: 1 } }, ["body"]),

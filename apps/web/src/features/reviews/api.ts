@@ -26,3 +26,8 @@ export const dismissAction = (id: string) => request<unknown>(`/api/actions/${id
 /** Đọc nội dung tệp đính kèm (blob:/data: URL do trình duyệt tạo). */
 export const readAttachmentText = async (url: string) => (await fetch(url)).text();
 export const getMrDiff = (mrId: string) => request<{ files: MrFileDiffDto[] }>(`/api/mrs/${mrId}/diff`);
+
+/** Đăng (hoặc cập nhật) comment tổng hợp với nội dung đã sửa. */
+export const postRunComment = (runId: string, body: string) => request<{ url: string | null }>(`/api/reviews/${runId}/comment`, { method: "POST", json: { body } });
+/** Merge MR trên nền tảng (đã có hộp xác nhận ở UI). */
+export const mergeMr = (mrId: string) => request<{ state: string }>(`/api/mrs/${mrId}/merge`, { method: "POST" });

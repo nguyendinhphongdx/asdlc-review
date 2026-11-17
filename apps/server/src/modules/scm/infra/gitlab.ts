@@ -133,6 +133,10 @@ export class GitLabClient implements PlatformClient {
     await this.api("POST", `/projects/${this.pid(mr.projectPath)}/merge_requests/${mr.iid}/notes`, { body });
   }
 
+  async mergeMergeRequest(mr: MrInfo) {
+    await this.api("PUT", `/projects/${this.pid(mr.projectPath)}/merge_requests/${mr.iid}/merge`, { sha: mr.headSha });
+  }
+
   /** Gọi /user, /personal_access_tokens/self, /projects để biết token dùng được không. Không ném lỗi. */
   async probe(): Promise<ConnectionProbe> {
     if (!this.token) return { ok: false, error: { code: "not_configured", message: "Chưa có token GitLab" } };

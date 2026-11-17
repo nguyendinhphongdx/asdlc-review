@@ -75,6 +75,7 @@ export interface PlatformClient {
   upsertSummaryNote(mr: MrInfo, body: string, marker: string): Promise<string | undefined>;
   postInline(mr: MrInfo, c: InlineComment): Promise<boolean>;
   reply(mr: MrInfo, body: string): Promise<void>;
+  mergeMergeRequest(mr: MrInfo): Promise<void>;
   gitAuth(): GitAuth;
   /** Diff từng file của MR (để UI hiển thị như trang Changes). */
   getDiffs(projectPath: string, iid: number): Promise<FileDiff[]>;

@@ -18,6 +18,10 @@
     "@streamdown/mermaid": "^1.0.3",
     "@tanstack/react-query": "5.107.1",
     "@tanstack/react-table": "8.21.3",
+    "@tiptap/extension-table": "^3.34.0",
+    "@tiptap/pm": "^3.34.0",
+    "@tiptap/react": "^3.34.0",
+    "@tiptap/starter-kit": "^3.34.0",
     "ai": "^7.0.169",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
@@ -33,6 +37,7 @@
     "shiki": "^4.6.0",
     "streamdown": "^2.7.1",
     "tailwind-merge": "3.3.1",
+    "tiptap-markdown": "^0.9.0",
     "tokenlens": "^1.3.1",
     "use-stick-to-bottom": "^1.1.6"
   },
