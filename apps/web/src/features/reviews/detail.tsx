@@ -76,6 +76,7 @@ export function ReviewDetailPage() {
   const re = useReviewRequest({ open: true });
   // Merge MR: không hoàn tác được nên luôn qua hộp xác nhận; chỉ khi MR còn mở.
   const [confirmMerge, setConfirmMerge] = useState(false);
+  const [askResult, setAskResult] = useState<{ id: number; failed: boolean; reply: string } | null>(null);
   const merge = useMutation({ mutationFn: (mrId: string) => mergeMr(mrId), onSuccess: () => { setConfirmMerge(false); void qc.invalidateQueries({ queryKey: ["run", id] }); void qc.invalidateQueries({ queryKey: ["runs"] }); } });
   const fws = useQuery({ queryKey: ["frameworks"], queryFn: listFrameworks, staleTime: 60_000 });
   const fb = useMutation({ mutationFn: (a: { id: string; v: keyof typeof FB | null }) => setFeedback(a.id, a.v), onSuccess: () => qc.invalidateQueries({ queryKey: ["run", id] }) });
@@ -86,7 +87,7 @@ export function ReviewDetailPage() {
   // Đang review thì mở sẵn tab Nhật ký (dữ liệu có liên quan nhất lúc này); xong thì mở Tổng quan.
   const tab = ((sp.get("tab") as TabId | null) ?? (active ? "progress" : "overview"));
   const setTab = (t: TabId) => setSp((p) => { const n = new URLSearchParams(p); n.set("tab", t); return n; }, { replace: true });
-  const askChat = (text: string) => setAsk({ id: Date.now(), text });
+  const askChat = (text: string): number => { const id = Date.now(); setAsk({ id, text }); return id; };
   const openFile = (path: string) => { setFocus({ id: Date.now(), path }); setTab("changes"); };
   const openLog = (stage: string) => { setOpenStage(stage); setTab("log"); };
   const openFindings = r.findings.filter((f) => f.feedback !== "fixed" && f.feedback !== "disagree").length;
@@ -134,7 +135,7 @@ export function ReviewDetailPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section aria-label="Trò chuyện với trợ lý" className="min-h-[520px] min-w-0 flex-1 lg:min-h-0"><AgentChat files={[...new Set([...(r.files ?? []).map((f) => f.path), ...(r.harnessLoad?.items ?? []).map((i) => i.path)])]} repoName={repoLabel(r.mr.webUrl)} harnessItems={r.harnessLoad?.items ?? []} onClearSelection={() => setSelection(null)} dock mrId={r.mr.id} active={active} connected={connected} incoming={ask} viewing={{ tab, selection: tab === "changes" ? selection ?? undefined : undefined, file: tab === "changes" ? viewFile ?? undefined : undefined, node: tab === "overview" ? viewNode ?? undefined : undefined }} /></section>
+        <section aria-label="Trò chuyện với trợ lý" className="min-h-[520px] min-w-0 flex-1 lg:min-h-0"><AgentChat onAskSettled={setAskResult} files={[...new Set([...(r.files ?? []).map((f) => f.path), ...(r.harnessLoad?.items ?? []).map((i) => i.path)])]} repoName={repoLabel(r.mr.webUrl)} harnessItems={r.harnessLoad?.items ?? []} onClearSelection={() => setSelection(null)} dock mrId={r.mr.id} active={active} connected={connected} incoming={ask} viewing={{ tab, selection: tab === "changes" ? selection ?? undefined : undefined, file: tab === "changes" ? viewFile ?? undefined : undefined, node: tab === "overview" ? viewNode ?? undefined : undefined }} /></section>
 
         <aside aria-label="Kết quả review" style={{ "--pw": `${Math.min(panelW, panelMax())}px` } as CSSProperties} className="relative flex min-h-[520px] min-w-0 flex-col border-t bg-muted/20 lg:min-h-0 lg:w-[var(--pw)] lg:flex-none lg:border-l lg:border-t-0">
           <ResizeHandle edge="left" label="Đổi độ rộng khung kết quả" value={panelW} min={PANEL_MIN} max={panelMax} onChange={setPanelW} onReset={() => setPanelW(PANEL_DEFAULT)} className="absolute inset-y-0 -left-1 hidden lg:flex" />
@@ -148,11 +149,11 @@ export function ReviewDetailPage() {
               </button></Tip>
             ))}
           </div>
-          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 [&>*]:shrink-0">
             {r.error && !(r.status === "failed" && STAGES.some((x) => x.id === r.stage)) && <ErrorBox error={r.error} />}
             {re.error && <ErrorBox error={re.error} />}
             {re.notice && !re.error && !re.isPending && <p role="status" className="text-[13px] text-muted-foreground">{re.notice}</p>}
-            {tab === "overview" && <OverviewTab r={r} frameworkName={fwName} onAsk={askChat} onOpenFile={openFile} onSelectNode={setViewNode} />}
+            {tab === "overview" && <OverviewTab r={r} frameworkName={fwName} askResult={askResult} onAsk={askChat} onOpenFile={openFile} onSelectNode={setViewNode} />}
             {tab === "progress" && <ProgressTab r={r} entries={entries} onOpenLog={openLog} />}
             {tab === "changes" && <FileChanges mrId={r.mr.id} files={r.files ?? []} findings={r.findings} focus={focus} onViewing={setViewFile} onSelect={setSelection} />}
             {tab === "findings" && <Findings findings={r.findings} onFeedback={(fid, v) => fb.mutate({ id: fid, v })} />}
@@ -165,12 +166,12 @@ export function ReviewDetailPage() {
   );
 }
 
-function OverviewTab({ r, frameworkName, onAsk, onOpenFile, onSelectNode }: { r: RunDetailDto; frameworkName?: string | undefined; onAsk: (t: string) => void; onOpenFile: (p: string) => void; onSelectNode: (l: string | null) => void }) {
+function OverviewTab({ r, frameworkName, askResult, onAsk, onOpenFile, onSelectNode }: { askResult: { id: number; failed: boolean; reply: string } | null; r: RunDetailDto; frameworkName?: string | undefined; onAsk: (t: string) => number | void; onOpenFile: (p: string) => void; onSelectNode: (l: string | null) => void }) {
   const verdict = r.verdict ? VERDICT[r.verdict] : undefined;
   return (
     <>
       <MrDescription d={r.mrDescription} />
-      <OverviewCard runId={r.id} sections={r.overview ?? []} blocks={r.blocks ?? []} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} />
+      <OverviewCard settled={askResult} runId={r.id} sections={r.overview ?? []} blocks={r.blocks ?? []} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} />
       {r.omittedFiles.length > 0 && (
         <section role="status" className="flex gap-3 rounded-xl border border-warning bg-warning-bg px-5 py-4 text-warning-fg">
           <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
@@ -245,7 +246,7 @@ function OverviewTab({ r, frameworkName, onAsk, onOpenFile, onSelectNode }: { r:
 }
 
 /** "Đánh giá tổng quan" do AI viết theo khung framework (mục, dạng hiển thị, nhãn kết luận đều do framework quyết định). */
-function OverviewCard({ runId, sections, blocks: diagrams, onAsk, onOpenFile, onSelectNode }: { runId?: string | undefined; sections: RunDetailDto["overview"]; blocks: RunDetailDto["blocks"]; onAsk: (t: string) => void; onOpenFile: (p: string) => void; onSelectNode: (l: string | null) => void }) {
+function OverviewCard({ settled, runId, sections, blocks: diagrams, onAsk, onOpenFile, onSelectNode }: { settled: { id: number; failed: boolean; reply: string } | null; runId?: string | undefined; sections: RunDetailDto["overview"]; blocks: RunDetailDto["blocks"]; onAsk: (t: string) => void; onOpenFile: (p: string) => void; onSelectNode: (l: string | null) => void }) {
   const [sp] = useSearchParams();
   const demo = sp.get("overview") === "demo";
   const blocks = demo ? DEMO_BLOCKS : [...sectionsToBlocks(sections), ...diagrams];
@@ -257,7 +258,7 @@ function OverviewCard({ runId, sections, blocks: diagrams, onAsk, onOpenFile, on
         <div className="flex items-center gap-2.5"><span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Bot className="size-4" aria-hidden="true" /></span><div><h2 className="text-[15px] font-semibold">Đánh giá tổng quan</h2><p className="text-xs text-muted-foreground">AI nhìn MR từ xa, theo khung của framework</p></div></div>
         <Badge variant="info">{demo ? "Dữ liệu mẫu" : "Do AI viết"}</Badge>
       </div>
-      <div className="px-5 py-4"><OverviewBlocks gen={runId ? { runId, ask: onAsk } : undefined} blocks={blocks} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} /></div>
+      <div className="px-5 py-4"><OverviewBlocks gen={runId ? { runId, ask: onAsk, settled } : undefined} blocks={blocks} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} /></div>
     </Card>
   );
 }

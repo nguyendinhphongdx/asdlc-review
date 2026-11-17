@@ -26,4 +26,4 @@ export interface ChatSelectionDto { file: string; lineStart: number; lineEnd: nu
 /** Mục người dùng chọn bằng @ (file) hoặc / (lệnh, skill, agent của repo) trong ô chat. */
 export interface ChatRefDto { kind: "file" | "command" | "skill" | "agent"; path: string }
 export interface ChatViewingDto { tab: string; selection?: ChatSelectionDto | undefined; file?: string | undefined; /** Tên nút đang chọn trên sơ đồ tổng quan. */ node?: string | undefined }
-export interface ChatReplyDto { reply: string; lessons: string[]; queued?: boolean }
+export interface ChatReplyDto { reply: string; lessons: string[]; queued?: boolean; failed?: boolean }

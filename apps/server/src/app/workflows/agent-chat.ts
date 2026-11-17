@@ -42,7 +42,7 @@ export async function refsBlock(dir: string | undefined, refs: ChatRef[]): Promi
 }
 
 export interface ChatViewing { tab: string; file?: string | undefined; node?: string | undefined; selection?: { file: string; lineStart: number; lineEnd: number; colStart: number; colEnd: number; text: string } | undefined }
-export interface ChatReply { reply: string; lessons: string[]; queued?: boolean }
+export interface ChatReply { reply: string; lessons: string[]; queued?: boolean; /** Agent không chạy được (lỗi provider/key…); reply là lý do. */ failed?: boolean }
 
 const TAB_NAME: Record<string, string> = { overview: "Overview", progress: "Progress", changes: "Changes (file diffs)", findings: "Findings", log: "Log", context: "AI context" };
 /** Mô tả thứ người dùng đang xem (tab, file, nút sơ đồ) kèm các góp ý đã có trên file đó. Rỗng khi không có gì cụ thể. */
@@ -129,7 +129,7 @@ export function createAgentChat(m: Modules, requestReview: RequestReview, log: L
       steps = res.steps ?? [];
     } catch (e) {
       log.warn("agent chat lỗi", { err: String(e).slice(0, 200) });
-      return answer(`Không trả lời được: ${(e as Error).message}`);
+      return { ...(await answer(`Không trả lời được: ${(e as Error).message}`)), failed: true };
     } finally {
       session?.close();
       live.delete(mrId);

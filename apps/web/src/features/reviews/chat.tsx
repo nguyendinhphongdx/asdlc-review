@@ -1,6 +1,7 @@
 import type { ActionDto, ChatImageDto, ChatRefDto, ChatStepDto, ChatViewingDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Eye, FileText, Minus, MessageSquare, Sparkles, Wrench, X } from "lucide-react";
+import { ChevronDown, CircleCheck, CircleDot, CircleX, Eye, Loader2, FileText, Minus, MessageSquare, Sparkles, Wrench, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -13,10 +14,8 @@ import { Message, MessageContent, MessageResponse } from "@/components/ai-elemen
 import { PromptInput, PromptInputBody, PromptInputFooter, PromptInputHeader, PromptInputSubmit, PromptInputTextarea, usePromptInputAttachments, usePromptInputController, PromptInputProvider } from "@/components/ai-elements/prompt-input";
 import { ErrorBox } from "../../kernel/page.js";
 import { Confirmation, ConfirmationAccepted, ConfirmationAction, ConfirmationActions, ConfirmationRequest, ConfirmationTitle } from "@/components/ai-elements/confirmation";
-import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { Suggestion } from "@/components/ai-elements/suggestion";
-import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import { readAttachmentText, approveAction, dismissAction, getChat, sendChat } from "./api.js";
 
 const SUGGEST = ["Giải thích finding nghiêm trọng nhất", "Finding nào có thể là báo nhầm?", "Đọc code liên quan và kiểm tra lại", "Soạn comment cho finding quan trọng nhất", "nhớ: ", "review lại"];
@@ -31,57 +30,77 @@ function hintOf(input: Record<string, unknown>): string {
 }
 
 type ToolStep = Extract<ChatStepDto, { kind: "tool" }>;
-function ToolRow({ st }: { st: ToolStep }) {
+const STEP_ICON = "mt-0.5 size-3.5 flex-none";
+
+/** Một bước trong dòng thời gian: tool (nhãn + gợi ý + trạng thái) hoặc suy luận; bấm để xem tham số/kết quả. */
+function StepItem({ st, running }: { st: ChatStepDto; running: boolean }) {
+  if (st.kind === "thinking") {
+    return (
+      <li className="relative">
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-start gap-2 text-[13px] text-muted-foreground [&::-webkit-details-marker]:hidden">
+            <CircleDot className={cn(STEP_ICON, "text-muted-foreground/70")} aria-hidden="true" /><span className="min-w-0 flex-1 truncate">{running ? "Đang suy luận…" : "Suy luận"}</span>
+            <ChevronDown className="mt-0.5 size-3.5 flex-none transition-transform group-open:rotate-180" aria-hidden="true" />
+          </summary>
+          <p className="mt-1 whitespace-pre-wrap pl-5 text-[12px] leading-relaxed text-muted-foreground">{st.text}</p>
+        </details>
+      </li>
+    );
+  }
+  const done = st.output !== undefined;
   return (
-    <Tool>
-      <ToolHeader type={`tool-${st.name}`} title={TOOL_LABEL[st.name] ?? st.name} hint={hintOf(st.input)} state={st.error ? "output-error" : st.output !== undefined ? "output-available" : "input-available"} />
-      <ToolContent>
-        <ToolInput input={st.input} />
-        <ToolOutput output={st.output && !st.error ? st.output.slice(0, 1500) : undefined} errorText={st.error ? st.output : undefined} />
-      </ToolContent>
-    </Tool>
+    <li className="relative">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-start gap-2 text-[13px] [&::-webkit-details-marker]:hidden">
+          {st.error ? <CircleX className={cn(STEP_ICON, "text-danger-fg")} aria-label="Lỗi" /> : done ? <CircleCheck className={cn(STEP_ICON, "text-success-fg")} aria-label="Xong" /> : <Loader2 className={cn(STEP_ICON, "animate-spin text-primary")} aria-label="Đang chạy" />}
+          <span className="flex-none font-medium">{TOOL_LABEL[st.name] ?? st.name}</span>
+          <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-muted-foreground">{hintOf(st.input)}</span>
+          <ChevronDown className="mt-0.5 size-3.5 flex-none text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="mt-1 flex flex-col gap-1 pl-5 text-[12px]">
+          <div><div className="mb-0.5 font-medium text-muted-foreground">Tham số</div><pre className="max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 font-mono text-[11.5px]">{JSON.stringify(st.input, null, 2)}</pre></div>
+          {st.output !== undefined && <div><div className={cn("mb-0.5 font-medium", st.error ? "text-danger-fg" : "text-muted-foreground")}>{st.error ? "Lỗi" : "Kết quả"}</div><pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 font-mono text-[11.5px]">{st.output.slice(0, 1500)}</pre></div>}
+        </div>
+      </details>
+    </li>
   );
 }
 
-/** Nhiều lệnh tool liên tiếp gộp thành một dòng tóm tắt gập được ("Đã dùng 5 công cụ: Đọc file ×3, …"); 1–2 lệnh thì hiện thẳng. */
-function ToolGroup({ tools, live }: { tools: ToolStep[]; live?: boolean }) {
-  if (tools.length <= 2) return <>{tools.map((t) => <ToolRow key={t.id} st={t} />)}</>;
+const fmtSec = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}m${String(s % 60).padStart(2, "0")}s` : `${s}s`);
+
+/**
+ * Toàn bộ hoạt động của agent trong một lượt gói vào MỘT khối gập: dòng đầu luôn nằm trên cùng
+ * ("Agent đang làm việc…" khi đang chạy, "Đã dùng N công cụ" khi xong), bên trong là dòng thời gian từng bước.
+ */
+function Steps({ steps, live, sinceMs }: { steps: ChatStepDto[]; live?: boolean; sinceMs?: number | undefined }) {
+  const [, tick] = useState(0);
+  useEffect(() => { if (!live) return; const t = setInterval(() => tick((n) => n + 1), 1000); return () => clearInterval(t); }, [live]);
+  if (!steps.length && !live) return null;
+  const tools = steps.filter((x): x is ToolStep => x.kind === "tool");
+  const failed = tools.filter((t) => t.error).length;
+  const secs = live && sinceMs ? Math.max(0, Math.round((Date.now() - sinceMs) / 1000)) : null;
   const counts = new Map<string, number>();
   for (const t of tools) counts.set(TOOL_LABEL[t.name] ?? t.name, (counts.get(TOOL_LABEL[t.name] ?? t.name) ?? 0) + 1);
-  const failed = tools.filter((t) => t.error).length;
+  const last = steps.length - 1;
   return (
-    <Collapsible defaultOpen={false} className="not-prose group mb-1 w-full rounded-md border bg-card/50">
+    <Collapsible defaultOpen={false} className="not-prose group w-full rounded-md border bg-card/50">
       <CollapsibleTrigger className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-[13px]">
-        <Wrench className="size-3.5 flex-none text-muted-foreground" aria-hidden="true" />
-        <span className="font-medium">{live ? "Đang dùng" : "Đã dùng"} {tools.length} công cụ</span>
-        <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">{[...counts].map(([k, n]) => (n > 1 ? `${k} ×${n}` : k)).join(" · ")}</span>
+        {live ? <Loader2 className="size-3.5 flex-none animate-spin text-primary" aria-hidden="true" /> : <Wrench className="size-3.5 flex-none text-muted-foreground" aria-hidden="true" />}
+        <span className="flex-none font-medium">{live ? <Shimmer duration={1.2}>Agent đang làm việc…</Shimmer> : `Đã dùng ${tools.length} công cụ`}</span>
+        {live && tools.length > 0 && <span className="flex-none text-[12px] text-muted-foreground">{tools.length} công cụ{secs != null ? ` · ${fmtSec(secs)}` : ""}</span>}
+        {!live && <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">{[...counts].map(([k, n]) => (n > 1 ? `${k} ×${n}` : k)).join(" · ")}</span>}
+        {live && <span className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">{(() => { const t = [...tools].reverse().find((x) => x.output === undefined); return t ? `${TOOL_LABEL[t.name] ?? t.name} ${hintOf(t.input)}` : ""; })()}</span>}
         {failed > 0 && <span className="flex-none text-[12px] text-danger-fg">{failed} lỗi</span>}
         <ChevronDown className="size-3.5 flex-none text-muted-foreground transition-transform group-data-[state=open]:rotate-180" aria-hidden="true" />
       </CollapsibleTrigger>
-      <CollapsibleContent><div className="flex flex-col gap-1 border-t p-1.5">{tools.map((t) => <ToolRow key={t.id} st={t} />)}</div></CollapsibleContent>
+      {steps.length > 0 && (
+        <CollapsibleContent>
+          <ol className="ml-4 flex flex-col gap-2 border-l py-2 pl-3 pr-2.5">
+            {steps.map((st, i) => <StepItem key={st.kind === "tool" ? st.id : `t${i}`} st={st} running={Boolean(live) && i === last} />)}
+          </ol>
+        </CollapsibleContent>
+      )}
     </Collapsible>
-  );
-}
-
-function Steps({ steps, live }: { steps: ChatStepDto[]; live?: boolean }) {
-  if (!steps.length) return null;
-  // Gộp các tool liên tiếp thành nhóm; suy luận đứng riêng.
-  const blocks: ({ kind: "thinking"; text: string; idx: number } | { kind: "tools"; tools: ToolStep[] })[] = [];
-  steps.forEach((st, i) => {
-    if (st.kind === "thinking") blocks.push({ kind: "thinking", text: st.text, idx: i });
-    else { const last = blocks[blocks.length - 1]; if (last?.kind === "tools") last.tools.push(st); else blocks.push({ kind: "tools", tools: [st] }); }
-  });
-  return (
-    <div className="flex w-full flex-col gap-1">
-      {blocks.map((b, i) => b.kind === "thinking"
-        ? (
-          <Reasoning key={`t${b.idx}`} isStreaming={Boolean(live) && b.idx === steps.length - 1} defaultOpen={false}>
-            <ReasoningTrigger getThinkingMessage={(streaming) => (streaming ? <Shimmer duration={1}>Đang suy luận…</Shimmer> : <span>Đã suy luận</span>)} />
-            <ReasoningContent>{b.text}</ReasoningContent>
-          </Reasoning>
-        )
-        : <ToolGroup key={`g${i}`} tools={b.tools} live={Boolean(live) && i === blocks.length - 1} />)}
-    </div>
   );
 }
 
@@ -170,7 +189,7 @@ const loadMode = (): Mode => { try { const v = localStorage.getItem("mrd.chat.mo
  * (Read/Grep/Glob), hiện suy luận và từng lệnh gọi tool; comment/chạy lại chỉ là đề xuất chờ bạn duyệt.
  */
 /** `incoming`: câu hỏi do nơi khác trên trang đẩy vào (vd bấm nút trên sơ đồ); mỗi `id` mới được gửi một lần. */
-export function AgentChat({ mrId, active, connected, dock = false, incoming = null, viewing, onClearSelection, files = [], repoName = "Repo", harnessItems = [] }: { files?: string[]; repoName?: string; harnessItems?: { path: string }[]; onClearSelection?: (() => void) | undefined; mrId: string; active: boolean; connected: boolean; dock?: boolean; incoming?: { id: number; text: string } | null; viewing?: ChatViewingDto | undefined }) {
+export function AgentChat({ mrId, active, connected, dock = false, incoming = null, viewing, onClearSelection, onAskSettled, files = [], repoName = "Repo", harnessItems = [] }: { onAskSettled?: ((r: { id: number; failed: boolean; reply: string }) => void) | undefined; files?: string[]; repoName?: string; harnessItems?: { path: string }[]; onClearSelection?: (() => void) | undefined; mrId: string; active: boolean; connected: boolean; dock?: boolean; incoming?: { id: number; text: string } | null; viewing?: ChatViewingDto | undefined }) {
   const qc = useQueryClient();
   const [modeRaw, setModeState] = useState<Mode>(loadMode);
   const mode: Mode = dock ? "open" : modeRaw;
@@ -185,11 +204,17 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
   viewRef.current = share ? viewing : viewing?.selection ? { tab: viewing.tab, selection: viewing.selection } : undefined;
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const busySince = useRef(Date.now());
   const q = useQuery({ queryKey: ["chat", mrId], queryFn: () => getChat(mrId), refetchInterval: busy ? 1200 : false });
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["chat", mrId] }); void qc.invalidateQueries({ queryKey: ["runs"] }); void qc.invalidateQueries({ queryKey: ["run"] }); };
+  // Câu hỏi do nơi khác trên trang đẩy vào (vd bấm thêm view): báo lại thành/bại để nơi đó không chờ mãi.
+  const askId = useRef<number | null>(null);
+  const reportAsk = (failed: boolean, reply: string) => { const id = askId.current; askId.current = null; if (id != null) onAskSettled?.({ id, failed, reply }); };
   const send = useMutation({
     mutationFn: (a: { t: string; imgs: ChatImageDto[]; refs: ChatRefDto[] }) => sendChat(mrId, a.t, a.imgs, viewRef.current, a.refs),
-    onMutate: (a) => { baseline.current = q.data?.messages.length ?? 0; setBusy(true); setPending(a.imgs.length ? `${a.t}\n📎 ${a.imgs.length} ảnh đính kèm` : a.t); },
+    onMutate: (a) => { busySince.current = Date.now(); baseline.current = q.data?.messages.length ?? 0; setBusy(true); setPending(a.imgs.length ? `${a.t}\n📎 ${a.imgs.length} ảnh đính kèm` : a.t); },
+    onSuccess: (d) => reportAsk(d.failed === true, d.reply),
+    onError: (e) => reportAsk(true, e instanceof Error ? e.message : "Lỗi không rõ"),
     onSettled: () => { setBusy(false); setPending(null); refresh(); },
   });
   const msgs = q.data?.messages ?? [];
@@ -213,6 +238,7 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
   useEffect(() => {
     if (!incoming || incoming.id === lastIncoming.current) return;
     lastIncoming.current = incoming.id;
+    askId.current = incoming.id;
     if (mode === "closed") setMode("open");
     submit(incoming.text);
   }, [incoming]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -263,7 +289,7 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
               </Message>
             ))}
           {pending && msgs.length <= baseline.current && <Message from="user"><MessageContent><span className="whitespace-pre-wrap">{pending}</span></MessageContent></Message>}
-          {busy && <Message from="assistant"><MessageContent><Steps steps={liveSteps} live /><Shimmer duration={1.2}>Agent đang làm việc…</Shimmer></MessageContent></Message>}
+          {busy && <Message from="assistant"><MessageContent><Steps steps={liveSteps} live sinceMs={busySince.current} /></MessageContent></Message>}
           {actions.map((a) => <ActionCard key={a.id} a={a} onDone={refresh} />)}
         </ConversationContent>
         <ConversationScrollButton />

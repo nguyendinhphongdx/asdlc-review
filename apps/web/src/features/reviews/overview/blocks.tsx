@@ -49,20 +49,35 @@ function Skeleton({ label }: { label: string }) {
  * Tổng quan động: thanh chọn view (khối đã có + chip "+" cho view chưa có). Bấm view chưa có thì giao agent chat vẽ,
  * hiện khung chờ (skeleton) cho tới khi view xuất hiện trong dữ liệu run.
  */
-export function OverviewBlocks({ blocks, onAsk, onOpenFile, onSelectNode, gen }: { blocks: OverviewBlock[]; onAsk?: ((p: string) => void) | undefined; onOpenFile?: ((path: string) => void) | undefined; onSelectNode?: ((l: string | null) => void) | undefined; gen?: { runId: string; ask: (text: string) => void } | undefined }) {
+export function OverviewBlocks({ blocks, onAsk, onOpenFile, onSelectNode, gen }: { blocks: OverviewBlock[]; onAsk?: ((p: string) => void) | undefined; onOpenFile?: ((path: string) => void) | undefined; onSelectNode?: ((l: string | null) => void) | undefined; gen?: { runId: string; ask: (text: string) => number | void; settled?: { id: number; failed: boolean; reply: string } | null } | undefined }) {
   const qc = useQueryClient();
   const firstDiagram = blocks.findIndex((b) => b.kind === "flow" || b.kind === "architecture" || b.kind === "sequence");
   const [idx, setIdx] = useState(Math.max(0, firstDiagram));
-  const [pending, setPending] = useState<Record<string, number>>({});
+  // pending[key] = lúc bắt đầu, id câu hỏi gửi cho agent, và lúc agent trả lời xong (nếu đã xong).
+  const [pending, setPending] = useState<Record<string, { at: number; id: number | null; settledAt?: number }>>({});
+  const [notice, setNotice] = useState<string | null>(null);
   const [want, setWant] = useState<ViewKey | null>(null);
   const have = new Set(blocks.map(keyOf).filter(Boolean) as ViewKey[]);
   const waiting = Object.keys(pending);
 
+  // Agent trả lời xong: lỗi thì thôi chờ và báo lý do; thành công thì chờ view hiện thêm một lúc (dữ liệu run làm mới trễ chút).
+  useEffect(() => {
+    const s = gen?.settled;
+    if (!s) return;
+    const key = Object.keys(pending).find((k) => pending[k]!.id === s.id);
+    if (!key) return;
+    if (s.failed) {
+      setPending((p) => Object.fromEntries(Object.entries(p).filter(([k]) => k !== key)));
+      setWant(null);
+      setNotice(`Agent không vẽ được view này: ${s.reply.replace(/^Không trả lời được:\s*/, "").slice(0, 300)}`);
+    } else setPending((p) => ({ ...p, [key]: { ...p[key]!, settledAt: Date.now() } }));
+  }, [gen?.settled?.id, gen?.settled?.failed]); // eslint-disable-line react-hooks/exhaustive-deps
   // View vừa xuất hiện: bỏ khung chờ và chuyển sang xem nó.
   useEffect(() => {
     const done = waiting.filter((k) => have.has(k as ViewKey));
     if (!done.length) return;
     setPending((p) => Object.fromEntries(Object.entries(p).filter(([k]) => !done.includes(k))));
+    setNotice(null);
     const i = blocks.findIndex((b) => keyOf(b) === done[0]);
     if (i >= 0) { setIdx(i); setWant(null); }
   }, [blocks]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -71,7 +86,12 @@ export function OverviewBlocks({ blocks, onAsk, onOpenFile, onSelectNode, gen }:
     if (!waiting.length || !gen) return;
     const t = setInterval(() => {
       void qc.invalidateQueries({ queryKey: ["run", gen.runId] });
-      setPending((p) => Object.fromEntries(Object.entries(p).filter(([, at]) => Date.now() - at < 240_000)));
+      // Quá 4 phút, hoặc agent đã trả lời xong >15 giây mà vẫn chưa có view (agent không gọi tool) thì thôi chờ.
+      setPending((p) => {
+        const keep = Object.entries(p).filter(([, v]) => Date.now() - v.at < 240_000 && !(v.settledAt && Date.now() - v.settledAt > 15_000));
+        if (keep.length !== Object.keys(p).length) setNotice("Agent đã trả lời nhưng chưa thêm view nào. Xem chat để biết lý do, rồi thử lại.");
+        return Object.fromEntries(keep);
+      });
     }, 3000);
     return () => clearInterval(t);
   }, [waiting.length, gen?.runId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -81,9 +101,10 @@ export function OverviewBlocks({ blocks, onAsk, onOpenFile, onSelectNode, gen }:
   const showing = want && pending[want] ? CATALOG.find((c) => c.key === want)! : null;
   const request = (c: (typeof CATALOG)[number]) => {
     if (!gen || pending[c.key]) { setWant(c.key); return; }
-    setPending((p) => ({ ...p, [c.key]: Date.now() }));
+    setNotice(null);
     setWant(c.key);
-    gen.ask(c.prompt);
+    const id = gen.ask(c.prompt);
+    setPending((p) => ({ ...p, [c.key]: { at: Date.now(), id: typeof id === "number" ? id : null } }));
   };
   const chip = "h-8 rounded-full px-3 text-[13px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring";
   return (
@@ -98,6 +119,7 @@ export function OverviewBlocks({ blocks, onAsk, onOpenFile, onSelectNode, gen }:
           ))}
         </div>
       )}
+      {notice && <p role="alert" className="rounded-md border border-danger bg-danger-bg px-3 py-2 text-[13px] text-danger-fg">{notice}</p>}
       {showing ? <Skeleton label={showing.label} /> : !cur ? <p className="text-sm text-muted-foreground">Lần review này chưa có tổng quan. Chọn một view ở trên để agent đọc code và vẽ.</p> : cur && <div className="flex flex-col gap-2"><h3 className="text-sm font-semibold">{cur.title}</h3><BlockBody b={cur} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} /></div>}
     </div>
   );
