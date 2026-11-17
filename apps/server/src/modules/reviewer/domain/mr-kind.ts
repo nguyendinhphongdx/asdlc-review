@@ -1,7 +1,17 @@
 import type { MrKind } from "@mrd/contracts";
 
 export interface ChangedFile { path: string; additions: number; deletions: number }
-export interface MrKindResult { kind: MrKind; reasons: string[] }
+/** `locked`: loại suy ra chắc chắn từ danh sách file (toàn docs/test/manifest/config), AI không được đổi. */
+export interface MrKindResult { kind: MrKind; reasons: string[]; locked: boolean }
+/** Loại AI được chọn khi đọc diff (không gồm loại khoá theo file). */
+export const AI_KINDS: readonly MrKind[] = ["new-feature", "flow-change", "refactor", "bugfix", "schema-change", "api-change"];
+const LOCKED: readonly MrKind[] = ["docs", "test-only", "deps", "config-infra"];
+
+/** Chốt loại cuối: loại khoá giữ nguyên; AI chọn loại hợp lệ thì theo AI, không thì theo gợi ý. */
+export function resolveKind(hint: MrKindResult, ai: string | null | undefined): { kind: MrKind; changed: boolean } {
+  if (hint.locked || !ai || !(AI_KINDS as readonly string[]).includes(ai) || ai === hint.kind) return { kind: hint.kind, changed: false };
+  return { kind: ai as MrKind, changed: true };
+}
 
 const DOC = /(^|\/)(docs?|documentation)\/|\.(md|mdx|rst|txt|adoc)$|(^|\/)(LICENSE|CHANGELOG|README)[^/]*$/i;
 const TEST = /(^|\/)(__tests__|tests?|spec|e2e|fixtures?)\/|\.(test|spec)\.[a-z]+$|_test\.(go|py)$/i;
@@ -16,6 +26,11 @@ const SOURCE = /\.(tsx?|jsx?|mjs|cjs|py|go|rs|java|kt|swift|rb|php|cs|cpp|c|h|vu
  * (docs/test/deps/config) → có file schema/migration → có file API → tiêu đề (refactor/fix/feat) → mặc định "flow-change".
  */
 export function classifyMr(files: ChangedFile[], title = ""): MrKindResult {
+  const r = classifyRaw(files, title);
+  return { ...r, locked: LOCKED.includes(r.kind) };
+}
+
+function classifyRaw(files: ChangedFile[], title: string): { kind: MrKind; reasons: string[] } {
   const paths = files.map((f) => f.path);
   const all = (re: RegExp) => paths.length > 0 && paths.every((p) => re.test(p));
   const lines = files.reduce((s, f) => s + f.additions + f.deletions, 0);

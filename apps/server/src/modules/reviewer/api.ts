@@ -2,7 +2,7 @@ import { viewFor, type ProviderAuth, ProviderCapabilities, ProviderInfoDto } fro
 import { ModuleError } from "../../kernel/errors.js";
 import type { Logger } from "../../kernel/logger.js";
 import { buildBlocks } from "./domain/blocks.js";
-import { classifyMr, type ChangedFile, type MrKindResult } from "./domain/mr-kind.js";
+import { classifyMr, resolveKind, type ChangedFile, type MrKindResult } from "./domain/mr-kind.js";
 import { buildSystemPrompt, buildUserPrompt } from "./domain/prompt.js";
 import { normalizeReview, parseReviewText } from "./domain/schema.js";
 import type { ChatImage, ChatStep, ChatTools, Provider, ProviderId, ReviewRequest, ReviewResponse } from "./domain/types.js";
@@ -71,8 +71,9 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
             onActivity: req.onActivity,
           });
           const review = normalizeReview(parseReviewText(out.text), req.rubric);
-          const blocks = req.mrKind ? buildBlocks(review.blocks, viewFor(req.mrKind, req.rubric.overview?.views), [...(req.changedFiles ?? []), ...req.harness.tree.split("\n").map((l) => l.trim())]) : [];
-          return { review, blocks, usage: { provider: provider.descriptor.id, model: out.model, costUsd: out.costUsd, ...(out.tokens ? { tokens: out.tokens } : {}), durationMs: Date.now() - started } };
+          const resolved = req.mrKind ? resolveKind({ kind: req.mrKind, reasons: req.mrKindReasons ?? [], locked: req.mrKindLocked ?? true }, review.mrKind) : null;
+          const blocks = req.mrKind && resolved ? buildBlocks(review.blocks, viewFor(resolved.kind, req.rubric.overview?.views), [...(req.changedFiles ?? []), ...req.harness.tree.split("\n").map((l) => l.trim())]) : [];
+          return { review, blocks, blocksRaw: review.blocks.length, ...(resolved ? { mrKind: resolved.kind, mrKindChanged: resolved.changed, mrKindReason: review.mrKindReason?.slice(0, 200) } : {}), usage: { provider: provider.descriptor.id, model: out.model, costUsd: out.costUsd, ...(out.tokens ? { tokens: out.tokens } : {}), durationMs: Date.now() - started } };
         } catch (err) {
           lastErr = err;
           if (err instanceof ModuleError) throw err; // lỗi hạ tầng không thử lại ở đây

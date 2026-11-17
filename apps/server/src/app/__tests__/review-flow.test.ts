@@ -56,7 +56,7 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
       parseUrl: () => null, parseProjectUrl: () => null, listOpen: async () => [], reply: async () => undefined, verifyWebhook: () => true, webhookConfigured: () => true, parseWebhook: () => null,
     } as unknown as ScmApi;
     const reviewer: ReviewerApi = {
-      providers: async () => [], describe: () => null, capabilities: () => null, classify: () => ({ kind: "flow-change", reasons: ["test"] }),
+      providers: async () => [], describe: () => null, capabilities: () => null, classify: () => ({ kind: "flow-change", reasons: ["test"], locked: false }),
       ask: async () => ({ text: "ok", costUsd: null }),
       review: async () => ({
         blocks: [],

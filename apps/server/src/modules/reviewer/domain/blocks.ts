@@ -1,17 +1,30 @@
+import { AI_KINDS } from "./mr-kind.js";
 import { viewFor, type AiBlock, type DiagramEdge, type DiagramKind, type DiagramNode, type MrKind, type OverviewBlock, type OverviewView } from "@mrd/contracts";
 
 export const MAX_NODES = 12;
 export const MAX_BLOCKS = 4;
 
 /** Đoạn prompt yêu cầu AI vẽ sơ đồ; rỗng khi loại MR không cần. */
-export function blocksPrompt(kind: MrKind, view: OverviewView): string {
+export function blocksPrompt(kind: MrKind, view: OverviewView, opts: { locked?: boolean; reasons?: string[]; views?: Partial<Record<string, OverviewView>> | null | undefined } = {}): string {
   const v = view;
+  if (opts.locked === false) {
+    const table = AI_KINDS.map((k) => { const w = viewFor(k, opts.views); return `- ${k}: ${w.required.length ? "REQUIRED " + w.required.join(", ") : "no diagram required"}${w.optional.length ? "; optional " + w.optional.join(", ") : ""}`; }).join("\n");
+    return `# MR kind and diagrams
+A heuristic guesses this MR is "${kind}" (${(opts.reasons ?? []).join("; ") || "no reason"}). It looked only at the title and file paths, so decide yourself after reading the diff: set "mrKind" to one of ${AI_KINDS.join(", ")} (null to agree with the guess) and "mrKindReason" to one short sentence. Do not downgrade a kind just to avoid drawing diagrams.
+Then fill "blocks" (field described below) for YOUR chosen kind, using this table; leave "blocks" empty when you cannot ground a required one:
+${table}
+${blocksRules()}`;
+  }
   if (!v.required.length && !v.optional.length) return "";
   const list = [...v.required.map((k) => `- ${k} (REQUIRED)`), ...v.optional.map((k) => `- ${k} (only if the MR really touches it)`)].join("\n");
   return `# Diagrams (field "blocks"; this MR was classified as "${kind}")
 Return diagrams in "blocks" for these kinds, nothing else (leave "blocks" empty when you cannot ground a required one):
 ${list}
-Rules: at most ${MAX_NODES} nodes per diagram and ${MAX_BLOCKS} blocks. A node is a step, function, service or module; give it a short "label", optional "sub" (layer/file), optional "group" (module or layer, for a frame around nodes) and "status": added / changed / removed / unchanged relative to the base branch. Edges connect node ids; set "violation": true only when the edge breaks a rule of this repository (for example a module importing another module) and name that in "label".
+${blocksRules()}`;
+}
+
+function blocksRules(): string {
+  return `Rules: at most ${MAX_NODES} nodes per diagram and ${MAX_BLOCKS} blocks. A node is a step, function, service or module; give it a short "label", optional "sub" (layer/file), optional "group" (module or layer, for a frame around nodes) and "status": added / changed / removed / unchanged relative to the base branch. Edges connect node ids; set "violation": true only when the edge breaks a rule of this repository (for example a module importing another module) and name that in "label".
 EVIDENCE IS MANDATORY: every node, edge and sequence message lists "evidence" entries like "path/to/file.ts:120 symbolName" that you verified in the checkout. If you cannot verify a node, keep it only if the MR description clearly states it and leave "evidence" empty; never invent paths or symbols. Leave "beforeNodes"/"beforeEdges" EMPTY: the "before" view is derived from your "status" values (added nodes/edges did not exist, removed ones did), so statuses must be accurate. For "sequence" fill "actors" (2-8 parties) and ordered "messages" (reply: true for returns); leave nodes/edges empty. For flow/architecture leave actors/messages empty. Use a different "title" for each diagram.`;
 }
 

@@ -37,6 +37,10 @@ export interface ReviewRequest {
   stats: { filesChanged: number; additions: number; deletions: number };
   /** Loại MR do T0 gắn nhãn; quyết định có yêu cầu AI vẽ sơ đồ hay không. */
   mrKind?: MrKind;
+  /** Loại bị khoá theo file (docs/test/deps/config): AI không được đổi. */
+  mrKindLocked?: boolean;
+  /** Lý do T0 chọn loại gợi ý (đưa vào prompt). */
+  mrKindReasons?: string[];
   /** File đổi (để kiểm bằng chứng của sơ đồ có thật). */
   changedFiles?: string[];
   staticFindings: Finding[];
@@ -67,6 +71,12 @@ export interface ReviewResponse {
   review: RawReview;
   /** Sơ đồ tổng quan đã làm sạch (bằng chứng có thật, cỡ giới hạn); rỗng khi loại MR không cần. */
   blocks: OverviewBlock[];
+  /** Số khối thô AI trả trước khi làm sạch (để giải thích vì sao sơ đồ trống). */
+  blocksRaw?: number;
+  /** Loại MR cuối cùng (sau khi AI xác nhận/đổi), cùng lý do AI nêu. */
+  mrKind?: MrKind;
+  mrKindChanged?: boolean;
+  mrKindReason?: string | undefined;
   usage: ReviewUsage;
 }
 

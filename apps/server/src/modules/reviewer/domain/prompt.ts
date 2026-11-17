@@ -59,7 +59,7 @@ export function buildUserPrompt(req: ReviewRequest, agentic: boolean): string {
 
   const ov = overviewBlock(req.rubric);
   if (ov) parts.push(ov);
-  const bl = req.mrKind ? blocksPrompt(req.mrKind, viewFor(req.mrKind, req.rubric.overview?.views)) : "";
+  const bl = req.mrKind ? blocksPrompt(req.mrKind, viewFor(req.mrKind, req.rubric.overview?.views), { locked: req.mrKindLocked ?? true, reasons: req.mrKindReasons ?? [], views: req.rubric.overview?.views }) : "";
   if (bl) parts.push(bl);
 
   if (req.staticFindings.length) {

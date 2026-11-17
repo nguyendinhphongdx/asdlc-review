@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
@@ -13,7 +14,7 @@ import { ErrorBox } from "../../kernel/page.js";
 import { Confirmation, ConfirmationAccepted, ConfirmationAction, ConfirmationActions, ConfirmationRequest, ConfirmationTitle } from "@/components/ai-elements/confirmation";
 import { Reasoning, ReasoningContent, ReasoningTrigger } from "@/components/ai-elements/reasoning";
 import { Shimmer } from "@/components/ai-elements/shimmer";
-import { Suggestion, Suggestions } from "@/components/ai-elements/suggestion";
+import { Suggestion } from "@/components/ai-elements/suggestion";
 import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/components/ai-elements/tool";
 import { readAttachmentText, approveAction, dismissAction, getChat, sendChat } from "./api.js";
 
@@ -128,10 +129,35 @@ function Attachments() {
 function QuickPrompts({ disabled, onSend, file }: { disabled: boolean; onSend: (t: string) => void; file?: string | undefined }) {
   const ctl = usePromptInputController();
   const list = file ? ["Giải thích file đang xem", "File này có vấn đề gì?", ...SUGGEST] : SUGGEST;
+  const box = useRef<HTMLDivElement | null>(null);
+  const [more, setMore] = useState(false);
+  const [dlg, setDlg] = useState(false);
+  // Chỉ hiện tối đa 2 dòng, không cuộn ngang; thừa thì có nút "Xem thêm" mở hộp thoại liệt kê tất cả.
+  useEffect(() => {
+    const el = box.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const check = () => setMore(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [list.length]);
+  const pickOne = (t: string) => { setDlg(false); if (t.endsWith(": ")) ctl.textInput.setInput(t); else onSend(t); };
   return (
-    <Suggestions>
-      {list.map((s) => <Suggestion key={s} suggestion={s} disabled={disabled} className="h-7 rounded-full px-2.5 text-xs" onClick={(t) => (t.endsWith(": ") ? ctl.textInput.setInput(t) : onSend(t))} />)}
-    </Suggestions>
+    <div className="flex items-start gap-1.5">
+      <div ref={box} className="flex max-h-[62px] min-w-0 flex-1 flex-wrap gap-1.5 overflow-hidden">
+        {list.map((s) => <Suggestion key={s} suggestion={s} disabled={disabled} className="h-7 rounded-full px-2.5 text-xs" onClick={pickOne} />)}
+      </div>
+      {more && <Button type="button" variant="ghost" size="sm" className="h-7 flex-none rounded-full px-2.5 text-xs" onClick={() => setDlg(true)}>Xem thêm</Button>}
+      <Dialog open={dlg} onOpenChange={setDlg}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Gợi ý câu hỏi</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            {list.map((s) => <button key={s} type="button" disabled={disabled} className="rounded-md border px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50" onClick={() => pickOne(s)}>{s}</button>)}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

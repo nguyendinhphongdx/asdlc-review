@@ -21,6 +21,9 @@ export const RawReviewSchema = z.object({
   checks: z.array(RuleCheckSchema).default([]),
   overview: z.array(OverviewResultSchema).default([]),
   blocks: z.array(AiBlockSchema).default([]),
+  /** Loại MR do AI chốt sau khi đọc diff (null = đồng ý với gợi ý). Được kiểm lại ở server trước khi dùng. */
+  mrKind: z.string().nullish(),
+  mrKindReason: z.string().nullish(),
 });
 export type RawReview = z.infer<typeof RawReviewSchema>;
 

@@ -1,5 +1,5 @@
 import { checkMrDescription, descriptionFindings } from "./mr-description.js";
-import type { Finding, ReviewJobData, ReviewReport } from "@mrd/contracts";
+import { viewFor, type Finding, type ReviewJobData, type ReviewReport } from "@mrd/contracts";
 import { ModuleError } from "../../kernel/errors.js";
 import type { ProgressHub } from "../progress.js";
 import type { Logger } from "../../kernel/logger.js";
@@ -89,8 +89,8 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       emit("clone", "info", `Diff ${ws.numstat.length} file${ws.omittedFiles.length ? `, ${ws.omittedFiles.length} file bị bỏ qua do vượt ngân sách` : ""}`);
       const repoConfigYaml = await m.harness.readRepoConfig(dir, { ref: ws.baseSha });
       const files = ws.numstat.map((n) => ({ path: n.file, additions: n.additions, deletions: n.deletions, binary: n.binary }));
-      const { kind: mrKind, reasons: kindReasons } = m.reviewer.classify(files, mr.title);
-      emit("clone", "info", `Loại MR: ${mrKind} (${kindReasons.join("; ")})`);
+      const { kind: hintKind, reasons: kindReasons, locked: kindLocked } = m.reviewer.classify(files, mr.title);
+      emit("clone", "info", `Loại MR (gợi ý): ${hintKind} (${kindReasons.join("; ")})${kindLocked ? " — cố định theo file" : " — AI sẽ xác nhận sau khi đọc diff"}`);
 
       const fw = await stage("framework", async () =>
         m.framework.resolve({ frameworkId: repo.frameworkId ?? settings.defaultFramework, repoConfigYaml }),
@@ -133,7 +133,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
           mr: { iid: mr.iid, title: mr.title, description: mr.description, author: mr.authorUsername, sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, webUrl: mr.webUrl },
           rubric: fw.rubric,
           harness: { files: harness.files, tree: harness.tree, discovered: harness.discovered.map((d) => d.path) },
-          diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, stats, mrKind, changedFiles: ws!.numstat.map((n) => n.file), staticFindings: analysis.findings, notebook, notes, ...(previousRound?.findings.length ? { previousRound } : {}),
+          diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, stats, mrKind: hintKind, mrKindLocked: kindLocked, mrKindReasons: kindReasons, changedFiles: ws!.numstat.map((n) => n.file), staticFindings: analysis.findings, notebook, notes, ...(previousRound?.findings.length ? { previousRound } : {}),
         }),
       );
 
@@ -152,6 +152,14 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         items: harness.load.map((h) => ({ path: h.path, kind: h.kind, size: h.size, chars: h.chars, loaded: h.loaded, truncated: h.truncated, reason: h.reason, via: h.via, cited: cited.has(h.path) })),
         totalRepoFiles: harness.totalFiles, loadedChars: harness.files.reduce((s, f) => s + f.content.length, 0),
       };
+      const mrKind = ai.mrKind ?? hintKind;
+      if (ai.mrKindChanged) emit("review", "info", `Loại MR: ${hintKind} → AI đổi thành ${mrKind}${ai.mrKindReason ? ` (${ai.mrKindReason})` : ""}`);
+      else emit("review", "info", `Loại MR: ${mrKind}${kindLocked ? " (cố định theo file)" : " (AI đồng ý)"}`);
+      if (mrKind) {
+        const want = viewFor(mrKind, fw.rubric.overview?.views);
+        if (!want.required.length && !want.optional.length) emit("review", "info", `Sơ đồ: loại ${mrKind} không cần vẽ sơ đồ`);
+        else emit("review", ai.blocks.length ? "info" : "warn", `Sơ đồ: AI trả ${ai.blocksRaw ?? 0} khối, giữ ${ai.blocks.length}${ai.blocks.length ? "" : (ai.blocksRaw ? " (bị loại: sai loại, rỗng hoặc trùng tiêu đề)" : " (AI không trả khối nào; cần: " + (want.required.join(", ") || want.optional.join(", ")) + ")")}`);
+      }
       emit("review", "info", `AI trả ${ai.review.findings.length} finding, ${ai.review.checks.length} mục checklist${ai.usage.costUsd != null ? `, chi phí $${ai.usage.costUsd.toFixed(2)}` : ""}`);
       const ruleChecks = m.scoring.checklist(fw.rubric, ai.review.checks, findings);
       const omitted = new Set(ws.omittedFiles);

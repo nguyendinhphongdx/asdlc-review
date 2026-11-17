@@ -10,9 +10,11 @@ const MESSAGE = { type: "object", additionalProperties: false, required: ["from"
 export const REVIEW_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "intent", "findings", "strengths", "harnessUsed", "checks", "overview", "blocks"],
+  required: ["summary", "intent", "findings", "strengths", "harnessUsed", "checks", "overview", "blocks", "mrKind", "mrKindReason"],
   properties: {
     summary: { type: "string" },
+    mrKind: nullable("string"),
+    mrKindReason: nullable("string"),
     intent: { type: "string" },
     strengths: { type: "array", items: { type: "string" } },
     harnessUsed: { type: "array", items: { type: "string" } },

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { DEFAULT_VIEWS, type AiBlock } from "@mrd/contracts";
 import { buildBlocks, blocksPrompt, deriveBefore } from "../domain/blocks.js";
-import { classifyMr } from "../domain/mr-kind.js";
+import { classifyMr, resolveKind } from "../domain/mr-kind.js";
 
 const f = (path: string, additions = 10, deletions = 2) => ({ path, additions, deletions });
 
@@ -68,5 +68,27 @@ describe("blocksPrompt", () => {
     assert.equal(blocksPrompt("docs", DEFAULT_VIEWS.docs), "");
     assert.match(blocksPrompt("flow-change", DEFAULT_VIEWS["flow-change"]), /flow \(REQUIRED\)/);
     assert.match(blocksPrompt("flow-change", DEFAULT_VIEWS["flow-change"]), /EVIDENCE IS MANDATORY/);
+  });
+});
+
+describe("loại MR: AI xác nhận", () => {
+  const hint = classifyMr([f("src/a.ts")], "refactor: tách service");
+  it("loại khoá theo file thì AI không đổi được", () => {
+    const docs = classifyMr([f("README.md")]);
+    assert.equal(docs.locked, true);
+    assert.deepEqual(resolveKind(docs, "new-feature"), { kind: "docs", changed: false });
+  });
+  it("gợi ý từ tiêu đề thì AI đổi được; giá trị lạ hoặc loại khoá bị bỏ qua", () => {
+    assert.equal(hint.locked, false);
+    assert.deepEqual(resolveKind(hint, "new-feature"), { kind: "new-feature", changed: true });
+    assert.deepEqual(resolveKind(hint, "docs"), { kind: "refactor", changed: false });
+    assert.deepEqual(resolveKind(hint, "bậy"), { kind: "refactor", changed: false });
+    assert.deepEqual(resolveKind(hint, null), { kind: "refactor", changed: false });
+  });
+  it("prompt chưa khoá nêu gợi ý + bảng sơ đồ theo loại, prompt khoá chỉ nêu sơ đồ của loại đó", () => {
+    const open = blocksPrompt("refactor", DEFAULT_VIEWS.refactor, { locked: false, reasons: ["tiêu đề nói refactor"] });
+    assert.match(open, /mrKind/);
+    assert.match(open, /new-feature: REQUIRED flow/);
+    assert.equal(blocksPrompt("docs", DEFAULT_VIEWS.docs, { locked: true }), "");
   });
 });
