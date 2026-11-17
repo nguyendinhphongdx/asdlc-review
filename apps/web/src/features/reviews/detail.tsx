@@ -1,4 +1,4 @@
-import type { RunActivityEntry, RunDetailDto } from "@mrd/contracts";
+import type { ChatSelectionDto, RunActivityEntry, RunDetailDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type CSSProperties } from "react";
 import { Bot, Check, ChevronDown, CircleAlert, ExternalLink, RotateCw, ThumbsDown, ThumbsUp, TriangleAlert } from "lucide-react";
@@ -48,6 +48,9 @@ export function ReviewDetailPage() {
   const [connected, setConnected] = useState(false);
   const [openStage, setOpenStage] = useState("review");
   const [ask, setAsk] = useState<{ id: number; text: string } | null>(null);
+  const [viewFile, setViewFile] = useState<string | null>(null);
+  const [selection, setSelection] = useState<ChatSelectionDto | null>(null);
+  const [viewNode, setViewNode] = useState<string | null>(null);
   const [focus, setFocus] = useState<{ id: number; path: string } | null>(null);
   const PANEL_DEFAULT = 560;
   const [panelW, setPanelW] = usePersistedNumber("mrd.panel.w", PANEL_DEFAULT);
@@ -112,7 +115,7 @@ export function ReviewDetailPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section aria-label="Trò chuyện với trợ lý" className="min-h-[520px] min-w-0 flex-1 lg:min-h-0"><AgentChat dock mrId={r.mr.id} active={active} connected={connected} incoming={ask} /></section>
+        <section aria-label="Trò chuyện với trợ lý" className="min-h-[520px] min-w-0 flex-1 lg:min-h-0"><AgentChat onClearSelection={() => setSelection(null)} dock mrId={r.mr.id} active={active} connected={connected} incoming={ask} viewing={{ tab, selection: tab === "changes" ? selection ?? undefined : undefined, file: tab === "changes" ? viewFile ?? undefined : undefined, node: tab === "overview" ? viewNode ?? undefined : undefined }} /></section>
 
         <aside aria-label="Kết quả review" style={{ "--pw": `${Math.min(panelW, panelMax())}px` } as CSSProperties} className="relative flex min-h-[520px] min-w-0 flex-col border-t bg-muted/20 lg:min-h-0 lg:w-[var(--pw)] lg:flex-none lg:border-l lg:border-t-0">
           <ResizeHandle edge="left" label="Đổi độ rộng khung kết quả" value={panelW} min={PANEL_MIN} max={panelMax} onChange={setPanelW} onReset={() => setPanelW(PANEL_DEFAULT)} className="absolute inset-y-0 -left-1 hidden lg:flex" />
@@ -130,9 +133,9 @@ export function ReviewDetailPage() {
             {r.error && !(r.status === "failed" && STAGES.some((x) => x.id === r.stage)) && <ErrorBox error={r.error} />}
             {re.error && <ErrorBox error={re.error} />}
             {re.notice && !re.error && !re.isPending && <p role="status" className="text-[13px] text-muted-foreground">{re.notice}</p>}
-            {tab === "overview" && <OverviewTab r={r} frameworkName={fwName} onAsk={askChat} onOpenFile={openFile} />}
+            {tab === "overview" && <OverviewTab r={r} frameworkName={fwName} onAsk={askChat} onOpenFile={openFile} onSelectNode={setViewNode} />}
             {tab === "progress" && <ProgressTab r={r} entries={entries} onOpenLog={openLog} />}
-            {tab === "changes" && <FileChanges mrId={r.mr.id} files={r.files ?? []} findings={r.findings} focus={focus} />}
+            {tab === "changes" && <FileChanges mrId={r.mr.id} files={r.files ?? []} findings={r.findings} focus={focus} onViewing={setViewFile} onSelect={setSelection} />}
             {tab === "findings" && <Findings findings={r.findings} onFeedback={(fid, v) => fb.mutate({ id: fid, v })} />}
             {tab === "context" && <ContextTab r={r} frameworkName={fwName} />}
             {tab === "log" && <LogTab r={r} entries={entries} open={openStage} onOpen={setOpenStage} />}
@@ -143,12 +146,12 @@ export function ReviewDetailPage() {
   );
 }
 
-function OverviewTab({ r, frameworkName, onAsk, onOpenFile }: { r: RunDetailDto; frameworkName?: string | undefined; onAsk: (t: string) => void; onOpenFile: (p: string) => void }) {
+function OverviewTab({ r, frameworkName, onAsk, onOpenFile, onSelectNode }: { r: RunDetailDto; frameworkName?: string | undefined; onAsk: (t: string) => void; onOpenFile: (p: string) => void; onSelectNode: (l: string | null) => void }) {
   const verdict = r.verdict ? VERDICT[r.verdict] : undefined;
   return (
     <>
       <MrDescription d={r.mrDescription} />
-      <OverviewCard sections={r.overview ?? []} blocks={r.blocks ?? []} onAsk={onAsk} onOpenFile={onOpenFile} />
+      <OverviewCard sections={r.overview ?? []} blocks={r.blocks ?? []} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} />
       {r.omittedFiles.length > 0 && (
         <section role="status" className="flex gap-3 rounded-xl border border-warning bg-warning-bg px-5 py-4 text-warning-fg">
           <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
@@ -223,7 +226,7 @@ function OverviewTab({ r, frameworkName, onAsk, onOpenFile }: { r: RunDetailDto;
 }
 
 /** "Đánh giá tổng quan" do AI viết theo khung framework (mục, dạng hiển thị, nhãn kết luận đều do framework quyết định). */
-function OverviewCard({ sections, blocks: diagrams, onAsk, onOpenFile }: { sections: RunDetailDto["overview"]; blocks: RunDetailDto["blocks"]; onAsk: (t: string) => void; onOpenFile: (p: string) => void }) {
+function OverviewCard({ sections, blocks: diagrams, onAsk, onOpenFile, onSelectNode }: { sections: RunDetailDto["overview"]; blocks: RunDetailDto["blocks"]; onAsk: (t: string) => void; onOpenFile: (p: string) => void; onSelectNode: (l: string | null) => void }) {
   const [sp] = useSearchParams();
   const demo = sp.get("overview") === "demo";
   const blocks = demo ? DEMO_BLOCKS : [...sectionsToBlocks(sections), ...diagrams];
@@ -234,7 +237,7 @@ function OverviewCard({ sections, blocks: diagrams, onAsk, onOpenFile }: { secti
         <div className="flex items-center gap-2.5"><span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Bot className="size-4" aria-hidden="true" /></span><div><h2 className="text-[15px] font-semibold">Đánh giá tổng quan</h2><p className="text-xs text-muted-foreground">AI nhìn MR từ xa, theo khung của framework</p></div></div>
         <Badge variant="info">{demo ? "Dữ liệu mẫu" : "Do AI viết"}</Badge>
       </div>
-      <div className="px-5 py-4"><OverviewBlocks blocks={blocks} onAsk={onAsk} onOpenFile={onOpenFile} /></div>
+      <div className="px-5 py-4"><OverviewBlocks blocks={blocks} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} /></div>
     </Card>
   );
 }

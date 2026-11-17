@@ -20,4 +20,8 @@ export interface ActionDto {
 }
 export interface ChatStateDto { messages: ChatMessageDto[]; lessons: LessonDto[]; actions: ActionDto[]; /** Các bước đang làm dở của lượt trả lời hiện tại (nếu agent đang bận). */ live?: ChatStepDto[] | null }
 export interface ChatImageDto { mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; data: string }
+/** Người dùng đang xem gì trên trang review lúc gửi tin (để chat hiểu "file này", "nút này"). */
+/** Đoạn code người dùng bôi đen trong diff (dòng/cột tính từ 1, theo phiên bản mới của file). */
+export interface ChatSelectionDto { file: string; lineStart: number; lineEnd: number; colStart: number; colEnd: number; text: string }
+export interface ChatViewingDto { tab: string; selection?: ChatSelectionDto | undefined; file?: string | undefined; /** Tên nút đang chọn trên sơ đồ tổng quan. */ node?: string | undefined }
 export interface ChatReplyDto { reply: string; lessons: string[]; queued?: boolean }

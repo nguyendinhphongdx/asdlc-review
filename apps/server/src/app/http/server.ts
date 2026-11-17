@@ -156,8 +156,9 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
   const ChatBody = z.object({
     text: z.string().trim().max(4000).default(""),
     images: z.array(z.object({ mediaType: z.enum(["image/png", "image/jpeg", "image/gif", "image/webp"]), data: z.string().max(5_000_000) })).max(4).default([]),
+    viewing: z.object({ tab: z.string().max(40), file: z.string().max(400).optional(), node: z.string().max(120).optional(), selection: z.object({ file: z.string().max(400), lineStart: z.number().int(), lineEnd: z.number().int(), colStart: z.number().int(), colEnd: z.number().int(), text: z.string().max(8000) }).optional() }).optional(),
   }).refine((b) => b.text.length > 0 || b.images.length > 0, "Cần nội dung hoặc ảnh");
-  app.post<{ Params: { id: string } }>("/api/mrs/:id/chat", { bodyLimit: 24 * 1024 * 1024 }, async (req) => { const b = ChatBody.parse(req.body); return w.agentChat(req.params.id, b.text || "Xem ảnh đính kèm.", undefined, b.images); });
+  app.post<{ Params: { id: string } }>("/api/mrs/:id/chat", { bodyLimit: 24 * 1024 * 1024 }, async (req) => { const b = ChatBody.parse(req.body); return w.agentChat(req.params.id, b.text || "Xem ảnh đính kèm.", undefined, b.images, b.viewing); });
   app.post<{ Params: { id: string } }>("/api/actions/:id/approve", async (req) => w.agentActions.approve(req.params.id));
   app.post<{ Params: { id: string } }>("/api/actions/:id/dismiss", async (req) => w.agentActions.dismiss(req.params.id));
   c.agentTools.register(app);

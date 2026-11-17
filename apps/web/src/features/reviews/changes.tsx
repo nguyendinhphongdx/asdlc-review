@@ -1,4 +1,4 @@
-import type { FileReviewDto, FindingDto, MrFileDiffDto } from "@mrd/contracts";
+import type { ChatSelectionDto, FileReviewDto, FindingDto, MrFileDiffDto } from "@mrd/contracts";
 import { ResizeHandle, usePersistedNumber } from "../../kernel/resize.js";
 import { Tip } from "../../kernel/tip.js";
 import { useQuery } from "@tanstack/react-query";
@@ -62,7 +62,32 @@ function FindingBubble({ f }: { f: FindingDto }) {
   );
 }
 
-function DiffBody({ file, findings }: { file: MrFileDiffDto; findings: FindingDto[] }) {
+/** Số cột (từ 1) của điểm chọn trong ô code; bỏ 2 ký tự đầu là dấu +/-/khoảng trắng. */
+function colOf(node: globalThis.Node, offset: number, td: Element): number {
+  const r = document.createRange();
+  r.selectNodeContents(td);
+  r.setEnd(node, offset);
+  return Math.max(1, r.toString().length - 1);
+}
+const rowOf = (n: globalThis.Node | null): HTMLElement | null => (n instanceof Element ? n : n?.parentElement)?.closest<HTMLElement>("tr[data-new]") ?? null;
+
+function DiffBody({ file, findings, onSelect }: { file: MrFileDiffDto; findings: FindingDto[]; onSelect?: ((s: ChatSelectionDto) => void) | undefined }) {
+  const wrap = useRef<HTMLDivElement | null>(null);
+  // Bôi đen trong diff → báo lên cho chat biết (file, dòng, cột, nội dung).
+  const pick = () => {
+    const sel = window.getSelection();
+    if (!onSelect || !sel || sel.isCollapsed || !sel.rangeCount || !wrap.current) return;
+    const a = rowOf(sel.anchorNode), b = rowOf(sel.focusNode);
+    if (!a || !b || !wrap.current.contains(a) || !wrap.current.contains(b)) return;
+    const text = sel.getRangeAt(0).toString().replace(/\n{2,}/g, "\n").trim();
+    if (!text) return;
+    const rev = a.compareDocumentPosition(b) & window.Node.DOCUMENT_POSITION_PRECEDING;
+    const [s, e] = rev ? [b, a] : [a, b];
+    const [sn, so, en, eo] = rev ? [sel.focusNode!, sel.focusOffset, sel.anchorNode!, sel.anchorOffset] : [sel.anchorNode!, sel.anchorOffset, sel.focusNode!, sel.focusOffset];
+    const num = (el: HTMLElement) => Number(el.dataset.new) || Number(el.dataset.old) || 0;
+    const code = (el: HTMLElement) => el.querySelector("td.code") as Element;
+    onSelect({ file: file.path, lineStart: num(s), lineEnd: num(e), colStart: colOf(sn, so, code(s)), colEnd: colOf(en, eo, code(e)), text: text.slice(0, 8000) });
+  };
   const rows = useMemo(() => parseDiff(file.diff), [file.diff]);
   const [all, setAll] = useState(false);
   const shown = all ? rows : rows.slice(0, MAX_LINES);
@@ -86,7 +111,7 @@ function DiffBody({ file, findings }: { file: MrFileDiffDto; findings: FindingDt
   }, [rows, findings]);
   if (file.truncated || !file.diff) return <p className="px-4 py-3 text-xs text-muted-foreground">Nền tảng không trả nội dung diff cho file này (quá lớn hoặc nhị phân).</p>;
   return (
-    <div className="overflow-x-auto border-t font-mono text-xs leading-5">
+    <div ref={wrap} onMouseUp={pick} onKeyUp={pick} className="overflow-x-auto border-t font-mono text-xs leading-5">
       {byLine.orphans.map((f) => <FindingBubble key={f.id} f={f} />)}
       <table className="w-full border-collapse">
         <tbody>
@@ -96,10 +121,10 @@ function DiffBody({ file, findings }: { file: MrFileDiffDto; findings: FindingDt
             const hot = r.newNo !== undefined && r.kind !== "del" && byLine.hl.has(r.newNo);
             return (
               <>
-                <tr key={i} className={cn(r.kind === "add" && "bg-success/10", r.kind === "del" && "bg-danger/10", hot && "bg-warning/25 shadow-[inset_3px_0_0_var(--warning)]")}>
+                <tr key={i} data-new={r.newNo ?? ""} data-old={r.oldNo ?? ""} className={cn(r.kind === "add" && "bg-success/10", r.kind === "del" && "bg-danger/10", hot && "bg-warning/25 shadow-[inset_3px_0_0_var(--warning)]")}>
                   <td className="w-12 select-none px-2 text-right text-muted-foreground/70">{r.oldNo ?? ""}</td>
                   <td className="w-12 select-none border-r px-2 text-right text-muted-foreground/70">{r.newNo ?? ""}</td>
-                  <td className="whitespace-pre pl-3 pr-4"><span className="select-none text-muted-foreground">{r.kind === "add" ? "+" : r.kind === "del" ? "-" : " "}</span> {r.text}</td>
+                  <td className="code whitespace-pre pl-3 pr-4"><span className="select-none text-muted-foreground">{r.kind === "add" ? "+" : r.kind === "del" ? "-" : " "}</span> {r.text}</td>
                 </tr>
                 {fs?.map((f) => <tr key={`f-${f.id}`}><td colSpan={3} className="bg-background"><FindingBubble f={f} /></td></tr>)}
               </>
@@ -112,7 +137,7 @@ function DiffBody({ file, findings }: { file: MrFileDiffDto; findings: FindingDt
   );
 }
 
-function FileCard({ item, findings, open, onToggle, id, viewed, onViewed }: { item: Item; findings: FindingDto[]; open: boolean; onToggle: () => void; id: string; viewed: boolean; onViewed: () => void }) {
+function FileCard({ item, findings, open, onToggle, id, viewed, onViewed, onSelect }: { onSelect?: ((s: ChatSelectionDto) => void) | undefined; item: Item; findings: FindingDto[]; open: boolean; onToggle: () => void; id: string; viewed: boolean; onViewed: () => void }) {
   const dir = item.path.includes("/") ? item.path.slice(0, item.path.lastIndexOf("/") + 1) : "";
   const name = item.path.slice(dir.length);
   return (
@@ -128,7 +153,7 @@ function FileCard({ item, findings, open, onToggle, id, viewed, onViewed }: { it
         {item.binary ? <span className="text-xs text-muted-foreground">binary</span> : <span className="font-mono text-xs tabular-nums"><span className="text-success-fg">+{item.additions}</span> <span className="text-danger-fg">−{item.deletions}</span></span>}
       </button>
       </div>
-      {open && (item.diff ? <DiffBody file={item.diff} findings={findings} /> : <p className="border-t px-4 py-3 text-xs text-muted-foreground">Chưa tải được nội dung diff.</p>)}
+      {open && (item.diff ? <DiffBody file={item.diff} findings={findings} onSelect={onSelect} /> : <p className="border-t px-4 py-3 text-xs text-muted-foreground">Chưa tải được nội dung diff.</p>)}
     </Card>
   );
 }
@@ -187,13 +212,16 @@ function TreeNode({ n, depth, onPick, active, counts, viewed, onViewed }: { n: N
 }
 
 /** Trang "Changes" kiểu GitLab: cây file bên trái, diff từng file bên phải, finding của AI hiện inline như comment. */
-export function FileChanges({ mrId, files, findings, focus = null }: { mrId: string; files: FileReviewDto[]; findings: FindingDto[]; focus?: { id: number; path: string } | null }) {
+export function FileChanges({ mrId, files, findings, focus = null, onViewing, onSelect }: { mrId: string; files: FileReviewDto[]; findings: FindingDto[]; focus?: { id: number; path: string } | null; onViewing?: ((path: string | null) => void) | undefined; onSelect?: ((s: ChatSelectionDto) => void) | undefined }) {
   const diff = useQuery({ queryKey: ["mr-diff", mrId], queryFn: () => getMrDiff(mrId), staleTime: 120_000, retry: false });
   const [filter, setFilter] = useState<"all" | "unviewed" | "issues">("all");
   const { viewed, toggle: toggleViewed } = useViewed(mrId);
   const [search, setSearch] = useState("");
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const [active, setActive] = useState<string | null>(null);
+  // File đang nằm trên cùng khi cuộn (không cần bấm vào cây) cũng được báo là "đang xem".
+  const [seen, setSeen] = useState<string | null>(null);
+  useEffect(() => { onViewing?.(seen ?? active); return () => onViewing?.(null); }, [seen, active]); // eslint-disable-line react-hooks/exhaustive-deps
   // Khung đủ rộng (đo theo chính nó, không theo cả cửa sổ) thì chia đôi cây file | diff, kéo được; hẹp thì cây nằm trên, cuộn riêng.
   const box = useRef<HTMLElement | null>(null);
   const [boxW, setBoxW] = useState(0);
@@ -220,6 +248,21 @@ export function FileChanges({ mrId, files, findings, focus = null }: { mrId: str
     const base = files.length ? files : (diff.data?.files ?? []).map((x) => ({ path: x.path, additions: x.additions, deletions: x.deletions, binary: false, reviewed: true }));
     return base.map((f) => ({ ...f, diff: d.get(f.path) }));
   }, [files, diff.data]);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined" || !box.current) return;
+    const cards = [...box.current.querySelectorAll<HTMLElement>("[id^='file-']")];
+    if (!cards.length) return;
+    const vis = new Set<string>();
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) { if (e.isIntersecting) vis.add(e.target.id); else vis.delete(e.target.id); }
+      // Chọn thẻ có mép trên gần đầu khung nhất (đo lại lúc này vì vị trí đã đổi khi cuộn).
+      const tops = [...vis].map((id) => [id, document.getElementById(id)?.getBoundingClientRect().top ?? Infinity] as const).sort((a, b) => Math.abs(a[1]) - Math.abs(b[1]));
+      const first = tops[0];
+      if (first) setSeen(decodeURIComponent(first[0].slice(5)));
+    }, { threshold: [0, 0.2] });
+    cards.forEach((c) => io.observe(c));
+    return () => io.disconnect();
+  }, [items.length, filter, search, toggled]);
   // Nơi khác (vd sơ đồ tổng quan) yêu cầu mở một file: chọn, mở rộng và cuộn tới.
   useEffect(() => {
     if (!focus || !items.some((f) => f.path === focus.path)) return;
@@ -279,7 +322,7 @@ export function FileChanges({ mrId, files, findings, focus = null }: { mrId: str
         </Card>
         {split && <ResizeHandle edge="right" label="Đổi độ rộng cây file" value={tw} min={200} max={treeMax} onChange={setTreeW} onReset={() => setTreeW(TREE_DEFAULT)} className="mx-auto h-[calc(100vh-17rem)] self-start" />}
         <div className="flex min-w-0 flex-col gap-3">
-          {visible.map((f) => <FileCard key={f.path} id={`file-${encodeURIComponent(f.path)}`} item={f} findings={byFile.get(f.path) ?? []} open={isOpen(f)} onToggle={() => setToggled((t) => ({ ...t, [f.path]: !isOpen(f) }))} viewed={viewed.has(f.path)} onViewed={() => toggleViewed(f.path)} />)}
+          {visible.map((f) => <FileCard key={f.path} id={`file-${encodeURIComponent(f.path)}`} item={f} findings={byFile.get(f.path) ?? []} open={isOpen(f)} onToggle={() => setToggled((t) => ({ ...t, [f.path]: !isOpen(f) }))} viewed={viewed.has(f.path)} onViewed={() => toggleViewed(f.path)} onSelect={onSelect} />)}
           {visible.length === 0 && <Card><p className="px-6 py-10 text-center text-sm text-muted-foreground">Không có file nào khớp bộ lọc.</p></Card>}
         </div>
       </div>

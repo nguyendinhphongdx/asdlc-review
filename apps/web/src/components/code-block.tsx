@@ -11,7 +11,7 @@ export function CodeBlock({ code, file, className }: { code: string; file?: stri
   const diff = marked > 0 && lines.every((l) => l === "" || /^[+\- ]/.test(l) || l.startsWith("@@"));
   const body = diff ? lines.map((l) => (l.startsWith("@@") ? l : l.slice(1))).join("\n") : lines.join("\n");
   return (
-    <div className={cn("overflow-hidden rounded-lg border border-zinc-800 bg-[#1e1e1e] text-xs", className)}>
+    <div className={cn("overflow-hidden rounded-lg border border-zinc-800 bg-[#1e1e1e] text-xs text-[#d4d4d4]", className)}>
       {file && <div className="border-b border-zinc-800 bg-zinc-900/80 px-3.5 py-1.5 font-mono text-[11px] text-zinc-400">{file}</div>}
       <Highlight theme={themes.vsDark} code={body} language={langOf(file)}>
         {({ tokens, getTokenProps }) => (

@@ -1,6 +1,6 @@
-import type { ActionDto, ChatImageDto, ChatStepDto } from "@mrd/contracts";
+import type { ActionDto, ChatImageDto, ChatStepDto, ChatViewingDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, FileText, Minus, MessageSquare, Sparkles, Wrench, X } from "lucide-react";
+import { ChevronDown, Eye, FileText, Minus, MessageSquare, Sparkles, Wrench, X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
@@ -125,11 +125,12 @@ function Attachments() {
   );
 }
 
-function QuickPrompts({ disabled, onSend }: { disabled: boolean; onSend: (t: string) => void }) {
+function QuickPrompts({ disabled, onSend, file }: { disabled: boolean; onSend: (t: string) => void; file?: string | undefined }) {
   const ctl = usePromptInputController();
+  const list = file ? ["Giải thích file đang xem", "File này có vấn đề gì?", ...SUGGEST] : SUGGEST;
   return (
     <Suggestions>
-      {SUGGEST.map((s) => <Suggestion key={s} suggestion={s} disabled={disabled} className="h-7 rounded-full px-2.5 text-xs" onClick={(t) => (t.endsWith(": ") ? ctl.textInput.setInput(t) : onSend(t))} />)}
+      {list.map((s) => <Suggestion key={s} suggestion={s} disabled={disabled} className="h-7 rounded-full px-2.5 text-xs" onClick={(t) => (t.endsWith(": ") ? ctl.textInput.setInput(t) : onSend(t))} />)}
     </Suggestions>
   );
 }
@@ -142,7 +143,7 @@ const loadMode = (): Mode => { try { const v = localStorage.getItem("mrd.chat.mo
  * (Read/Grep/Glob), hiện suy luận và từng lệnh gọi tool; comment/chạy lại chỉ là đề xuất chờ bạn duyệt.
  */
 /** `incoming`: câu hỏi do nơi khác trên trang đẩy vào (vd bấm nút trên sơ đồ); mỗi `id` mới được gửi một lần. */
-export function AgentChat({ mrId, active, connected, dock = false, incoming = null }: { mrId: string; active: boolean; connected: boolean; dock?: boolean; incoming?: { id: number; text: string } | null }) {
+export function AgentChat({ mrId, active, connected, dock = false, incoming = null, viewing, onClearSelection }: { onClearSelection?: (() => void) | undefined; mrId: string; active: boolean; connected: boolean; dock?: boolean; incoming?: { id: number; text: string } | null; viewing?: ChatViewingDto | undefined }) {
   const qc = useQueryClient();
   const [modeRaw, setModeState] = useState<Mode>(loadMode);
   const mode: Mode = dock ? "open" : modeRaw;
@@ -150,12 +151,17 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
   const [pending, setPending] = useState<string | null>(null);
   // Số tin đã có lúc bấm gửi: khi server lưu tin của bạn (số tin tăng) thì bỏ tin tạm để không hiện trùng.
   const baseline = useRef(0);
+  // Chia sẻ "đang xem gì" (tab, file, nút sơ đồ) với agent để nó hiểu "file này", "chỗ này". Tắt được cho từng phiên.
+  const [share, setShare] = useState(true);
+  const view = share && viewing && (viewing.file || viewing.node) ? viewing : undefined;
+  const viewRef = useRef<ChatViewingDto | undefined>(undefined);
+  viewRef.current = share ? viewing : viewing?.selection ? { tab: viewing.tab, selection: viewing.selection } : undefined;
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const q = useQuery({ queryKey: ["chat", mrId], queryFn: () => getChat(mrId), refetchInterval: busy ? 1200 : false });
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["chat", mrId] }); void qc.invalidateQueries({ queryKey: ["runs"] }); };
   const send = useMutation({
-    mutationFn: (a: { t: string; imgs: ChatImageDto[] }) => sendChat(mrId, a.t, a.imgs),
+    mutationFn: (a: { t: string; imgs: ChatImageDto[] }) => sendChat(mrId, a.t, a.imgs, viewRef.current),
     onMutate: (a) => { baseline.current = q.data?.messages.length ?? 0; setBusy(true); setPending(a.imgs.length ? `${a.t}\n📎 ${a.imgs.length} ảnh đính kèm` : a.t); },
     onSettled: () => { setBusy(false); setPending(null); refresh(); },
   });
@@ -229,7 +235,23 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
       {notice && <p role="alert" className="px-3 text-[13px] text-danger-fg">{notice}</p>}
       <div className="flex flex-col gap-1.5 border-t px-3 py-2">
         <PromptInputProvider>
-          <QuickPrompts disabled={send.isPending} onSend={(t) => submit(t)} />
+          {viewing?.selection && (
+            <div className="flex items-center gap-1.5 rounded-md border bg-muted/40 px-2 py-1 text-xs" title={`${viewing.selection.file}\n${viewing.selection.lineStart}:${viewing.selection.colStart} – ${viewing.selection.lineEnd}:${viewing.selection.colEnd}\n\n${viewing.selection.text.slice(0, 400)}`}>
+              <FileText className="size-3.5 flex-none text-muted-foreground" aria-hidden="true" />
+              <span className="font-medium">{viewing.selection.lineEnd - viewing.selection.lineStart + 1} dòng đã chọn</span>
+              <span className="min-w-0 truncate font-mono text-[11.5px] text-muted-foreground" dir="rtl"><bdi>{viewing.selection.file}:{viewing.selection.lineStart}{viewing.selection.lineEnd !== viewing.selection.lineStart ? `-${viewing.selection.lineEnd}` : ""}</bdi></span>
+              <button type="button" aria-label="Bỏ đoạn đã chọn" className="ml-auto flex-none rounded p-0.5 hover:bg-muted" onClick={() => onClearSelection?.()}><X className="size-3.5" /></button>
+            </div>
+          )}
+          {view && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Agent biết bạn đang xem mục này nên hiểu “file này”, “chỗ này”. Bấm × để không chia sẻ.">
+              <Eye className="size-3.5 flex-none" aria-hidden="true" /><span className="flex-none">Đang xem:</span>
+              <span className="min-w-0 truncate font-mono text-[11.5px] text-foreground" dir="rtl"><bdi>{view.file ?? view.node}</bdi></span>
+              <button type="button" aria-label="Không chia sẻ mục đang xem với agent" className="ml-auto flex-none rounded p-0.5 hover:bg-muted" onClick={() => setShare(false)}><X className="size-3.5" /></button>
+            </div>
+          )}
+          {!share && viewing && (viewing.file || viewing.node) && <button type="button" className="w-fit text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => setShare(true)}>Chia sẻ mục đang xem với agent</button>}
+          <QuickPrompts disabled={send.isPending} onSend={(t) => submit(t)} file={view?.file} />
           <PromptInput
             accept="image/png,image/jpeg,image/gif,image/webp,text/*,application/json,.md,.log,.diff,.patch,.yml,.yaml,.ts,.tsx,.py,.go" multiple maxFiles={5} maxFileSize={3_500_000}
             onError={(e) => setNotice(e.code === "max_file_size" ? "Tệp quá lớn (tối đa ~3.5MB)." : e.code === "max_files" ? "Tối đa 5 tệp." : "Chỉ nhận ảnh hoặc tệp văn bản/code.")}

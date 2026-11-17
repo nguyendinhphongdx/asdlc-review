@@ -53,10 +53,11 @@ export function Graph({ graph, selected, onSelect, label }: { graph: DiagramGrap
 type Mode = "after" | "before" | "side";
 
 /** Khối `flow`/`architecture`: sơ đồ, chuyển Trước/Sau/Cạnh nhau, thẻ chi tiết nút, sao chép Mermaid. */
-export function DiagramBlock({ block, onAsk, onOpenFile }: { block: FlowBlock; onAsk?: ((prompt: string) => void) | undefined; onOpenFile?: ((path: string) => void) | undefined }) {
+export function DiagramBlock({ block, onAsk, onOpenFile, onSelectNode }: { block: FlowBlock; onAsk?: ((prompt: string) => void) | undefined; onOpenFile?: ((path: string) => void) | undefined; onSelectNode?: ((label: string | null) => void) | undefined }) {
   const hasBefore = !!block.before?.nodes.length;
   const [mode, setMode] = useState<Mode>("after");
-  const [sel, setSel] = useState<DiagramNode | null>(null);
+  const [sel, setSelRaw] = useState<DiagramNode | null>(null);
+  const setSel = (n: DiagramNode | null) => { setSelRaw(n); onSelectNode?.(n ? `${n.label} (${block.title})` : null); };
   const all = block.after.nodes;
   const verified = all.filter(isVerified).length;
   const violations = block.after.edges.filter((e) => e.violation);
