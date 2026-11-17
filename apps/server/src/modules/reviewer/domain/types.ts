@@ -1,4 +1,4 @@
-import type { Finding, RawReview, Rubric } from "@mrd/contracts";
+import type { Finding, MrKind, OverviewBlock, ProviderInfoDto, RawReview, Rubric } from "@mrd/contracts";
 
 /** Ảnh dán vào chat (base64, không kèm tiền tố data:). */
 /** Cho agent chat công cụ: đọc repo (Read/Grep/Glob trong workdir) và các tool MCP do app cung cấp. */
@@ -8,7 +8,11 @@ export type ChatStep =
 export interface ChatTools { mcpUrl: string; mcpName: string }
 export interface ChatImage { mediaType: "image/png" | "image/jpeg" | "image/gif" | "image/webp"; data: string }
 
-export type ProviderId = "claude-cli" | "codex-cli" | "gemini-api" | "openai-compatible";
+/** Id provider là chuỗi mở: thêm provider mới = thêm một mô tả + một file chạy, không sửa kiểu này. */
+export type ProviderId = string;
+
+/** Phần tĩnh trong mô tả provider; `available` và `defaultModel` do module ghép lúc chạy. */
+export type ProviderDescriptor = Omit<ProviderInfoDto, "available" | "defaultModel">;
 
 export interface ReviewHarnessFile {
   path: string;
@@ -31,6 +35,10 @@ export interface ReviewRequest {
   diff: string;
   omittedFiles: string[];
   stats: { filesChanged: number; additions: number; deletions: number };
+  /** Loại MR do T0 gắn nhãn; quyết định có yêu cầu AI vẽ sơ đồ hay không. */
+  mrKind?: MrKind;
+  /** File đổi (để kiểm bằng chứng của sơ đồ có thật). */
+  changedFiles?: string[];
   staticFindings: Finding[];
   /** Bài học đã duyệt của repo (sổ tay của agent) cần áp dụng thêm khi review. */
   notebook?: string[];
@@ -57,13 +65,14 @@ export interface ReviewUsage {
 
 export interface ReviewResponse {
   review: RawReview;
+  /** Sơ đồ tổng quan đã làm sạch (bằng chứng có thật, cỡ giới hạn); rỗng khi loại MR không cần. */
+  blocks: OverviewBlock[];
   usage: ReviewUsage;
 }
 
 /** Hợp đồng cho từng provider: nhận prompt đã dựng, trả văn bản JSON thô. */
 export interface Provider {
-  readonly id: ProviderId;
-  readonly agentic: boolean;
+  readonly descriptor: ProviderDescriptor;
   /** Hỏi đáp tự do, không công cụ (tuỳ chọn). */
   ask?(input: { model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
   run(input: { model?: string; system: string; user: string; workdir: string; maxBudgetUsd?: number; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null; tokens?: TokenUsage }>;

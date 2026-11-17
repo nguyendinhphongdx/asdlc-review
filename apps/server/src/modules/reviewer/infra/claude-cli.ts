@@ -1,7 +1,7 @@
 import { ModuleError } from "../../../kernel/errors.js";
 import { run } from "../../../kernel/exec.js";
 import { REVIEW_JSON_SCHEMA } from "../domain/schema.js";
-import type { ChatStep, Provider } from "../domain/types.js";
+import type { ChatStep, Provider, ProviderDescriptor } from "../domain/types.js";
 
 export interface ClaudeCliOptions {
   bin: string;
@@ -10,10 +10,21 @@ export interface ClaudeCliOptions {
   timeoutMs: number;
 }
 
+export const claudeCliDescriptor: ProviderDescriptor = {
+  id: "claude-cli", label: "Claude Code CLI", kind: "cli",
+  capabilities: { review: true, chat: true, repoAccess: true, chatTools: true, images: true },
+  auth: { type: "none" },
+  models: [
+    { value: "claude-opus-5-5", label: "Claude Opus 5.5 (mạnh nhất, đắt)" },
+    { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 (cân bằng)" },
+    { value: "claude-haiku-5-5", label: "Claude Haiku 5.5 (nhanh, rẻ)" },
+    { value: "claude-fable-5-2", label: "Claude Fable 5.2" },
+  ],
+};
+
 export function claudeCliProvider(o: ClaudeCliOptions): Provider {
   return {
-    id: "claude-cli",
-    agentic: true,
+    descriptor: claudeCliDescriptor,
     async ask({ model, system, user, workdir, images, tools, onStep }) {
       const mdl = model || o.model;
       const withImages = Boolean(images?.length);

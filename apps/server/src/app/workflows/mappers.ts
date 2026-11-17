@@ -3,9 +3,22 @@ import type { MrInfo } from "../../modules/scm/index.js";
 
 export const REVIEW_QUEUE = "review";
 
-/** Model theo provider từ cài đặt chung ("" = mặc định của provider/CLI). */
-export const providerModel = (provider: string, s: { claudeModel: string; codexModel: string; geminiModel: string; openaiModel: string }): string =>
-  provider === "claude-cli" ? s.claudeModel : provider === "codex-cli" ? s.codexModel : provider === "gemini-api" ? s.geminiModel : s.openaiModel;
+/**
+ * Chọn provider + model cho một vai trò dùng AI — NƠI DUY NHẤT quyết định, mọi workflow gọi hàm này.
+ * - Vai trò (vd. `chat`) có provider riêng trong `aiRoles` → dùng provider đó + model của vai trò (hoặc model cấu hình cho provider).
+ * - Ngược lại dùng provider review (repo có thể ghi đè provider/model riêng).
+ * model "" = để provider tự dùng mặc định.
+ */
+export function resolveAi(
+  settings: { reviewProvider: string; providerModels: Record<string, string>; aiRoles: Record<string, { provider: string; model: string }> },
+  role: "review" | string,
+  repo?: { provider?: string | null; model?: string | null },
+): { provider: string; model: string } {
+  const r = role === "review" ? undefined : settings.aiRoles[role];
+  if (r?.provider) return { provider: r.provider, model: r.model || settings.providerModels[r.provider] || "" };
+  const provider = repo?.provider || settings.reviewProvider;
+  return { provider, model: repo?.model || settings.providerModels[provider] || "" };
+}
 export const POLL_QUEUE = "poll";
 
 export const toSnapshot = (mr: MrInfo, repositoryId: string, memberId: string | null): MrSnapshot => ({

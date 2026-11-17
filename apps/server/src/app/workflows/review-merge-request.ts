@@ -4,7 +4,7 @@ import { ModuleError } from "../../kernel/errors.js";
 import type { ProgressHub } from "../progress.js";
 import type { Logger } from "../../kernel/logger.js";
 import type { Modules, AppSettings } from "../modules.js";
-import { providerModel, toSnapshot } from "./mappers.js";
+import { resolveAi, toSnapshot } from "./mappers.js";
 
 const RETRYABLE = new Set(["upstream_error", "timeout", "internal"]);
 
@@ -45,8 +45,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
     }
 
     const settings = await m.settings.snapshot();
-    const provider = (repo.provider ?? settings.reviewProvider) as typeof settings.reviewProvider;
-    const model = repo.model || providerModel(provider, settings);
+    const { provider, model } = resolveAi(settings, "review", repo);
     const previous = await m.reviews.latestSucceeded(rec.id);
     const runId = pre
       ? pre.runId
@@ -90,6 +89,8 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       emit("clone", "info", `Diff ${ws.numstat.length} file${ws.omittedFiles.length ? `, ${ws.omittedFiles.length} file bị bỏ qua do vượt ngân sách` : ""}`);
       const repoConfigYaml = await m.harness.readRepoConfig(dir, { ref: ws.baseSha });
       const files = ws.numstat.map((n) => ({ path: n.file, additions: n.additions, deletions: n.deletions, binary: n.binary }));
+      const { kind: mrKind, reasons: kindReasons } = m.reviewer.classify(files, mr.title);
+      emit("clone", "info", `Loại MR: ${mrKind} (${kindReasons.join("; ")})`);
 
       const fw = await stage("framework", async () =>
         m.framework.resolve({ frameworkId: repo.frameworkId ?? settings.defaultFramework, repoConfigYaml }),
@@ -132,7 +133,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
           mr: { iid: mr.iid, title: mr.title, description: mr.description, author: mr.authorUsername, sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, webUrl: mr.webUrl },
           rubric: fw.rubric,
           harness: { files: harness.files, tree: harness.tree, discovered: harness.discovered.map((d) => d.path) },
-          diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, stats, staticFindings: analysis.findings, notebook, notes, ...(previousRound?.findings.length ? { previousRound } : {}),
+          diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, stats, mrKind, changedFiles: ws!.numstat.map((n) => n.file), staticFindings: analysis.findings, notebook, notes, ...(previousRound?.findings.length ? { previousRound } : {}),
         }),
       );
 
@@ -195,7 +196,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         activity: hub?.backlog(runId),
         score: score.total, rawScore: score.rawTotal, grade: score.grade, verdict: score.verdict, gates: score.gates,
         summary, intent: ai.review.intent, strengths: ai.review.strengths, harnessFiles: report.harnessFiles, ...stats,
-        durationMs: Date.now() - started, costUsd: ai.usage.costUsd, tokens: ai.usage.tokens ?? null, model: ai.usage.model, commentUrl, stageTimings: timings, omittedFiles: ws.omittedFiles, ruleChecks, harnessLoad, overview, mrDescription, aiContext, files: fileList, harnessReport, frameworkId: fw.rubric.id, frameworkVersion: fw.rubric.version,
+        blocks: ai.blocks, mrKind, durationMs: Date.now() - started, costUsd: ai.usage.costUsd, tokens: ai.usage.tokens ?? null, model: ai.usage.model, commentUrl, stageTimings: timings, omittedFiles: ws.omittedFiles, ruleChecks, harnessLoad, overview, mrDescription, aiContext, files: fileList, harnessReport, frameworkId: fw.rubric.id, frameworkVersion: fw.rubric.version,
         findings: scored.map((f) => ({ ...f })),
         categoryScores: score.categories,
       });

@@ -118,3 +118,18 @@ describe("framework: chính sách đăng comment", () => {
     assert.ok(diffFrameworks(base, next).some((c) => c.path === "publish.comments"));
   });
 });
+
+describe("framework: sơ đồ theo loại MR (overview.views)", () => {
+  it("lưu ghi đè, hiện trong diff và vào rubric; loại không ghi vẫn dùng mặc định", async () => {
+    const f = await src.load("asdlc");
+    const e = toEdit(f);
+    e.overview = { ...(e.overview ?? f.overview), views: { bugfix: { required: ["flow"], optional: [] } } };
+    assert.deepEqual(validateEdit(f, e), []);
+    const g = applyEdit(f, e);
+    assert.deepEqual(g.overview?.views?.bugfix, { required: ["flow"], optional: [] });
+    const ch = diffFrameworks(f, g).find((x) => x.path === "overview.views.bugfix");
+    assert.ok(ch && ch.to?.includes("flow"));
+    assert.equal(diffFrameworks(f, g).some((x) => x.path === "overview.views.docs"), false);
+    assert.deepEqual(buildRubric(g, { frameworkId: "asdlc" } as never).overview?.views?.bugfix?.required, ["flow"]);
+  });
+});

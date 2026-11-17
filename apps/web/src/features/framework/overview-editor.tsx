@@ -1,4 +1,4 @@
-import type { MrDescriptionSpec, OverviewKind, OverviewSectionSpec, OverviewSpec } from "@mrd/contracts";
+import { DEFAULT_VIEWS, DIAGRAM_KINDS, MR_KINDS, viewFor, type DiagramKind, type MrDescriptionSpec, type MrKind, type OverviewKind, type OverviewSectionSpec, type OverviewSpec, type OverviewView } from "@mrd/contracts";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,42 @@ import { Input, Select } from "@/components/ui/input";
 import { Switch } from "../../kernel/modal.js";
 
 const KIND_LABEL: Record<OverviewKind, string> = { text: "Đoạn văn", bullets: "Gạch đầu dòng", verdict: "Nhãn + giải thích" };
+const MR_KIND_LABEL: Record<MrKind, string> = { "new-feature": "Tính năng mới", "flow-change": "Đổi luồng xử lý", refactor: "Refactor", bugfix: "Sửa lỗi", "schema-change": "Đổi schema/dữ liệu", "api-change": "Đổi API", "config-infra": "Cấu hình/hạ tầng", deps: "Nâng thư viện", docs: "Tài liệu", "test-only": "Chỉ test" };
+const DIAGRAM_LABEL: Record<DiagramKind, string> = { flow: "Luồng", architecture: "Kiến trúc", sequence: "Trình tự" };
+type Level = "none" | "optional" | "required";
+const levelIn = (v: OverviewView, k: DiagramKind): Level => (v.required.includes(k) ? "required" : v.optional.includes(k) ? "optional" : "none");
+const sameView = (a: OverviewView, b: OverviewView) => DIAGRAM_KINDS.every((k) => levelIn(a, k) === levelIn(b, k));
+const LEVEL_LABEL: Record<Level, string> = { none: "Không vẽ", optional: "Tuỳ chọn", required: "Bắt buộc" };
+
+/** Bảng loại MR → sơ đồ AI cần vẽ. MR nhỏ để "Không vẽ" thì prompt không thêm gì (tiết kiệm token). */
+function ViewsTable({ overview, onOverview }: { overview: OverviewSpec; onOverview?: ((o: OverviewSpec) => void) | undefined }) {
+  const set = (kind: MrKind, d: DiagramKind, level: Level) => {
+    const cur = viewFor(kind, overview.views);
+    const next: OverviewView = { required: cur.required.filter((x) => x !== d), optional: cur.optional.filter((x) => x !== d) };
+    if (level === "required") next.required = [...next.required, d]; else if (level === "optional") next.optional = [...next.optional, d];
+    const views = { ...(overview.views ?? {}) };
+    if (sameView(next, DEFAULT_VIEWS[kind])) delete views[kind]; else views[kind] = next;
+    onOverview?.({ ...overview, ...(Object.keys(views).length ? { views } : { views: undefined }) });
+  };
+  return (
+    <div className="flex flex-col">
+      <div className="hidden grid-cols-[minmax(150px,1.3fr)_repeat(3,minmax(0,1fr))] gap-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid"><span>Loại MR</span>{DIAGRAM_KINDS.map((d) => <span key={d}>{DIAGRAM_LABEL[d]}</span>)}</div>
+      {MR_KINDS.map((kind) => {
+        const v = viewFor(kind, overview.views);
+        const custom = !!overview.views?.[kind];
+        return (
+          <div key={kind} className="grid items-center gap-x-3 gap-y-1 border-t py-2 md:grid-cols-[minmax(150px,1.3fr)_repeat(3,minmax(0,1fr))]">
+            <span className="flex items-center gap-2 text-sm font-medium">{MR_KIND_LABEL[kind]}{custom && <Badge variant="info">đã đổi</Badge>}</span>
+            {DIAGRAM_KINDS.map((d) => onOverview
+              ? <label key={d} className="flex items-center gap-2 text-[13px] md:block"><span className="text-muted-foreground md:hidden">{DIAGRAM_LABEL[d]}</span><Select aria-label={`${MR_KIND_LABEL[kind]}: ${DIAGRAM_LABEL[d]}`} value={levelIn(v, d)} onChange={(e) => set(kind, d, e.target.value as Level)}>{(Object.keys(LEVEL_LABEL) as Level[]).map((l) => <option key={l} value={l}>{LEVEL_LABEL[l]}</option>)}</Select></label>
+              : <span key={d} className="text-[13px]"><span className="text-muted-foreground md:hidden">{DIAGRAM_LABEL[d]}: </span>{levelIn(v, d) === "none" ? <span className="text-muted-foreground">—</span> : <Badge variant={levelIn(v, d) === "required" ? "info" : "secondary"}>{LEVEL_LABEL[levelIn(v, d)]}</Badge>}</span>)}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const TEXTAREA = "w-full rounded-md border bg-transparent px-3 py-2 text-sm leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /** Xem khung "Đánh giá tổng quan" (chỉ đọc). */
@@ -34,6 +70,10 @@ export function OverviewView({ overview, mrDescription }: { overview: OverviewSp
             ))}
           </ol>
         </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>Sơ đồ theo loại MR</CardTitle><CardDescription>Loại MR do hệ thống tự nhận (từ file đổi và tiêu đề). “Bắt buộc” AI phải vẽ; “Tuỳ chọn” chỉ vẽ khi MR thật sự đụng tới; MR nhỏ không vẽ gì.</CardDescription></CardHeader>
+        <CardContent><ViewsTable overview={overview} /></CardContent>
       </Card>
       <MrDescriptionView spec={mrDescription} />
     </>
@@ -105,6 +145,11 @@ export function OverviewEditor({ overview, mrDescription, onOverview, onMrDescri
             </div>
           ))}
         </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Sơ đồ theo loại MR</CardTitle><CardDescription>Chọn sơ đồ AI cần vẽ cho từng loại MR. Để “Không vẽ” cho MR nhỏ giúp tiết kiệm token. Giá trị khác mặc định được đánh dấu “đã đổi”.</CardDescription></CardHeader>
+        <CardContent><ViewsTable overview={overview} onOverview={onOverview} /></CardContent>
       </Card>
 
       <Card>

@@ -1,4 +1,5 @@
 import type { Severity } from "./finding.js";
+import type { OverviewView } from "./overview.js";
 
 export type Grade = "A" | "B" | "C" | "D" | "F";
 export type Verdict = "approve" | "comment" | "request_changes";
@@ -36,7 +37,7 @@ export interface PublishPolicy {
 export type OverviewKind = "text" | "bullets" | "verdict";
 /** Một mục của phần "Đánh giá tổng quan": framework quyết định có mục nào, thứ tự, AI được hướng dẫn viết gì. */
 export interface OverviewSectionSpec { id: string; title: string; enabled: boolean; kind: OverviewKind; maxWords: number; guide: string; /** Chỉ dùng với kind "verdict": các nhãn AI được chọn (nhãn đầu = tốt nhất). */ verdicts: string[] }
-export interface OverviewSpec { /** Hướng dẫn chung: góc nhìn, giọng văn, điều cấm. */ guide: string; sections: OverviewSectionSpec[] }
+export interface OverviewSpec { /** Hướng dẫn chung: góc nhìn, giọng văn, điều cấm. */ guide: string; sections: OverviewSectionSpec[]; /** Sơ đồ cần vẽ theo loại MR (loại không ghi dùng mặc định). */ views?: Partial<Record<string, OverviewView>> }
 /** Một loại tài liệu mà mô tả MR cần đính kèm theo chuẩn của framework. */
 export interface MrDocSpec { kind: string; required: boolean; /** Biểu thức chính quy (không phân biệt hoa thường) khớp với link/chữ trong mô tả MR. */ pattern: string; hint: string }
 export interface MrDescriptionSpec { docs: MrDocSpec[]; /** Điểm trừ cho mỗi loại tài liệu bắt buộc bị thiếu (0 = không trừ). */ penalty: number }

@@ -1,7 +1,7 @@
 import type { ActionDto, ChatImageDto, ChatStepDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Minus, MessageSquare, Sparkles, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -103,9 +103,11 @@ const loadMode = (): Mode => { try { const v = localStorage.getItem("mrd.chat.mo
  * Trợ lý review dạng chat nổi (AI Elements): đóng/mở/thu gọn. Agent đọc kết quả review, diff, framework, harness và code repo
  * (Read/Grep/Glob), hiện suy luận và từng lệnh gọi tool; comment/chạy lại chỉ là đề xuất chờ bạn duyệt.
  */
-export function AgentChat({ mrId, active, connected }: { mrId: string; active: boolean; connected: boolean }) {
+/** `incoming`: câu hỏi do nơi khác trên trang đẩy vào (vd bấm nút trên sơ đồ); mỗi `id` mới được gửi một lần. */
+export function AgentChat({ mrId, active, connected, dock = false, incoming = null }: { mrId: string; active: boolean; connected: boolean; dock?: boolean; incoming?: { id: number; text: string } | null }) {
   const qc = useQueryClient();
-  const [mode, setModeState] = useState<Mode>(loadMode);
+  const [modeRaw, setModeState] = useState<Mode>(loadMode);
+  const mode: Mode = dock ? "open" : modeRaw;
   const setMode = (m: Mode) => { setModeState(m); try { localStorage.setItem("mrd.chat.mode", m); } catch { /* không lưu được thì thôi */ } };
   const [pending, setPending] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -123,6 +125,14 @@ export function AgentChat({ mrId, active, connected }: { mrId: string; active: b
   const waiting = actions.length + proposed;
   useEffect(() => { if (waiting > 0 && mode === "closed") setMode("min"); }, [waiting]); // eslint-disable-line react-hooks/exhaustive-deps
   const submit = (t: string, imgs: ChatImageDto[] = []) => { if (send.isPending || (!t.trim() && !imgs.length)) return; setNotice(null); send.mutate({ t: t.trim(), imgs }); };
+
+  const lastIncoming = useRef(0);
+  useEffect(() => {
+    if (!incoming || incoming.id === lastIncoming.current) return;
+    lastIncoming.current = incoming.id;
+    if (mode === "closed") setMode("open");
+    submit(incoming.text);
+  }, [incoming]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (mode === "closed") {
     return (
@@ -142,8 +152,8 @@ export function AgentChat({ mrId, active, connected }: { mrId: string; active: b
         {mode === "min" && waiting > 0 && <Badge variant="warning">{waiting} chờ duyệt</Badge>}
         {mode === "min" && busy && <Shimmer duration={1}>đang làm…</Shimmer>}
       </button>
-      <Button size="icon-sm" variant="ghost" aria-label={mode === "min" ? "Mở rộng" : "Thu gọn"} onClick={() => setMode(mode === "min" ? "open" : "min")}>{mode === "min" ? <MessageSquare /> : <Minus />}</Button>
-      <Button size="icon-sm" variant="ghost" aria-label="Đóng" onClick={() => setMode("closed")}><X /></Button>
+      {!dock && <Button size="icon-sm" variant="ghost" aria-label={mode === "min" ? "Mở rộng" : "Thu gọn"} onClick={() => setMode(mode === "min" ? "open" : "min")}>{mode === "min" ? <MessageSquare /> : <Minus />}</Button>}
+      {!dock && <Button size="icon-sm" variant="ghost" aria-label="Đóng" onClick={() => setMode("closed")}><X /></Button>}
     </div>
   );
 
@@ -151,7 +161,7 @@ export function AgentChat({ mrId, active, connected }: { mrId: string; active: b
 
   const liveSteps = busy ? (q.data?.live ?? []) : [];
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex h-[min(680px,calc(100vh-6rem))] w-[min(440px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border bg-card shadow-xl" role="dialog" aria-label="Trợ lý review">
+    <div className={dock ? "flex h-full min-h-0 flex-col bg-card" : "fixed bottom-5 right-5 z-50 flex h-[min(680px,calc(100vh-6rem))] w-[min(440px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border bg-card shadow-xl"} role={dock ? "region" : "dialog"} aria-label="Trợ lý review">
       {header}
       {proposed > 0 && (
         <div className="border-b bg-warning-bg px-3 py-2 text-[13px] text-warning-fg">AI đề xuất {proposed} mục cho bộ nhớ repo — duyệt ở <Link className="font-medium underline" to="/repos">Repository → Bộ nhớ</Link>.</div>

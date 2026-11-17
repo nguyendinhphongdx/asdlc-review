@@ -4,7 +4,7 @@ import path from "node:path";
 import { ModuleError } from "../../../kernel/errors.js";
 import { run } from "../../../kernel/exec.js";
 import { REVIEW_JSON_SCHEMA } from "../domain/schema.js";
-import type { Provider } from "../domain/types.js";
+import type { Provider, ProviderDescriptor } from "../domain/types.js";
 
 export interface CodexCliOptions {
   bin: string;
@@ -12,10 +12,17 @@ export interface CodexCliOptions {
   timeoutMs: number;
 }
 
+export const codexCliDescriptor: ProviderDescriptor = {
+  id: "codex-cli", label: "Codex CLI", kind: "cli",
+  // Chat chưa hỗ trợ: cách gọi hiện tại gắn với schema JSON của review.
+  capabilities: { review: true, chat: false, repoAccess: true, chatTools: false, images: false },
+  auth: { type: "none" },
+  models: [{ value: "gpt-5.5", label: "GPT-5.5 (mới nhất)" }, { value: "gpt-5.4", label: "GPT-5.4" }, { value: "gpt-5.4-mini", label: "GPT-5.4 mini (nhanh, rẻ)" }],
+};
+
 export function codexCliProvider(o: CodexCliOptions): Provider {
   return {
-    id: "codex-cli",
-    agentic: true,
+    descriptor: codexCliDescriptor,
     async run({ model, system, user, workdir, onActivity }) {
       const mdl = model || o.model;
       const tmp = await mkdtemp(path.join(tmpdir(), "mrd-codex-"));

@@ -99,6 +99,10 @@ export interface RunDetailDto extends RunSummaryDto {
   ruleChecks: import("./review.js").RuleCheckDto[];
   /** "Đánh giá tổng quan" theo khung framework (rỗng với review cũ hoặc framework tắt). */
   overview: import("./review.js").OverviewSectionDto[];
+  /** Sơ đồ tổng quan (luồng/kiến trúc/trình tự) đã kiểm tra bằng chứng; rỗng với review cũ hoặc MR nhỏ. */
+  blocks: import("./overview.js").OverviewBlock[];
+  /** Loại MR do T0 gắn nhãn (null với review cũ). */
+  mrKind: import("./overview.js").MrKind | null;
   /** Mô tả MR + kiểm tra tài liệu theo chuẩn (null với review cũ). */
   mrDescription: import("./review.js").MrDescriptionDto | null;
   /** Bộ nhớ/ghi chú/vòng trước đã nạp cho AI (null với review cũ). */
@@ -149,15 +153,13 @@ export interface RepoDto {
 }
 
 export interface SettingsDto {
-  reviewProvider: "claude-cli" | "codex-cli" | "gemini-api" | "openai-compatible";
+  /** Id provider dùng để review (xem `ProviderInfoDto`). */
+  reviewProvider: string;
   defaultFramework: string;
-  claudeModel: string;
-  codexModel: string;
-  geminiModel: string;
-  openaiModel: string;
-  /** Provider riêng cho chat; rỗng = dùng chung provider review. */
-  chatProvider: "" | "claude-cli" | "codex-cli" | "gemini-api" | "openai-compatible";
-  chatModel: string;
+  /** Model theo từng provider ("" = mặc định của provider). Thêm provider mới không cần thêm khoá cài đặt. */
+  providerModels: Record<string, string>;
+  /** Các vai trò dùng AI khác ngoài review (hiện có `chat`): provider rỗng = dùng chung provider review. Thêm vai trò mới = thêm một mục. */
+  aiRoles: Record<string, AiRoleDto>;
   passScore: number;
   /** Bỏ qua MR nháp (Draft/WIP) khi review tự động. */
   skipDrafts: boolean;
@@ -173,11 +175,37 @@ export interface SettingsDto {
   pollIntervalMin: number;
 }
 
+/** Vai trò dùng AI: provider "" = dùng chung provider review; model "" = model mặc định của provider được chọn. */
+export interface AiRoleDto { provider: string; model: string }
+
+/** Provider AI tự mô tả: giao diện và workflow đọc khả năng/cách xác thực từ đây thay vì so tên provider. */
+export interface ProviderCapabilities {
+  /** Dùng để review MR. */
+  review: boolean;
+  /** Dùng cho chat với trợ lý. */
+  chat: boolean;
+  /** Tự đọc được repo đã checkout (Read/Grep/Glob) khi review; nếu không, diff và harness được nhồi sẵn vào prompt. */
+  repoAccess: boolean;
+  /** Chat gọi được tool của app (đọc repo, soạn comment, sửa framework). */
+  chatTools: boolean;
+  /** Chat nhận ảnh đính kèm. */
+  images: boolean;
+}
+export type ProviderAuth =
+  | { type: "none" }
+  /** `keyId` đặt tên khoá lưu mã hoá (`ai.<keyId>.apiKey`); `envName` là biến môi trường dự phòng. */
+  | { type: "apiKey"; optional: boolean; keyId: string; envName: string; note?: string };
 export interface ProviderInfoDto {
   id: string;
   label: string;
-  agentic: boolean;
-  model: string;
+  /** cli: chạy công cụ trên máy, dùng đăng nhập của chính CLI; cloud: gọi API qua mạng. */
+  kind: "cli" | "cloud";
+  capabilities: ProviderCapabilities;
+  auth: ProviderAuth;
+  /** Model gợi ý (vẫn nhập tay được tên khác). */
+  models: { value: string; label: string }[];
+  /** Model mặc định của provider khi cài đặt để trống. */
+  defaultModel: string;
   available: boolean;
 }
 

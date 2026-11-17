@@ -185,7 +185,7 @@ function TreeNode({ n, depth, onPick, active, counts, viewed, onViewed }: { n: N
 }
 
 /** Trang "Changes" kiểu GitLab: cây file bên trái, diff từng file bên phải, finding của AI hiện inline như comment. */
-export function FileChanges({ mrId, files, findings }: { mrId: string; files: FileReviewDto[]; findings: FindingDto[] }) {
+export function FileChanges({ mrId, files, findings, focus = null }: { mrId: string; files: FileReviewDto[]; findings: FindingDto[]; focus?: { id: number; path: string } | null }) {
   const diff = useQuery({ queryKey: ["mr-diff", mrId], queryFn: () => getMrDiff(mrId), staleTime: 120_000, retry: false });
   const [filter, setFilter] = useState<"all" | "unviewed" | "issues">("all");
   const { viewed, toggle: toggleViewed } = useViewed(mrId);
@@ -203,6 +203,13 @@ export function FileChanges({ mrId, files, findings }: { mrId: string; files: Fi
     const base = files.length ? files : (diff.data?.files ?? []).map((x) => ({ path: x.path, additions: x.additions, deletions: x.deletions, binary: false, reviewed: true }));
     return base.map((f) => ({ ...f, diff: d.get(f.path) }));
   }, [files, diff.data]);
+  // Nơi khác (vd sơ đồ tổng quan) yêu cầu mở một file: chọn, mở rộng và cuộn tới.
+  useEffect(() => {
+    if (!focus || !items.some((f) => f.path === focus.path)) return;
+    setFilter("all"); setSearch(""); setActive(focus.path); setToggled((t) => ({ ...t, [focus.path]: true }));
+    const timer = setTimeout(() => document.getElementById(`file-${encodeURIComponent(focus.path)}`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    return () => clearTimeout(timer);
+  }, [focus?.id, items.length]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!items.length) return null;
 
   const skipped = items.filter((f) => !f.reviewed).length;

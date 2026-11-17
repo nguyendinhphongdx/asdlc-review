@@ -1,25 +1,11 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 
-/** Model gợi ý theo provider; chọn "Khác…" để gõ tên model bất kỳ mà CLI/API hỗ trợ. */
-export const MODEL_SUGGESTIONS: Record<string, { value: string; label: string }[]> = {
-  "claude-cli": [
-    { value: "claude-opus-5-5", label: "Claude Opus 5.5 (mạnh nhất, đắt)" },
-    { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 (cân bằng)" },
-    { value: "claude-haiku-5-5", label: "Claude Haiku 5.5 (nhanh, rẻ)" },
-    { value: "claude-fable-5-2", label: "Claude Fable 5.2" },
-  ],
-  "codex-cli": [{ value: "gpt-5.5", label: "GPT-5.5 (mới nhất)" }, { value: "gpt-5.4", label: "GPT-5.4" }, { value: "gpt-5.4-mini", label: "GPT-5.4 mini (nhanh, rẻ)" }],
-  "gemini-api": [{ value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (mạnh nhất)" }, { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash (nhanh)" }, { value: "gemini-3-flash-preview", label: "Gemini 3 Flash (nhanh, rẻ)" }],
-  "openai-compatible": [{ value: "gpt-5.5", label: "GPT-5.5" }, { value: "gpt-5.4", label: "GPT-5.4" }, { value: "gpt-5.4-mini", label: "GPT-5.4 mini" }],
-};
-
 const SELECT = "h-9 w-full rounded-md border bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const CUSTOM = "__custom__";
 
-/** Chọn model từ danh sách (hoặc "Mặc định" / "Khác…"). Lưu ngay khi chọn. */
-export function ModelInput({ provider, value, defaultLabel, label, onCommit }: { provider: string; value: string; defaultLabel: string; label: string; onCommit: (v: string) => void }) {
-  const options = MODEL_SUGGESTIONS[provider] ?? [];
+/** Chọn model từ danh sách `models` (lấy từ mô tả provider ở server) (hoặc "Mặc định" / "Khác…"). Lưu ngay khi chọn. */
+export function ModelInput({ models: options, value, defaultLabel, label, onCommit }: { models: { value: string; label: string }[]; value: string; defaultLabel: string; label: string; onCommit: (v: string) => void }) {
   const known = value === "" || options.some((o) => o.value === value);
   const [custom, setCustom] = useState(!known);
   return (

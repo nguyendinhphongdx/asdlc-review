@@ -35,7 +35,7 @@ const EnvSchema = z.object({
   GITHUB_WEBHOOK_SECRET: z.string().default(""),
   BOT_MENTION: z.string().default("@mr-reviewer"),
 
-  REVIEW_PROVIDER: z.enum(["claude-cli", "codex-cli", "gemini-api", "openai-compatible"]).default("claude-cli"),
+  REVIEW_PROVIDER: z.string().min(1).default("claude-cli"),
   CLAUDE_BIN: z.string().default("claude"),
   CLAUDE_MODEL: z.string().default("claude-opus-5-5"),
   /** Trần chi phí (USD) mỗi lần review bằng Claude CLI; 0 = không giới hạn. Đổi được ở Cài đặt → Giới hạn khi review. */

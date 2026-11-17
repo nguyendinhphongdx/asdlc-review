@@ -1,4 +1,5 @@
-import type { Rubric } from "@mrd/contracts";
+import { viewFor, type Rubric } from "@mrd/contracts";
+import { blocksPrompt } from "./blocks.js";
 import type { ReviewRequest } from "./types.js";
 
 const LANG_NAME: Record<string, string> = { vi: "Vietnamese (tiếng Việt)", en: "English" };
@@ -58,6 +59,8 @@ export function buildUserPrompt(req: ReviewRequest, agentic: boolean): string {
 
   const ov = overviewBlock(req.rubric);
   if (ov) parts.push(ov);
+  const bl = req.mrKind ? blocksPrompt(req.mrKind, viewFor(req.mrKind, req.rubric.overview?.views)) : "";
+  if (bl) parts.push(bl);
 
   if (req.staticFindings.length) {
     parts.push(`# Static analysis findings already recorded (verify, do not duplicate)\n${req.staticFindings.map((f) => `- [${f.severity}] ${f.ruleId ?? "-"} ${f.title}${f.file ? ` @ ${f.file}${f.lineStart ? `:${f.lineStart}` : ""}` : ""}`).join("\n")}`);

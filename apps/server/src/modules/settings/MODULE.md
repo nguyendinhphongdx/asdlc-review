@@ -18,3 +18,6 @@ Không cần port ngoài.
 ## Quyết định
 - Chỉ cho phép các khoá khai báo trong `domain/keys.ts`. Secret (token, API key) không đi qua đây: chúng nằm trong module `secrets` (mã hoá) hoặc env.
 - Mặc định do app truyền vào (`deps.defaults`), module không đọc env.
+
+## Khoá dạng bản đồ
+`providerModels` (model theo id provider) và `aiRoles` (vai trò dùng AI như `chat` → provider/model) là bản đồ mở: thêm provider hay vai trò mới không cần thêm khoá. Cập nhật gộp từng mục. Cài đặt kiểu cũ (`claudeModel`, `chatProvider`…) được chuyển tự động khi đọc (`migrateLegacy`). App chọn provider/model cho một vai trò qua `resolveAi` (`app/workflows/mappers.ts`).

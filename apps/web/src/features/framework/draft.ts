@@ -40,6 +40,7 @@ function flatten(d: Draft): Map<string, string> {
   m.set("Đăng comment", JSON.stringify(d.publish));
   m.set("Hướng dẫn chung đánh giá tổng quan", d.overview.guide);
   d.overview.sections.forEach((s, i) => m.set(`Mục tổng quan ${s.id}`, JSON.stringify([i, s.title, s.enabled, s.kind, s.maxWords, s.guide, s.verdicts])));
+  m.set("Sơ đồ theo loại MR", JSON.stringify(d.overview.views ?? {}));
   m.set("Chuẩn mô tả MR", JSON.stringify(d.mrDescription));
   for (const k of SEVERITIES) m.set(`Điểm trừ ${k}`, String(d.severity[k].deduction));
   for (const g of d.grades) m.set(`Ngưỡng xếp loại ${g.grade}`, String(g.min));

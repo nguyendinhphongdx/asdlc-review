@@ -2,7 +2,9 @@ import { randomBytes } from "node:crypto";
 import type { SecretsApi } from "../modules/secrets/index.js";
 import type { Config } from "../kernel/config.js";
 
-export const KEY = { gitlabToken: "gitlab.token", gitlabUrl: "gitlab.url", gitlabWebhook: "gitlab.webhookSecret", geminiKey: "ai.gemini.apiKey", openaiKey: "ai.openai.apiKey" } as const;
+export const KEY = { gitlabToken: "gitlab.token", gitlabUrl: "gitlab.url", gitlabWebhook: "gitlab.webhookSecret" } as const;
+/** Khoá API của provider cloud lưu dưới tên này (keyId lấy từ mô tả `auth` của provider). */
+export const aiKeyName = (keyId: string) => `ai.${keyId}.apiKey`;
 
 /**
  * Nguồn sự thật cho thông tin đăng nhập nền tảng: ưu tiên giá trị lưu trong DB (nhập từ UI),
@@ -14,19 +16,15 @@ export function createCredentials(config: Config, secrets: SecretsApi) {
     token: secrets.peek(KEY.gitlabToken) ?? config.GITLAB_TOKEN,
     webhookSecret: secrets.peek(KEY.gitlabWebhook) ?? config.GITLAB_WEBHOOK_SECRET,
   });
+  const envKeys: Record<string, string> = { gemini: config.GEMINI_API_KEY, openai: config.OPENAI_API_KEY };
   return {
     gitlab,
     github: () => ({ token: config.GITHUB_TOKEN, webhookSecret: config.GITHUB_WEBHOOK_SECRET }),
-    /** Gemini API key: ưu tiên khoá nhập ở UI (lưu mã hoá), dự phòng biến môi trường. */
-    geminiKey: (): string => secrets.peek(KEY.geminiKey) ?? config.GEMINI_API_KEY,
-    geminiSource: (): "db" | "env" | "none" => (secrets.peek(KEY.geminiKey) ? "db" : config.GEMINI_API_KEY ? "env" : "none"),
-    saveGeminiKey: (key: string) => secrets.set(KEY.geminiKey, key),
-    clearGeminiKey: () => secrets.delete(KEY.geminiKey),
-    /** Khoá cho provider OpenAI-compatible (tuỳ chọn: Ollama/LM Studio nội bộ không cần). */
-    openaiKey: (): string => secrets.peek(KEY.openaiKey) ?? config.OPENAI_API_KEY,
-    openaiSource: (): "db" | "env" | "none" => (secrets.peek(KEY.openaiKey) ? "db" : config.OPENAI_API_KEY ? "env" : "none"),
-    saveOpenaiKey: (key: string) => secrets.set(KEY.openaiKey, key),
-    clearOpenaiKey: () => secrets.delete(KEY.openaiKey),
+    /** Khoá AI cloud theo `keyId` của provider: ưu tiên khoá nhập ở UI (lưu mã hoá), dự phòng biến môi trường. */
+    aiKey: (keyId: string): string => secrets.peek(aiKeyName(keyId)) ?? envKeys[keyId] ?? "",
+    aiKeySource: (keyId: string): "db" | "env" | "none" => (secrets.peek(aiKeyName(keyId)) ? "db" : envKeys[keyId] ? "env" : "none"),
+    saveAiKey: (keyId: string, key: string) => secrets.set(aiKeyName(keyId), key),
+    clearAiKey: (keyId: string) => secrets.delete(aiKeyName(keyId)),
     tokenSource: (): "db" | "env" | "none" => (secrets.peek(KEY.gitlabToken) ? "db" : config.GITLAB_TOKEN ? "env" : "none"),
     async saveGitlab(input: { baseUrl: string; token?: string }) {
       await secrets.set(KEY.gitlabUrl, input.baseUrl.replace(/\/+$/, ""));

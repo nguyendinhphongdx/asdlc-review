@@ -1,5 +1,5 @@
 import type { FrameworkChangeDto, FrameworkEditInput } from "@mrd/contracts";
-import { SEVERITY_RANK } from "@mrd/contracts";
+import { MR_KINDS, SEVERITY_RANK, viewFor } from "@mrd/contracts";
 import type { FrameworkFile } from "./schema.js";
 
 const ID = /^[A-Za-z0-9_-]{2,24}$/;
@@ -90,6 +90,10 @@ export function diffFrameworks(a: FrameworkFile, b: FrameworkFile): FrameworkCha
   push("publish.inlineMinSeverity", a.publish?.inlineMinSeverity, b.publish?.inlineMinSeverity);
   push("publish.maxInline", a.publish?.maxInline, b.publish?.maxInline);
   push("overview.guide", a.overview?.guide, b.overview?.guide);
+  for (const k of MR_KINDS) {
+    const show = (v: ReturnType<typeof viewFor>) => `bắt buộc: ${v.required.join(", ") || "-"}; tuỳ chọn: ${v.optional.join(", ") || "-"}`;
+    push(`overview.views.${k}`, show(viewFor(k, a.overview?.views)), show(viewFor(k, b.overview?.views)));
+  }
   const ao = new Map((a.overview?.sections ?? []).map((s) => [s.id, s]));
   for (const s of b.overview?.sections ?? []) {
     const o = ao.get(s.id);

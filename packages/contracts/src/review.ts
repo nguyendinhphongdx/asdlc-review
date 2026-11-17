@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AiBlockSchema } from "./overview.js";
 import { FindingSchema, type Finding } from "./finding.js";
 import type { ScoreResult } from "./rubric.js";
 
@@ -19,6 +20,7 @@ export const RawReviewSchema = z.object({
   harnessUsed: z.array(z.string()).default([]),
   checks: z.array(RuleCheckSchema).default([]),
   overview: z.array(OverviewResultSchema).default([]),
+  blocks: z.array(AiBlockSchema).default([]),
 });
 export type RawReview = z.infer<typeof RawReviewSchema>;
 

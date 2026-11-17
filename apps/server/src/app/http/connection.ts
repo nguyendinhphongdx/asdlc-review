@@ -4,7 +4,7 @@ import type { AiKeyStatusDto, StorageCheckDto, StorageDto, ConnectionStatusDto, 
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ModuleError } from "../../kernel/errors.js";
-import { KEY } from "../credentials.js";
+import { KEY, aiKeyName } from "../credentials.js";
 import type { Container } from "../container.js";
 
 const Save = z.object({ baseUrl: z.string().url().max(300), token: z.string().min(8).max(500).optional() });
@@ -30,33 +30,22 @@ export function registerConnectionRoutes(app: FastifyInstance, c: Container, pub
 
   app.get("/api/connection", () => status());
 
-  // Khoá API AI cloud (Gemini): lưu mã hoá trong DB, không route nào trả lại khoá.
-  const geminiStatus = (): AiKeyStatusDto => {
-    const key = credentials.geminiKey();
-    return { configured: Boolean(key), source: credentials.geminiSource(), hint: m.secrets.hint(KEY.geminiKey) ?? (key ? key.slice(-4) : null), canStore: m.secrets.canStore };
+  // Khoá API AI cloud: lưu mã hoá trong DB, không route nào trả lại khoá. keyId lấy từ mô tả provider (registry), không hardcode.
+  const keyIds = async () => new Set((await m.reviewer.providers()).flatMap((p) => (p.auth.type === "apiKey" ? [p.auth.keyId] : [])));
+  const knownKey = async (id: string) => { if (!(await keyIds()).has(id)) throw new ModuleError("http", "not_found", `Không có provider nào dùng khoá "${id}"`); return id; };
+  const aiKeyStatus = (id: string): AiKeyStatusDto => {
+    const key = credentials.aiKey(id);
+    return { configured: Boolean(key), source: credentials.aiKeySource(id), hint: m.secrets.hint(aiKeyName(id)) ?? (key ? key.slice(-4) : null), canStore: m.secrets.canStore };
   };
-  const openaiStatus = (): AiKeyStatusDto => {
-    const key = credentials.openaiKey();
-    return { configured: Boolean(key), source: credentials.openaiSource(), hint: m.secrets.hint(KEY.openaiKey) ?? (key ? key.slice(-4) : null), canStore: m.secrets.canStore };
-  };
-  app.get("/api/ai-keys/gemini", () => geminiStatus());
-  app.put("/api/ai-keys/gemini", async (req) => {
+  app.get("/api/ai-keys/:id", async (req) => aiKeyStatus(await knownKey((req.params as { id: string }).id)));
+  app.put("/api/ai-keys/:id", async (req) => {
+    const id = await knownKey((req.params as { id: string }).id);
     const { apiKey } = z.object({ apiKey: z.string().trim().min(8).max(300) }).parse(req.body);
-    await credentials.saveGeminiKey(apiKey);
-    return geminiStatus();
+    await credentials.saveAiKey(id, apiKey);
+    return aiKeyStatus(id);
   });
-  app.delete("/api/ai-keys/gemini", async (_req, reply) => {
-    await credentials.clearGeminiKey();
-    return reply.status(204).send();
-  });
-  app.get("/api/ai-keys/openai", () => openaiStatus());
-  app.put("/api/ai-keys/openai", async (req) => {
-    const { apiKey } = z.object({ apiKey: z.string().trim().min(8).max(300) }).parse(req.body);
-    await credentials.saveOpenaiKey(apiKey);
-    return openaiStatus();
-  });
-  app.delete("/api/ai-keys/openai", async (_req, reply) => {
-    await credentials.clearOpenaiKey();
+  app.delete("/api/ai-keys/:id", async (req, reply) => {
+    await credentials.clearAiKey(await knownKey((req.params as { id: string }).id));
     return reply.status(204).send();
   });
 
@@ -76,7 +65,7 @@ export function registerConnectionRoutes(app: FastifyInstance, c: Container, pub
     const probe = await m.scm.testConnection("gitlab");
     const settings = await m.settings.snapshot();
     const p = (await m.reviewer.providers()).find((x) => x.id === settings.reviewProvider);
-    const llm = { provider: settings.reviewProvider, label: p?.label ?? settings.reviewProvider, available: Boolean(p?.available), detail: p?.available ? p.model : "Chưa tìm thấy CLI/API khả dụng trên máy chạy server" };
+    const llm = { provider: settings.reviewProvider, label: p?.label ?? settings.reviewProvider, available: Boolean(p?.available), detail: p?.available ? p.defaultModel : "Chưa tìm thấy CLI/API khả dụng trên máy chạy server" };
     const hint: Record<string, string> = {
       unreachable: "Kiểm tra URL GitLab và kết nối mạng.",
       unauthorized: "Tạo lại token và dán lại.",

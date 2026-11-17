@@ -37,6 +37,8 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { dark, toggle } = useTheme();
   const update = useUpdateAvailable();
   const version = useAppVersion();
+  // Trang chi tiết review là không gian làm việc: chat + panel chiếm hết bề ngang, mỗi cột tự cuộn.
+  const wide = /^\/reviews\/[^/]+\/?$/.test(pathname);
   const current = all.find((i) => (i.end ? pathname === i.to : pathname.startsWith(i.to)));
   const link = ({ isActive }: { isActive: boolean }) => `flex h-9 items-center gap-2.5 whitespace-nowrap rounded-md px-2.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${isActive ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"}`;
   return (
@@ -74,8 +76,8 @@ function Shell({ children }: { children: React.ReactNode }) {
         <nav aria-label="Điều hướng" className="flex flex-none gap-1 overflow-x-auto border-b bg-sidebar px-3 py-1.5 md:hidden">
           {all.map((n) => <NavLink key={n.to} to={n.to} end={n.end} className={link}><n.icon className="size-4" aria-hidden="true" />{n.label}</NavLink>)}
         </nav>
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-          <main className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 p-4 md:p-8">{children}</main>
+        <div className={wide ? "min-h-0 flex-1 overflow-y-auto overflow-x-hidden lg:overflow-hidden" : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden"}>
+          <main className={wide ? "flex min-h-full w-full flex-col lg:h-full" : "mx-auto flex w-full max-w-[1240px] flex-col gap-6 p-4 md:p-8"}>{children}</main>
         </div>
       </div>
     </div>

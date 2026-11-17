@@ -1,5 +1,5 @@
 import { ModuleError } from "../../../kernel/errors.js";
-import type { Provider } from "../domain/types.js";
+import type { Provider, ProviderDescriptor } from "../domain/types.js";
 
 export interface OpenAiOptions {
   baseUrl: string;
@@ -7,6 +7,13 @@ export interface OpenAiOptions {
   model: string;
   timeoutMs: number;
 }
+
+export const openAiDescriptor: ProviderDescriptor = {
+  id: "openai-compatible", label: "OpenAI-compatible API", kind: "cloud",
+  capabilities: { review: true, chat: true, repoAccess: false, chatTools: false, images: false },
+  auth: { type: "apiKey", optional: true, keyId: "openai", envName: "OPENAI_API_KEY", note: "Server nội bộ (Ollama, LM Studio…) thường không cần khoá. Địa chỉ server đặt bằng biến OPENAI_BASE_URL." },
+  models: [{ value: "gpt-5.5", label: "GPT-5.5" }, { value: "gpt-5.4", label: "GPT-5.4" }, { value: "gpt-5.4-mini", label: "GPT-5.4 mini" }],
+};
 
 /** Tương thích OpenAI chat completions (OpenAI, Ollama, LM Studio, vLLM…). Không có công cụ đọc repo. */
 export function openAiProvider(o: OpenAiOptions): Provider {
@@ -18,8 +25,18 @@ export function openAiProvider(o: OpenAiOptions): Provider {
       signal: AbortSignal.timeout(o.timeoutMs),
     });
   return {
-    id: "openai-compatible",
-    agentic: false,
+    descriptor: openAiDescriptor,
+    /** Chat: văn bản tự do, không công cụ đọc repo. */
+    async ask({ model, system, user }) {
+      const mdl = model || o.model;
+      if (!mdl) throw new ModuleError("reviewer", "not_configured", "Chưa chọn model cho provider OpenAI-compatible (Cài đặt → Review)");
+      const res = await call(mdl, system, user, false);
+      if (!res.ok) throw new ModuleError("reviewer", "upstream_error", `LLM API → ${res.status}: ${(await res.text()).slice(0, 400)}`);
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const text = data.choices?.[0]?.message?.content;
+      if (!text) throw new ModuleError("reviewer", "upstream_error", "LLM API trả về rỗng");
+      return { text, costUsd: null };
+    },
     async run({ model, system, user }) {
       const mdl = model || o.model;
       if (!mdl) throw new ModuleError("reviewer", "not_configured", "Chưa chọn model cho provider OpenAI-compatible (Cài đặt → Review hoặc cài đặt repo)");

@@ -4,7 +4,7 @@ import type { ChatImage, ChatStep } from "../../modules/reviewer/index.js";
 import { MCP_NAME } from "../agent-tools.js";
 import type { FrameworkTools } from "../framework-tools.js";
 import type { Modules } from "../modules.js";
-import { providerModel } from "./mappers.js";
+import { resolveAi } from "./mappers.js";
 
 const SYSTEM = `You are the ASDLC Review framework coach. You help a team improve and build the review framework (rubric) that decides how merge requests are reviewed and scored: categories with weights, rules (id, title, a concrete "check" question, why, default severity), severity deductions, gates and grades.
 Tools (when available): get_framework (full content), get_rule_stats (how often each rule fired in recent reviews, and how often people disagreed = false positives), get_usage (repos using it + team lessons), preview_changes (validate a change list without saving), propose_edit (create a proposal the human must approve; nothing is saved by you).
@@ -43,13 +43,12 @@ export function createFrameworkChat(m: Modules, log: Logger, tools: FrameworkToo
       `Chat so far:\n${history.map((h) => `${h.role}: ${h.text.slice(0, 600)}`).join("\n") || "(empty)"}`,
     ].join("\n\n");
 
-    const provider = (settings.chatProvider || settings.reviewProvider) as typeof settings.reviewProvider;
-    const model = settings.chatProvider ? settings.chatModel || providerModel(provider, settings) : providerModel(provider, settings);
+    const { provider, model } = resolveAi(settings, "chat");
     let session: ReturnType<FrameworkTools["open"]> | undefined;
     let raw: string;
     let steps: ChatStep[] = [];
     try {
-      if (provider === "claude-cli") session = tools.open({ scope, frameworkId });
+      if (m.reviewer.capabilities(provider)?.chatTools) session = tools.open({ scope, frameworkId });
       live.set(scope, []);
       const res = await m.reviewer.ask({
         provider, model, system: SYSTEM, user: `<context>\n${ctx}\n</context>\n\nUser: ${text.trim()}`, workdir: os.tmpdir(), images,

@@ -1,8 +1,7 @@
-import type { AiKeyStatusDto, StorageCheckDto, StorageDto, ConnectionStatusDto, ConnectionTestDto, FrameworkInfoDto, HealthDto, ProviderInfoDto, SaveGitlabConnectionInput, SettingsDto, WebhookSecretDto } from "@mrd/contracts";
+import type { AiKeyStatusDto, StorageCheckDto, StorageDto, ConnectionStatusDto, ConnectionTestDto, FrameworkInfoDto, HealthDto, SaveGitlabConnectionInput, SettingsDto, WebhookSecretDto } from "@mrd/contracts";
 import { request } from "../../kernel/http.js";
 export const getSettings = () => request<SettingsDto>("/api/settings");
 export const saveSettings = (s: Partial<SettingsDto>) => request<SettingsDto>("/api/settings", { method: "PUT", json: s });
-export const getProviders = () => request<ProviderInfoDto[]>("/api/providers");
 export const getFrameworks = () => request<FrameworkInfoDto[]>("/api/frameworks");
 export const getHealth = () => request<HealthDto>("/api/health");
 
@@ -14,9 +13,6 @@ export const getWebhookSecret = () => request<WebhookSecretDto>("/api/connection
 export const regenerateWebhookSecret = () => request<WebhookSecretDto>("/api/connection/webhook-secret/regenerate", { method: "POST", json: {} });
 export const getStorage = () => request<StorageDto>("/api/storage");
 export const checkStorage = (path: string) => request<StorageCheckDto>("/api/storage/check", { method: "POST", json: { path } });
-export const getAiKey = (p: "gemini" | "openai") => request<AiKeyStatusDto>(`/api/ai-keys/${p}`);
-export const saveAiKey = (p: "gemini" | "openai", apiKey: string) => request<AiKeyStatusDto>(`/api/ai-keys/${p}`, { method: "PUT", json: { apiKey } });
-export const deleteAiKey = (p: "gemini" | "openai") => request<void>(`/api/ai-keys/${p}`, { method: "DELETE" });
-export const getGeminiKey = () => request<AiKeyStatusDto>("/api/ai-keys/gemini");
-export const saveGeminiKey = (apiKey: string) => request<AiKeyStatusDto>("/api/ai-keys/gemini", { method: "PUT", json: { apiKey } });
-export const deleteGeminiKey = () => request<void>("/api/ai-keys/gemini", { method: "DELETE" });
+export const getAiKey = (keyId: string) => request<AiKeyStatusDto>(`/api/ai-keys/${keyId}`);
+export const saveAiKey = (keyId: string, apiKey: string) => request<AiKeyStatusDto>(`/api/ai-keys/${keyId}`, { method: "PUT", json: { apiKey } });
+export const deleteAiKey = (keyId: string) => request<void>(`/api/ai-keys/${keyId}`, { method: "DELETE" });

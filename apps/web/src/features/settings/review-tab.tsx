@@ -1,4 +1,6 @@
+import type { ProviderInfoDto } from "@mrd/contracts";
 import { ModelInput } from "../../kernel/model-input.js";
+import { useProviders } from "../../kernel/providers.js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -6,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { ErrorBox, Loading } from "../../kernel/page.js";
-import { checkStorage, deleteAiKey, getAiKey, getStorage, saveAiKey, getFrameworks, getHealth, getProviders, getSettings, saveSettings } from "./api.js";
+import { checkStorage, deleteAiKey, getAiKey, getStorage, saveAiKey, getFrameworks, getHealth, getSettings, saveSettings } from "./api.js";
 
 const Row = ({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) => (
   <div className="flex items-center justify-between gap-4 border-t py-3 first:border-0 first:pt-0"><span className="min-w-0"><span className="block">{label}</span>{hint && <span className="block text-xs text-muted-foreground">{hint}</span>}</span>{children}</div>
@@ -53,29 +55,34 @@ function StorageCard({ workDir, save }: { workDir: string; save: (p: { workDir: 
 export function ReviewTab() {
   const qc = useQueryClient();
   const s = useQuery({ queryKey: ["settings"], queryFn: getSettings });
-  const p = useQuery({ queryKey: ["providers"], queryFn: getProviders });
+  const p = useProviders();
   const f = useQuery({ queryKey: ["frameworks"], queryFn: getFrameworks });
   const h = useQuery({ queryKey: ["health"], queryFn: getHealth });
   const save = useMutation({ mutationFn: saveSettings, onSuccess: () => qc.invalidateQueries({ queryKey: ["settings"] }) });
   if (s.isLoading) return <Loading />;
   if (s.error) return <ErrorBox error={s.error} />;
   const v = s.data!;
+  const providers = p.data ?? [];
+  const reviewP = providers.find((x) => x.id === v.reviewProvider);
+  const chat = v.aiRoles.chat ?? { provider: "", model: "" };
+  const chatP = chat.provider ? providers.find((x) => x.id === chat.provider) : undefined;
+  const chatToolNames = providers.filter((x) => x.capabilities.chatTools).map((x) => x.label).join(", ");
   const num = (raw: string, min: number, apply: (n: number) => void) => { const n = Number(raw); if (raw.trim() !== "" && Number.isFinite(n) && n >= min) apply(Math.round(n)); };
   return (
     <>
       <Card><CardHeader><CardTitle>Review</CardTitle></CardHeader><CardContent>
-        <Row label="AI provider"><Select aria-label="AI provider" value={v.reviewProvider} onChange={(e) => save.mutate({ reviewProvider: e.target.value as typeof v.reviewProvider })}>
-          {(p.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.label}{x.available ? "" : " (chưa sẵn sàng)"}</option>)}</Select></Row>
-        <AiKeyRow provider={v.reviewProvider} />
-        <Row label="Model" hint={v.reviewProvider === "claude-cli" ? "Model Claude dùng để review (vd claude-opus-5-5). Repo có thể chọn model riêng." : v.reviewProvider === "codex-cli" ? "Để trống = model mặc định của Codex CLI." : v.reviewProvider === "gemini-api" ? "Model Gemini gọi qua Google cloud (vd gemini-3.1-pro-preview). Cần nhập Gemini API key ngay bên trên." : "Bắt buộc với OpenAI-compatible (tên model của server)."}>
-          <ModelInput provider={v.reviewProvider} label="Model review" defaultLabel="Mặc định của provider"
-            value={v.reviewProvider === "claude-cli" ? v.claudeModel : v.reviewProvider === "codex-cli" ? v.codexModel : v.reviewProvider === "gemini-api" ? v.geminiModel : v.openaiModel}
-            onCommit={(m) => save.mutate(v.reviewProvider === "claude-cli" ? { claudeModel: m } : v.reviewProvider === "codex-cli" ? { codexModel: m } : v.reviewProvider === "gemini-api" ? { geminiModel: m } : { openaiModel: m })} /></Row>
-        <Row label="AI cho chat" hint="Trợ lý chat có thể dùng provider khác (thường rẻ/nhanh hơn). Chỉ Claude CLI mới có công cụ đọc repo trong chat."><Select aria-label="AI cho chat" value={v.chatProvider} onChange={(e) => save.mutate({ chatProvider: e.target.value as typeof v.chatProvider, chatModel: "" })}>
-          <option value="">Dùng chung với review</option>
-          {(p.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.label}{x.available ? "" : " (chưa sẵn sàng)"}</option>)}</Select></Row>
-        {v.chatProvider !== v.reviewProvider && <AiKeyRow provider={v.chatProvider} />}
-        {v.chatProvider && <Row label="Model cho chat" hint="Để trống = model mặc định của provider này."><ModelInput provider={v.chatProvider} label="Model chat" defaultLabel="Mặc định của provider" value={v.chatModel} onCommit={(m) => save.mutate({ chatModel: m })} /></Row>}
+        <Row label="AI provider"><Select aria-label="AI provider" value={v.reviewProvider} onChange={(e) => save.mutate({ reviewProvider: e.target.value })}>
+          {providers.filter((x) => x.capabilities.review).map((x) => <option key={x.id} value={x.id}>{x.label}{x.available ? "" : " (chưa sẵn sàng)"}</option>)}</Select></Row>
+        {reviewP && <AiKeyRow provider={reviewP} />}
+        {reviewP && <Row label="Model" hint={modelHint(reviewP)}>
+          <ModelInput models={reviewP.models} label="Model review" defaultLabel="Mặc định của provider" value={v.providerModels[reviewP.id] ?? ""}
+            onCommit={(m) => save.mutate({ providerModels: { [reviewP.id]: m } })} /></Row>}
+        <Row label="AI cho chat" hint={`Trợ lý chat có thể dùng provider khác (thường rẻ/nhanh hơn). ${chatToolNames ? `Công cụ đọc repo trong chat: ${chatToolNames}.` : ""}`.trim()}>
+          <Select aria-label="AI cho chat" value={chat.provider} onChange={(e) => save.mutate({ aiRoles: { chat: { provider: e.target.value, model: "" } } })}>
+            <option value="">Dùng chung với review</option>
+            {providers.map((x) => <option key={x.id} value={x.id} disabled={!x.capabilities.chat}>{x.label}{!x.capabilities.chat ? " (chưa hỗ trợ chat)" : x.available ? "" : " (chưa sẵn sàng)"}</option>)}</Select></Row>
+        {chatP && chatP.id !== reviewP?.id && <AiKeyRow provider={chatP} />}
+        {chatP && <Row label="Model cho chat" hint="Để trống = model mặc định của provider này."><ModelInput models={chatP.models} label="Model chat" defaultLabel="Mặc định của provider" value={chat.model} onCommit={(m) => save.mutate({ aiRoles: { chat: { provider: chat.provider, model: m } } })} /></Row>}
         <Row label="Framework mặc định"><Select aria-label="Framework mặc định" value={v.defaultFramework} onChange={(e) => save.mutate({ defaultFramework: e.target.value })}>
           {(f.data ?? []).map((x) => <option key={x.id} value={x.id}>{x.name} v{x.version}</option>)}</Select></Row>
         <Row label="Điểm đạt"><Input aria-label="Điểm đạt" className="w-24" type="number" min={0} max={100} key={`p${v.passScore}`} defaultValue={v.passScore} onBlur={(e) => num(e.target.value, 0, (n) => n !== v.passScore && save.mutate({ passScore: n }))} /></Row>
@@ -106,20 +113,17 @@ export function ReviewTab() {
   );
 }
 
-/** Provider cloud cần khoá API (CLI dùng đăng nhập của chính CLI nên không cần): dòng nhập khoá chỉ hiện khi provider đang chọn là cloud. */
-const CLOUD = {
-  "gemini-api": { keyId: "gemini" as const, title: "Gemini API key", placeholder: "AIza…", optional: false, envName: "GEMINI_API_KEY", note: "Lấy ở Google AI Studio." },
-  "openai-compatible": { keyId: "openai" as const, title: "OpenAI-compatible API key", placeholder: "sk-…", optional: true, envName: "OPENAI_API_KEY", note: "Server nội bộ (Ollama, LM Studio…) thường không cần khoá. Địa chỉ server đặt bằng biến OPENAI_BASE_URL." },
-} as const;
+const modelHint = (p: ProviderInfoDto) =>
+  p.auth.type === "apiKey" ? `Model gọi qua ${p.label}${p.auth.optional ? "" : "; cần nhập API key ngay bên trên"}. Để trống = mặc định (${p.defaultModel || "của server"}).` : "Để trống = model mặc định của CLI. Repo có thể chọn model riêng.";
 
-/** Khoá API AI cloud: lưu mã hoá trong DB của app, không hiển thị lại (chỉ 4 ký tự cuối). */
-function AiKeyRow({ provider }: { provider: string }) {
-  const c = CLOUD[provider as keyof typeof CLOUD];
-  if (!c) return null;
-  return <AiKeyInput {...c} />;
+/** Provider khai báo `auth.apiKey` thì mới có dòng nhập khoá (CLI dùng đăng nhập của chính CLI nên không có). */
+function AiKeyRow({ provider }: { provider: ProviderInfoDto }) {
+  if (provider.auth.type !== "apiKey") return null;
+  return <AiKeyInput title={`${provider.label} — API key`} {...provider.auth} />;
 }
 
-function AiKeyInput({ keyId, title, placeholder, optional, envName, note }: (typeof CLOUD)[keyof typeof CLOUD]) {
+/** Khoá API AI cloud: lưu mã hoá trong DB của app, không hiển thị lại (chỉ 4 ký tự cuối). */
+function AiKeyInput({ keyId, title, optional, envName, note }: { keyId: string; title: string; optional: boolean; envName: string; note?: string }) {
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ["ai-key", keyId], queryFn: () => getAiKey(keyId) });
   const [value, setValue] = useState("");
@@ -130,9 +134,9 @@ function AiKeyInput({ keyId, title, placeholder, optional, envName, note }: (typ
   const status = k ? (k.configured ? `Đang dùng khoá …${k.hint ?? ""} (${k.source === "db" ? "đã lưu mã hoá trong app" : `từ biến môi trường ${envName}`}).` : optional ? "Chưa có khoá (không bắt buộc)." : "Chưa có khoá.") : "";
   return (
     <>
-      <Row label={title} hint={`${status} ${note}`.trim()}>
+      <Row label={title} hint={`${status} ${note ?? ""}`.trim()}>
         <div className="flex w-full max-w-md items-center gap-2">
-          <Input aria-label={title} type="password" autoComplete="off" placeholder={k?.configured ? "Nhập khoá mới để thay" : placeholder} value={value} onChange={(e) => setValue(e.target.value)} disabled={k ? !k.canStore : true} />
+          <Input aria-label={title} type="password" autoComplete="off" placeholder={k?.configured ? "Nhập khoá mới để thay" : "Dán API key"} value={value} onChange={(e) => setValue(e.target.value)} disabled={k ? !k.canStore : true} />
           <Button disabled={value.trim().length < 8 || save.isPending} onClick={() => save.mutate(value.trim())}>{save.isPending ? "Đang lưu…" : "Lưu"}</Button>
           {k?.source === "db" && <Button variant="outline" disabled={clear.isPending} onClick={() => clear.mutate()}>Xoá</Button>}
         </div>

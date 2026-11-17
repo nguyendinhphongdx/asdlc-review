@@ -26,3 +26,4 @@ Không cần port ngoài. "Có repo nào đang dùng framework này không" do `
 - Framework gán cho repo bị xoá thì `resolve` dùng mặc định.
 - Hiểu `.asdlc.yml` là việc của module này; `harness` chỉ tìm và đưa nội dung thô.
 - `Rubric` nằm ở `packages/contracts` vì là vocabulary chung giữa framework → reviewer → scoring.
+- `overview.views` (tuỳ chọn): ghi đè "loại MR → sơ đồ cần vẽ" (`required`/`optional` trong flow/architecture/sequence). Loại không ghi dùng `DEFAULT_VIEWS` trong `@mrd/contracts`; reviewer đọc qua `viewFor(kind, rubric.overview?.views)`. Diff chỉnh sửa ghi `overview.views.<loại>`.

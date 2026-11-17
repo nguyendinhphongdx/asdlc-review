@@ -1,4 +1,4 @@
-import type { RunActivityEntry, FileReviewDto, HarnessLoadDto, HarnessReportDto, AiContextDto, MrDescriptionDto, OverviewSectionDto, RuleCheckDto } from "@mrd/contracts";
+import type { MrKind, OverviewBlock, RunActivityEntry, FileReviewDto, HarnessLoadDto, HarnessReportDto, AiContextDto, MrDescriptionDto, OverviewSectionDto, RuleCheckDto } from "@mrd/contracts";
 import type { Grade, RunStatus, ReviewTrigger, Verdict } from "@mrd/contracts";
 
 export interface MrSnapshot {
@@ -100,6 +100,8 @@ export interface RunResult {
   ruleChecks?: RuleCheckDto[];
   harnessLoad?: HarnessLoadDto | null;
   overview?: OverviewSectionDto[];
+  blocks?: OverviewBlock[];
+  mrKind?: MrKind | null;
   mrDescription?: MrDescriptionDto | null;
   aiContext?: AiContextDto | null;
   activity?: RunActivityEntry[];
@@ -155,6 +157,8 @@ export interface RunDetail extends RunSummary {
   harnessReport: HarnessReportDto | null;
   harnessLoad: HarnessLoadDto | null;
   overview: OverviewSectionDto[];
+  blocks: OverviewBlock[];
+  mrKind: MrKind | null;
   mrDescription: MrDescriptionDto | null;
   aiContext: AiContextDto | null;
   activity: RunActivityEntry[];

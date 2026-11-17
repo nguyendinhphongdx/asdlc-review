@@ -2,11 +2,15 @@ import { RawReviewSchema, SEVERITIES, type RawReview, type Rubric } from "@mrd/c
 
 const nullable = (t: string) => ({ type: [t, "null"] });
 
+const NODE = { type: "object", additionalProperties: false, required: ["id", "label", "sub", "group", "status", "evidence", "note"], properties: { id: { type: "string" }, label: { type: "string" }, sub: nullable("string"), group: nullable("string"), status: { type: "string", enum: ["added", "changed", "removed", "unchanged"] }, evidence: { type: "array", items: { type: "string" } }, note: nullable("string") } } as const;
+const EDGE = { type: "object", additionalProperties: false, required: ["from", "to", "label", "status", "violation", "evidence"], properties: { from: { type: "string" }, to: { type: "string" }, label: nullable("string"), status: { type: "string", enum: ["added", "changed", "removed", "unchanged"] }, violation: { type: "boolean" }, evidence: { type: "array", items: { type: "string" } } } } as const;
+const MESSAGE = { type: "object", additionalProperties: false, required: ["from", "to", "text", "reply", "evidence"], properties: { from: { type: "string" }, to: { type: "string" }, text: { type: "string" }, reply: { type: "boolean" }, evidence: { type: "array", items: { type: "string" } } } } as const;
+
 /** JSON schema ở dạng strict (mọi field required, nullable) để dùng được với cả Claude lẫn Codex. */
 export const REVIEW_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["summary", "intent", "findings", "strengths", "harnessUsed", "checks", "overview"],
+  required: ["summary", "intent", "findings", "strengths", "harnessUsed", "checks", "overview", "blocks"],
   properties: {
     summary: { type: "string" },
     intent: { type: "string" },
@@ -19,6 +23,15 @@ export const REVIEW_JSON_SCHEMA = {
         additionalProperties: false,
         required: ["id", "text", "bullets", "verdict"],
         properties: { id: { type: "string" }, text: { type: "string" }, bullets: { type: "array", items: { type: "string" } }, verdict: nullable("string") },
+      },
+    },
+    blocks: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["kind", "title", "nodes", "edges", "beforeNodes", "beforeEdges", "actors", "messages"],
+        properties: { kind: { type: "string", enum: ["flow", "architecture", "sequence"] }, title: { type: "string" }, nodes: { type: "array", items: NODE }, edges: { type: "array", items: EDGE }, beforeNodes: { type: "array", items: NODE }, beforeEdges: { type: "array", items: EDGE }, actors: { type: "array", items: { type: "string" } }, messages: { type: "array", items: MESSAGE } },
       },
     },
     checks: {

@@ -12,14 +12,16 @@ import { Progress } from "@/components/ui/progress";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { cn } from "@/lib/utils";
 import { fmtDate, fmtDur } from "../../kernel/format.js";
-import { Empty, ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
+import { Empty, ErrorBox, Loading } from "../../kernel/page.js";
 import { FileChanges } from "./changes.js";
 import { HarnessLoad, RuleChecklist } from "./coverage.js";
 import { HarnessPanel } from "../../kernel/harness.js";
 import { addNote, deleteNote, getRun, listFrameworks, listNotes, openRunStream, setFeedback } from "./api.js";
 import { useReviewRequest } from "./use-review-request.js";
 import { LogTab } from "./log-tab.js";
-import { ProgressStrip } from "./strip.js";
+import { OverviewBlocks, sectionsToBlocks } from "./overview/blocks.js";
+import { DEMO_BLOCKS } from "./overview/fixtures.js";
+import { PanelStatus, ProgressTab } from "./progress-tab.js";
 import { AgentChat } from "./chat.js";
 import { STAGES } from "../../kernel/stages.js";
 
@@ -31,7 +33,7 @@ const SEV_COLOR: Record<string, string> = { blocker: "bg-danger", critical: "bg-
 const SEV_HINT: Record<string, string> = { blocker: "chặn merge", critical: "cần sửa ngay", major: "cần sửa trước khi merge", minor: "nên cải thiện", nit: "tuỳ chọn" };
 const FB = { agree: "Đồng ý", disagree: "Không đồng ý", fixed: "Đã sửa" } as const;
 
-type TabId = "overview" | "changes" | "findings" | "context" | "log";
+type TabId = "overview" | "progress" | "changes" | "findings" | "context" | "log";
 
 export function ReviewDetailPage() {
   const { id = "" } = useParams();
@@ -40,6 +42,10 @@ export function ReviewDetailPage() {
   const [live, setLive] = useState<RunActivityEntry[]>([]);
   const [connected, setConnected] = useState(false);
   const [openStage, setOpenStage] = useState("review");
+  const [ask, setAsk] = useState<{ id: number; text: string } | null>(null);
+  const [focus, setFocus] = useState<{ id: number; path: string } | null>(null);
+  const [wide, setWide] = useState(() => { try { return localStorage.getItem("mrd.panel.wide") === "1"; } catch { return false; } });
+  const toggleWide = () => setWide((w) => { const n = !w; try { localStorage.setItem("mrd.panel.wide", n ? "1" : "0"); } catch { /* không lưu được thì thôi */ } return n; });
   const q = useQuery({ queryKey: ["run", id], queryFn: () => getRun(id), refetchInterval: (s) => (s.state.data && ["queued", "running"].includes(s.state.data.status) ? (connected ? 15000 : 3000) : false) });
   const active = q.data ? ["queued", "running"].includes(q.data.status) : false;
   // SSE: nhận tiến trình từng bước; khi xong/lỗi thì tải lại chi tiết.
@@ -63,64 +69,76 @@ export function ReviewDetailPage() {
   const r = q.data!;
   const entries = live.length ? live : r.activity;
   // Đang review thì mở sẵn tab Nhật ký (dữ liệu có liên quan nhất lúc này); xong thì mở Tổng quan.
-  const tab = ((sp.get("tab") as TabId | null) ?? (active ? "log" : "overview"));
+  const tab = ((sp.get("tab") as TabId | null) ?? (active ? "progress" : "overview"));
   const setTab = (t: TabId) => setSp((p) => { const n = new URLSearchParams(p); n.set("tab", t); return n; }, { replace: true });
+  const askChat = (text: string) => setAsk({ id: Date.now(), text });
+  const openFile = (path: string) => { setFocus({ id: Date.now(), path }); setTab("changes"); };
   const openLog = (stage: string) => { setOpenStage(stage); setTab("log"); };
   const openFindings = r.findings.filter((f) => f.feedback !== "fixed" && f.feedback !== "disagree").length;
   const tabs: { id: TabId; label: string; count?: number | string; tone?: "live" | "warn" }[] = [
     { id: "overview", label: "Tổng quan" },
+    { id: "progress", label: "Tiến trình", count: active ? "LIVE" : undefined, tone: "live" },
     { id: "changes", label: "Thay đổi", count: r.files.length || r.filesChanged || undefined },
     { id: "findings", label: "Góp ý", count: r.findings.length ? openFindings : undefined, tone: "warn" },
+    { id: "log", label: "Nhật ký" },
     { id: "context", label: "Ngữ cảnh AI" },
-    { id: "log", label: "Nhật ký", count: active ? "LIVE" : undefined, tone: "live" },
   ];
+  const fwName = fws.data?.find((f) => f.id === r.frameworkId)?.name;
   return (
-    <>
-      <PageHeader title={`!${r.mr.iid} ${r.mr.title}`}>
-        <Button disabled={re.isPending || active} onClick={() => re.mutate({ mrId: r.mr.id })} title={active ? "Đang có một lần review chạy cho MR này" : undefined}><RotateCw />{re.isPending ? "Đang xếp hàng…" : "Review lại"}</Button>
-        <a className={buttonVariants({ variant: "ghost", size: "icon" })} href={r.mr.webUrl} target="_blank" rel="noreferrer" aria-label="Mở MR trên GitLab (tab mới)" title="Mở trên GitLab"><ExternalLink /></a>
-      </PageHeader>
-      <div className="-mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-muted-foreground">
-        <span className="inline-flex items-center gap-2"><Avatar name={r.mr.authorUsername} className="size-[22px] text-[10px]" /><span className="font-medium text-foreground">{r.mr.authorUsername}</span></span>
-        <span className="font-mono text-xs">{r.mr.sourceBranch} → {r.mr.targetBranch}</span>
-        <span>Vòng {r.round} · {fmtDate(r.createdAt)}</span>
-        <Link to="/reviews" className="hover:underline">← Danh sách</Link>
-      </div>
-      {r.error && !(r.status === "failed" && STAGES.some((x) => x.id === r.stage)) && <ErrorBox error={r.error} />}
-
-      <ProgressStrip r={r} entries={entries} onPickStage={openLog} retrying={re.isPending} retried={re.isSuccess} onRetry={() => re.mutate({ mrId: r.mr.id })} />
-      {re.error && <ErrorBox error={re.error} />}
-      {re.notice && !re.error && !re.isPending && <p role="status" className="text-[13px] text-muted-foreground">{re.notice}</p>}
-
-      <div role="tablist" aria-label="Nội dung review" className="flex flex-wrap gap-1 border-b">
-        {tabs.map((t) => (
-          <button key={t.id} type="button" role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} onClick={() => setTab(t.id)}
-            className={cn("-mb-px inline-flex h-10 items-center gap-2 border-b-2 px-3.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring", tab === t.id ? "border-primary font-semibold text-foreground" : "border-transparent font-medium text-muted-foreground hover:text-foreground")}>
-            {t.label}
-            {t.count != null && <span className={cn("rounded-full px-1.5 text-[11.5px] font-semibold tabular-nums", t.tone === "live" ? "bg-info-bg text-info-fg" : t.tone === "warn" ? "bg-warning-bg text-warning-fg" : "bg-muted text-muted-foreground")}>{t.count}</span>}
-          </button>
-        ))}
+    <div className="flex min-h-full flex-1 flex-col lg:h-full lg:min-h-0">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-4 py-3 md:px-6">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-semibold leading-7 tracking-tight">!{r.mr.iid} {r.mr.title}</h1>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted-foreground">
+            <span className="inline-flex items-center gap-2"><Avatar name={r.mr.authorUsername} className="size-[20px] text-[10px]" /><span className="font-medium text-foreground">{r.mr.authorUsername}</span></span>
+            <span className="font-mono text-xs">{r.mr.sourceBranch} → {r.mr.targetBranch}</span>
+            <span>Vòng {r.round} · {fmtDate(r.createdAt)}</span>
+            <Link to="/reviews" className="hover:underline">← Danh sách</Link>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button disabled={re.isPending || active} onClick={() => re.mutate({ mrId: r.mr.id })} title={active ? "Đang có một lần review chạy cho MR này" : undefined}><RotateCw />{re.isPending ? "Đang xếp hàng…" : "Review lại"}</Button>
+          <a className={buttonVariants({ variant: "ghost", size: "icon" })} href={r.mr.webUrl} target="_blank" rel="noreferrer" aria-label="Mở MR trên GitLab (tab mới)" title="Mở trên GitLab"><ExternalLink /></a>
+        </div>
       </div>
 
-      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex flex-col gap-4">
-        {tab === "overview" && <OverviewTab r={r} frameworkName={fws.data?.find((f) => f.id === r.frameworkId)?.name} />}
-        {tab === "changes" && <FileChanges mrId={r.mr.id} files={r.files ?? []} findings={r.findings} />}
-        {tab === "findings" && <Findings findings={r.findings} onFeedback={(fid, v) => fb.mutate({ id: fid, v })} />}
-        {tab === "context" && <ContextTab r={r} frameworkName={fws.data?.find((f) => f.id === r.frameworkId)?.name} />}
-        {tab === "log" && <LogTab r={r} entries={entries} open={openStage} onOpen={setOpenStage} />}
-      </div>
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        <section aria-label="Trò chuyện với trợ lý" className="min-h-[520px] min-w-0 flex-1 lg:min-h-0"><AgentChat dock mrId={r.mr.id} active={active} connected={connected} incoming={ask} /></section>
 
-      <AgentChat mrId={r.mr.id} active={active} connected={connected} />
-    </>
+        <aside aria-label="Kết quả review" className={cn("flex min-h-[520px] min-w-0 flex-col border-t bg-muted/20 lg:min-h-0 lg:flex-none lg:border-l lg:border-t-0", wide ? "lg:w-[min(920px,62vw)]" : "lg:w-[560px]")}>
+          <PanelStatus r={r} entries={entries} onRetry={() => re.mutate({ mrId: r.mr.id })} retrying={re.isPending} retried={re.isSuccess} wide={wide} onToggleWide={toggleWide} />
+          <div role="tablist" aria-label="Nội dung review" className="flex flex-none overflow-x-auto border-b bg-card px-2">
+            {tabs.map((t) => (
+              <button key={t.id} type="button" role="tab" id={`tab-${t.id}`} aria-selected={tab === t.id} aria-controls={`panel-${t.id}`} onClick={() => setTab(t.id)}
+                className={cn("-mb-px inline-flex h-10 flex-none items-center gap-2 whitespace-nowrap border-b-2 px-3 text-[13.5px] outline-none focus-visible:ring-2 focus-visible:ring-ring", tab === t.id ? "border-primary font-semibold text-foreground" : "border-transparent font-medium text-muted-foreground hover:text-foreground")}>
+                {t.label}
+                {t.count != null && <span className={cn("rounded-full px-1.5 text-[11.5px] font-semibold tabular-nums", t.tone === "live" ? "bg-info-bg text-info-fg" : t.tone === "warn" ? "bg-warning-bg text-warning-fg" : "bg-muted text-muted-foreground")}>{t.count}</span>}
+              </button>
+            ))}
+          </div>
+          <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+            {r.error && !(r.status === "failed" && STAGES.some((x) => x.id === r.stage)) && <ErrorBox error={r.error} />}
+            {re.error && <ErrorBox error={re.error} />}
+            {re.notice && !re.error && !re.isPending && <p role="status" className="text-[13px] text-muted-foreground">{re.notice}</p>}
+            {tab === "overview" && <OverviewTab r={r} frameworkName={fwName} onAsk={askChat} onOpenFile={openFile} />}
+            {tab === "progress" && <ProgressTab r={r} entries={entries} onOpenLog={openLog} />}
+            {tab === "changes" && <FileChanges mrId={r.mr.id} files={r.files ?? []} findings={r.findings} focus={focus} />}
+            {tab === "findings" && <Findings findings={r.findings} onFeedback={(fid, v) => fb.mutate({ id: fid, v })} />}
+            {tab === "context" && <ContextTab r={r} frameworkName={fwName} />}
+            {tab === "log" && <LogTab r={r} entries={entries} open={openStage} onOpen={setOpenStage} />}
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 }
 
-function OverviewTab({ r, frameworkName }: { r: RunDetailDto; frameworkName?: string | undefined }) {
+function OverviewTab({ r, frameworkName, onAsk, onOpenFile }: { r: RunDetailDto; frameworkName?: string | undefined; onAsk: (t: string) => void; onOpenFile: (p: string) => void }) {
   const verdict = r.verdict ? VERDICT[r.verdict] : undefined;
   return (
     <>
       <MrDescription d={r.mrDescription} />
-      <OverviewCard sections={r.overview ?? []} />
+      <OverviewCard sections={r.overview ?? []} blocks={r.blocks ?? []} onAsk={onAsk} onOpenFile={onOpenFile} />
       {r.omittedFiles.length > 0 && (
         <section role="status" className="flex gap-3 rounded-xl border border-warning bg-warning-bg px-5 py-4 text-warning-fg">
           <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
@@ -195,26 +213,18 @@ function OverviewTab({ r, frameworkName }: { r: RunDetailDto; frameworkName?: st
 }
 
 /** "Đánh giá tổng quan" do AI viết theo khung framework (mục, dạng hiển thị, nhãn kết luận đều do framework quyết định). */
-function OverviewCard({ sections }: { sections: RunDetailDto["overview"] }) {
-  if (!sections.length) return null;
+function OverviewCard({ sections, blocks: diagrams, onAsk, onOpenFile }: { sections: RunDetailDto["overview"]; blocks: RunDetailDto["blocks"]; onAsk: (t: string) => void; onOpenFile: (p: string) => void }) {
+  const [sp] = useSearchParams();
+  const demo = sp.get("overview") === "demo";
+  const blocks = demo ? DEMO_BLOCKS : [...sectionsToBlocks(sections), ...diagrams];
+  if (!blocks.length) return null;
   return (
     <Card className="gap-0 overflow-hidden py-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">
         <div className="flex items-center gap-2.5"><span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Bot className="size-4" aria-hidden="true" /></span><div><h2 className="text-[15px] font-semibold">Đánh giá tổng quan</h2><p className="text-xs text-muted-foreground">AI nhìn MR từ xa, theo khung của framework</p></div></div>
-        <Badge variant="info">Do AI viết</Badge>
+        <Badge variant="info">{demo ? "Dữ liệu mẫu" : "Do AI viết"}</Badge>
       </div>
-      <div className="flex flex-col px-5 pb-2 pt-1">
-        {sections.map((x, i) => (
-          <div key={x.id} className="flex gap-3.5 border-t py-3.5 first:border-0">
-            <span className="mt-0.5 flex size-[22px] flex-none items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground">{i + 1}</span>
-            <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-              <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold">{x.title}</h3>{x.verdict && <span className="rounded-full bg-info-bg px-2 py-0.5 text-[11.5px] font-semibold text-info-fg">{x.verdict}</span>}</div>
-              {x.text && <p className="text-sm leading-relaxed text-foreground/85">{x.text}</p>}
-              {x.bullets.length > 0 && <ul className="flex list-disc flex-col gap-1 pl-5 text-sm leading-relaxed text-foreground/85">{x.bullets.map((b, j) => <li key={j}>{b}</li>)}</ul>}
-            </div>
-          </div>
-        ))}
-      </div>
+      <div className="px-5 py-4"><OverviewBlocks blocks={blocks} onAsk={onAsk} onOpenFile={onOpenFile} /></div>
     </Card>
   );
 }

@@ -20,13 +20,27 @@ export function isNewer(a, b) {
   return false;
 }
 
-async function latest() {
+/** Bản mới nhất qua chuyển hướng của github.com/<repo>/releases/latest: không tốn hạn mức API (60 lượt/giờ/IP, hay hết khi nhiều máy chung mạng) và asset có URL cố định theo tag. */
+async function latestViaRedirect() {
+  const r = await fetch(`https://github.com/${REPO}/releases/latest`, { redirect: "manual", headers: { "user-agent": "asdlc-review-updater" } });
+  const loc = r.headers.get("location") ?? "";
+  const tag = /\/releases\/tag\/([^/?#]+)/.exec(loc)?.[1];
+  if (!tag) throw new Error(`GitHub ${r.status}`);
+  const base = `https://github.com/${REPO}/releases/download/${tag}`;
+  return { version: decodeURIComponent(tag).replace(/^v/, ""), page: `https://github.com/${REPO}/releases/tag/${tag}`, zip: `${base}/${ASSET}`, sha: `${base}/${ASSET}.sha256` };
+}
+
+async function latestViaApi() {
   const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { accept: "application/vnd.github+json", "user-agent": "asdlc-review-updater" } });
-  if (!r.ok) throw new Error(`GitHub ${r.status}`);
+  if (!r.ok) throw new Error(r.status === 403 || r.status === 429 ? "GitHub từ chối vì quá nhiều lượt kiểm tra từ mạng này (giới hạn 60 lượt/giờ), thử lại sau ít phút" : `GitHub ${r.status}`);
   const rel = await r.json();
   const zip = rel.assets?.find((a) => a.name === ASSET);
   const sha = rel.assets?.find((a) => a.name === `${ASSET}.sha256`);
   return { version: String(rel.tag_name).replace(/^v/, ""), page: rel.html_url, zip: zip?.browser_download_url, sha: sha?.browser_download_url };
+}
+
+async function latest() {
+  try { return await latestViaRedirect(); } catch { return latestViaApi(); }
 }
 
 async function download(url, file, onPercent) {

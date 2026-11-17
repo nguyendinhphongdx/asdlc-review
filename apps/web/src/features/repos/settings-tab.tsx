@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ModelInput } from "../../kernel/model-input.js";
+import { useGlobalReviewProvider, useProviders } from "../../kernel/providers.js";
 import { ErrorBox } from "../../kernel/page.js";
 import { patchRepo } from "./api.js";
 
@@ -27,6 +28,8 @@ const untri = (s: string): boolean | null => (s === "default" ? null : s === "ye
 export function RepoSettings({ repo }: { repo: RepoDto }) {
   const qc = useQueryClient();
   const save = useMutation({ mutationFn: (p: Patch) => patchRepo(repo.id, p), onSuccess: () => qc.invalidateQueries({ queryKey: ["repos"] }) });
+  const providers = useProviders().data ?? [];
+  const defaultProvider = useGlobalReviewProvider().data ?? "";
   const [branches, setBranches] = useState(repo.targetBranches ?? "");
   const [budget, setBudget] = useState(repo.diffBudgetChars?.toString() ?? "");
   const check = (label: string, checked: boolean, on: (v: boolean) => void) => <input aria-label={label} type="checkbox" className="size-4 accent-[var(--primary)]" checked={checked} onChange={(e) => on(e.target.checked)} />;
@@ -51,11 +54,12 @@ export function RepoSettings({ repo }: { repo: RepoDto }) {
         </Row>
         <Row label="Provider AI" hint="Công cụ AI dùng để review repo này.">
           <select aria-label="Provider AI" className={SELECT} value={repo.provider ?? ""} onChange={(e) => save.mutate({ provider: (e.target.value || null) as Patch["provider"] })}>
-            <option value="">Theo cài đặt chung</option><option value="claude-cli">Claude Code CLI</option><option value="codex-cli">Codex CLI</option><option value="gemini-api">Gemini API (Google cloud)</option><option value="openai-compatible">OpenAI-compatible API</option>
+            <option value="">Theo cài đặt chung</option>
+            {providers.filter((x) => x.capabilities.review).map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
           </select>
         </Row>
         <Row label="Model" hint="Model dùng review và chat cho repo này. Để trống = theo cài đặt chung của provider.">
-          <ModelInput provider={repo.provider ?? "claude-cli"} label="Model của repo" defaultLabel="Theo cài đặt chung" value={repo.model ?? ""} onCommit={(m) => save.mutate({ model: m || null })} />
+          <ModelInput models={(providers.find((x) => x.id === (repo.provider ?? defaultProvider)) ?? providers[0])?.models ?? []} label="Model của repo" defaultLabel="Theo cài đặt chung" value={repo.model ?? ""} onCommit={(m) => save.mutate({ model: m || null })} />
         </Row>
         <Row label="Ngân sách diff (ký tự)" hint="Giới hạn lượng diff đưa vào prompt; MR lớn hơn sẽ bị cắt. Để trống = theo cài đặt chung.">
           <Input aria-label="Ngân sách diff" type="number" min={10000} max={1000000} step={10000} placeholder="120000" value={budget} onChange={(e) => setBudget(e.target.value)}

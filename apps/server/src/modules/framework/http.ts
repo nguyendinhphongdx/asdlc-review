@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { OverviewViewsSchema } from "@mrd/contracts";
 import { z } from "zod";
 import type { FrameworkApi } from "./api.js";
 
@@ -15,6 +16,7 @@ const Edit = z.object({
   overview: z.object({
     guide: z.string().max(4000),
     sections: z.array(z.object({ id: z.string().min(1).max(40), title: z.string().max(120), enabled: z.boolean(), kind: z.enum(["text", "bullets", "verdict"]), maxWords: z.number().int().min(20).max(400), guide: z.string().max(2000), verdicts: z.array(z.string().max(60)).max(8) })).max(12),
+    views: OverviewViewsSchema.optional(),
   }).optional(),
   mrDescription: z.object({ docs: z.array(z.object({ kind: z.string().max(60), required: z.boolean(), pattern: z.string().max(300), hint: z.string().max(200) })).max(12), penalty: z.number().min(0).max(30) }).optional(),
   categories: z.array(z.object({

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { SeveritySchema } from "@mrd/contracts";
+import { OverviewViewsSchema, SeveritySchema } from "@mrd/contracts";
 
 const CriterionSchema = z.object({
   id: z.string(),
@@ -22,7 +22,7 @@ const OverviewSectionSchema = z.object({
   verdicts: z.array(z.string().max(60)).max(8).default([]),
 });
 
-const OverviewSchema = z.object({ guide: z.string().max(4000).default(""), sections: z.array(OverviewSectionSchema).max(12) });
+const OverviewSchema = z.object({ guide: z.string().max(4000).default(""), sections: z.array(OverviewSectionSchema).max(12), views: OverviewViewsSchema.optional() });
 
 /** Khung mặc định của "Đánh giá tổng quan" khi framework không khai báo: nhìn MR từ xa như một kiến trúc sư. */
 export const DEFAULT_OVERVIEW: z.infer<typeof OverviewSchema> = {

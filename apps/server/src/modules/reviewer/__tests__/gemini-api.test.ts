@@ -12,6 +12,12 @@ const make = (f: typeof fetch, key = "AIza-test-key") => geminiApiProvider({ api
 const input = { system: "SYS", user: "USR", workdir: "." };
 
 describe("gemini-api provider", () => {
+  it("ask (chat): văn bản tự do, không ép JSON mode", async () => {
+    const calls: Call[] = [];
+    const out = await make(fake(200, { candidates: [{ content: { parts: [{ text: "xin chào" }] } }] }, calls)).ask!({ model: "gemini-3.5-flash", system: "SYS", user: "USR", workdir: "." });
+    assert.equal(out.text, "xin chào");
+    assert.equal(calls[0]!.body.generationConfig.responseMimeType, undefined);
+  });
   it("gọi generateContent: khoá ở header (không ở URL), system/user đúng chỗ, JSON mode + đủ token", async () => {
     const calls: Call[] = [];
     const out = await make(fake(200, { candidates: [{ content: { parts: [{ text: '{"summary":' }, { text: '"ok"}' }] } }] }, calls)).run({ ...input, model: "gemini-2.5-flash" });
