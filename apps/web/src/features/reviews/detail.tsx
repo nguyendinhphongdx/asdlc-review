@@ -115,7 +115,7 @@ export function ReviewDetailPage() {
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section aria-label="Trò chuyện với trợ lý" className="min-h-[520px] min-w-0 flex-1 lg:min-h-0"><AgentChat onClearSelection={() => setSelection(null)} dock mrId={r.mr.id} active={active} connected={connected} incoming={ask} viewing={{ tab, selection: tab === "changes" ? selection ?? undefined : undefined, file: tab === "changes" ? viewFile ?? undefined : undefined, node: tab === "overview" ? viewNode ?? undefined : undefined }} /></section>
+        <section aria-label="Trò chuyện với trợ lý" className="min-h-[520px] min-w-0 flex-1 lg:min-h-0"><AgentChat files={[...new Set([...(r.files ?? []).map((f) => f.path), ...(r.harnessLoad?.items ?? []).map((i) => i.path)])]} repoName={repoLabel(r.mr.webUrl)} harnessItems={r.harnessLoad?.items ?? []} onClearSelection={() => setSelection(null)} dock mrId={r.mr.id} active={active} connected={connected} incoming={ask} viewing={{ tab, selection: tab === "changes" ? selection ?? undefined : undefined, file: tab === "changes" ? viewFile ?? undefined : undefined, node: tab === "overview" ? viewNode ?? undefined : undefined }} /></section>
 
         <aside aria-label="Kết quả review" style={{ "--pw": `${Math.min(panelW, panelMax())}px` } as CSSProperties} className="relative flex min-h-[520px] min-w-0 flex-col border-t bg-muted/20 lg:min-h-0 lg:w-[var(--pw)] lg:flex-none lg:border-l lg:border-t-0">
           <ResizeHandle edge="left" label="Đổi độ rộng khung kết quả" value={panelW} min={PANEL_MIN} max={panelMax} onChange={setPanelW} onReset={() => setPanelW(PANEL_DEFAULT)} className="absolute inset-y-0 -left-1 hidden lg:flex" />
@@ -407,4 +407,9 @@ function Findings({ findings: all, onFeedback }: { findings: Finding[]; onFeedba
       })}
     </section>
   );
+}
+
+/** Tên project lấy từ URL của MR (vd https://gitlab/x/y/-/merge_requests/1 → "y"). */
+function repoLabel(webUrl: string): string {
+  try { return new URL(webUrl).pathname.split("/-/")[0]!.split("/").filter(Boolean).pop() ?? "Repo"; } catch { return "Repo"; }
 }

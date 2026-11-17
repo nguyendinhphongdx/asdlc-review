@@ -1,10 +1,11 @@
-import type { ActionDto, ChatImageDto, ChatStepDto, ChatViewingDto } from "@mrd/contracts";
+import type { ActionDto, ChatImageDto, ChatRefDto, ChatStepDto, ChatViewingDto } from "@mrd/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Eye, FileText, Minus, MessageSquare, Sparkles, Wrench, X } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Completer, repoCommandsFrom, type AsdlcCommand } from "./completer.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from "@/components/ai-elements/conversation";
@@ -169,7 +170,7 @@ const loadMode = (): Mode => { try { const v = localStorage.getItem("mrd.chat.mo
  * (Read/Grep/Glob), hiện suy luận và từng lệnh gọi tool; comment/chạy lại chỉ là đề xuất chờ bạn duyệt.
  */
 /** `incoming`: câu hỏi do nơi khác trên trang đẩy vào (vd bấm nút trên sơ đồ); mỗi `id` mới được gửi một lần. */
-export function AgentChat({ mrId, active, connected, dock = false, incoming = null, viewing, onClearSelection }: { onClearSelection?: (() => void) | undefined; mrId: string; active: boolean; connected: boolean; dock?: boolean; incoming?: { id: number; text: string } | null; viewing?: ChatViewingDto | undefined }) {
+export function AgentChat({ mrId, active, connected, dock = false, incoming = null, viewing, onClearSelection, files = [], repoName = "Repo", harnessItems = [] }: { files?: string[]; repoName?: string; harnessItems?: { path: string }[]; onClearSelection?: (() => void) | undefined; mrId: string; active: boolean; connected: boolean; dock?: boolean; incoming?: { id: number; text: string } | null; viewing?: ChatViewingDto | undefined }) {
   const qc = useQueryClient();
   const [modeRaw, setModeState] = useState<Mode>(loadMode);
   const mode: Mode = dock ? "open" : modeRaw;
@@ -187,7 +188,7 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
   const q = useQuery({ queryKey: ["chat", mrId], queryFn: () => getChat(mrId), refetchInterval: busy ? 1200 : false });
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["chat", mrId] }); void qc.invalidateQueries({ queryKey: ["runs"] }); };
   const send = useMutation({
-    mutationFn: (a: { t: string; imgs: ChatImageDto[] }) => sendChat(mrId, a.t, a.imgs, viewRef.current),
+    mutationFn: (a: { t: string; imgs: ChatImageDto[]; refs: ChatRefDto[] }) => sendChat(mrId, a.t, a.imgs, viewRef.current, a.refs),
     onMutate: (a) => { baseline.current = q.data?.messages.length ?? 0; setBusy(true); setPending(a.imgs.length ? `${a.t}\n📎 ${a.imgs.length} ảnh đính kèm` : a.t); },
     onSettled: () => { setBusy(false); setPending(null); refresh(); },
   });
@@ -196,7 +197,17 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
   const proposed = (q.data?.lessons ?? []).filter((l) => l.status === "proposed").length;
   const waiting = actions.length + proposed;
   useEffect(() => { if (waiting > 0 && mode === "closed") setMode("min"); }, [waiting]); // eslint-disable-line react-hooks/exhaustive-deps
-  const submit = (t: string, imgs: ChatImageDto[] = []) => { if (send.isPending || (!t.trim() && !imgs.length)) return; setNotice(null); send.mutate({ t: t.trim(), imgs }); };
+  // Mục chọn bằng @ và / (file, lệnh/skill/agent của repo); chỉ gửi những mục mà token còn nằm trong văn bản.
+  const refsRef = useRef<{ token: string; ref: ChatRefDto }[]>([]);
+  const repoCommands = useMemo(() => repoCommandsFrom(harnessItems), [harnessItems]);
+  const submit = (t: string, imgs: ChatImageDto[] = []) => {
+    if (send.isPending || (!t.trim() && !imgs.length)) return;
+    setNotice(null);
+    const refs = refsRef.current.filter((r) => t.includes(r.token)).map((r) => r.ref);
+    refsRef.current = [];
+    send.mutate({ t: t.trim(), imgs, refs });
+  };
+  const extraCmds: AsdlcCommand[] = view?.file ? [{ id: "file", label: "file-này", desc: "Giải thích file đang xem", insert: "Giải thích file đang xem" }] : [];
 
   const lastIncoming = useRef(0);
   useEffect(() => {
@@ -278,6 +289,7 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
           )}
           {!share && viewing && (viewing.file || viewing.node) && <button type="button" className="w-fit text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => setShare(true)}>Chia sẻ mục đang xem với agent</button>}
           <QuickPrompts disabled={send.isPending} onSend={(t) => submit(t)} file={view?.file} />
+          <Completer files={files} repoName={repoName} repoCommands={repoCommands} extra={extraCmds} refsRef={refsRef}>
           <PromptInput
             accept="image/png,image/jpeg,image/gif,image/webp,text/*,application/json,.md,.log,.diff,.patch,.yml,.yaml,.ts,.tsx,.py,.go" multiple maxFiles={5} maxFileSize={3_500_000}
             onError={(e) => setNotice(e.code === "max_file_size" ? "Tệp quá lớn (tối đa ~3.5MB)." : e.code === "max_files" ? "Tối đa 5 tệp." : "Chỉ nhận ảnh hoặc tệp văn bản/code.")}
@@ -300,6 +312,7 @@ export function AgentChat({ mrId, active, connected, dock = false, incoming = nu
               <PromptInputSubmit className="size-8" status={send.isPending ? "submitted" : undefined} />
             </PromptInputFooter>
           </PromptInput>
+          </Completer>
         </PromptInputProvider>
       </div>
     </div>
