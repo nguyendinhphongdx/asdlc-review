@@ -249,7 +249,8 @@ function OverviewCard({ runId, sections, blocks: diagrams, onAsk, onOpenFile, on
   const [sp] = useSearchParams();
   const demo = sp.get("overview") === "demo";
   const blocks = demo ? DEMO_BLOCKS : [...sectionsToBlocks(sections), ...diagrams];
-  if (!blocks.length) return null;
+  // Review không có khối nào (vd framework tắt mục tổng quan) vẫn hiện thẻ để người dùng nhờ agent vẽ thêm view.
+  if (!blocks.length && !runId) return null;
   return (
     <Card className="gap-0 overflow-hidden py-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-4">

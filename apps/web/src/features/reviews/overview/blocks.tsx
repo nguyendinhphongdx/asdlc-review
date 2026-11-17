@@ -98,7 +98,7 @@ export function OverviewBlocks({ blocks, onAsk, onOpenFile, onSelectNode, gen }:
           ))}
         </div>
       )}
-      {showing ? <Skeleton label={showing.label} /> : cur && <div className="flex flex-col gap-2"><h3 className="text-sm font-semibold">{cur.title}</h3><BlockBody b={cur} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} /></div>}
+      {showing ? <Skeleton label={showing.label} /> : !cur ? <p className="text-sm text-muted-foreground">Lần review này chưa có tổng quan. Chọn một view ở trên để agent đọc code và vẽ.</p> : cur && <div className="flex flex-col gap-2"><h3 className="text-sm font-semibold">{cur.title}</h3><BlockBody b={cur} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} /></div>}
     </div>
   );
 }

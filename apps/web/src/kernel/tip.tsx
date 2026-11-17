@@ -6,7 +6,7 @@ export function Tip({ text, side = "top", children }: { text: ReactNode; side?: 
   return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side={side} className="max-w-xs text-[12.5px] leading-snug">{text}</TooltipContent>
+      <TooltipContent side={side} className="max-w-sm text-[12.5px] leading-snug [overflow-wrap:anywhere]">{text}</TooltipContent>
     </Tooltip>
   );
 }
