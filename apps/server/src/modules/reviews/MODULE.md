@@ -14,7 +14,7 @@ Mỗi run lưu thêm `frameworkId`/`frameworkVersion` (chấm bằng bản nào)
 Phát `reviews.run.status` (queued → running → từng stage), `reviews.run.completed`, `reviews.run.failed`. Không nhận.
 
 ## Dữ liệu
-`MergeRequest`, `ReviewRun`, `ReviewFinding`, `ReviewCategoryScore` (prisma/schema/reviews.prisma). `repositoryId` và `memberId` chỉ là ID chuỗi, không relation sang module khác.
+`MergeRequest`, `ReviewRun`, `ReviewFinding`, `ReviewCategoryScore`, `DesignMapCache` (prisma/schema/reviews.prisma). `repositoryId` và `memberId` chỉ là ID chuỗi, không relation sang module khác.
 
 ## Port
 Không cần port ngoài (thời gian qua `Clock` mặc định hệ thống).
@@ -23,3 +23,6 @@ Không cần port ngoài (thời gian qua `Clock` mặc định hệ thống).
 - Không tính điểm hay metric: chỉ ghi nhận kết quả do `scoring` tính và đưa dữ kiện cho `analytics`.
 - `firstScore` của MR được ghi một lần ở lần review thành công đầu tiên, để đo chất lượng "khi nộp".
 - `completeRun` ghi run + finding + điểm hạng mục + cập nhật MR trong một transaction (transaction nằm gọn trong module).
+
+## Khu vực & thiết kế (review MR lớn)
+Run lưu `areaReport` (JSON `AreaReportDto`: khu vực T0, đánh giá thiết kế T3, lượt review từng khu vực T4, mô tả thiết kế T2). Bảng `DesignMapCache` (repoId + baseSha + areaId → text) cache T2 qua `getDesignMap`/`saveDesignMap`; bản cũ hơn 60 ngày bị xoá khi ghi.

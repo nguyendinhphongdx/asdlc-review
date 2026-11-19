@@ -1,11 +1,12 @@
-import { AiBlockSchema, viewFor, type OverviewBlock, type ProviderAuth, ProviderCapabilities, ProviderInfoDto } from "@mrd/contracts";
+import { AiBlockSchema, viewFor, type DesignReviewDto, type OverviewBlock, type ProviderAuth, ProviderCapabilities, ProviderInfoDto } from "@mrd/contracts";
 import { ModuleError } from "../../kernel/errors.js";
 import type { Logger } from "../../kernel/logger.js";
 import { buildBlocks } from "./domain/blocks.js";
 import { classifyMr, resolveKind, type ChangedFile, type MrKindResult } from "./domain/mr-kind.js";
+import { buildDesignPrompt, buildUnderstandPrompt } from "./domain/design-prompt.js";
 import { buildSystemPrompt, buildUserPrompt } from "./domain/prompt.js";
-import { normalizeReview, parseReviewText } from "./domain/schema.js";
-import type { ChatImage, ChatStep, ChatTools, Provider, ProviderId, ReviewRequest, ReviewResponse } from "./domain/types.js";
+import { DESIGN_JSON_SCHEMA, UNDERSTAND_JSON_SCHEMA, normalizeReview, parseDesignText, parseReviewText, parseUnderstandText } from "./domain/schema.js";
+import type { ChatImage, ChatStep, ChatTools, DesignRequest, Provider, ProviderId, ReviewRequest, ReviewResponse, ReviewUsage, UnderstandRequest } from "./domain/types.js";
 import { claudeCliProvider } from "./infra/claude-cli.js";
 import { codexCliProvider } from "./infra/codex-cli.js";
 import { geminiApiDescriptor, geminiApiProvider } from "./infra/gemini-api.js";
@@ -27,6 +28,10 @@ export type ProviderInfo = ProviderInfoDto;
 
 export interface ReviewerApi {
   review(req: ReviewRequest): Promise<ReviewResponse>;
+  /** T2: mô tả thiết kế hiện tại của một khu vực (đọc code, không đánh giá MR). */
+  understand(req: UnderstandRequest): Promise<{ text: string; usage: ReviewUsage }>;
+  /** T3: đánh giá thiết kế của cả MR trên bản đồ khu vực. */
+  assessDesign(req: DesignRequest): Promise<{ design: DesignReviewDto; usage: ReviewUsage }>;
   /** Bước T0: gắn nhãn loại MR từ file đổi và tiêu đề (tất định, không gọi AI). */
   classify(files: ChangedFile[], title?: string): MrKindResult;
   /** Hỏi đáp tự do với agent (không công cụ, không đọc repo). */
@@ -51,6 +56,24 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
   ];
   const providers: Record<ProviderId, Provider> = Object.fromEntries(registry.map((r) => [r.provider.descriptor.id, r.provider]));
 
+  /** Gọi provider với một schema riêng, thử lại một lần khi JSON sai; lỗi hạ tầng không thử lại. */
+  async function structured<T>(req: { provider: ProviderId; model?: string | undefined; workdir: string; maxBudgetUsd?: number | undefined; onActivity?: ReviewRequest["onActivity"] }, prompt: { system: string; user: string }, schema: object, parse: (text: string) => T): Promise<{ value: T; usage: ReviewUsage }> {
+    const provider = providers[req.provider];
+    if (!provider) throw new ModuleError("reviewer", "invalid_input", `Provider không hỗ trợ: ${req.provider}`);
+    const started = Date.now();
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const out = await provider.run({ model: req.model, system: prompt.system, user: attempt === 1 ? prompt.user : `${prompt.user}\n\nPREVIOUS OUTPUT WAS NOT VALID JSON FOR THE SCHEMA. Return ONLY the JSON object.`, workdir: req.workdir, maxBudgetUsd: req.maxBudgetUsd, onActivity: req.onActivity, schema });
+        return { value: parse(out.text), usage: { provider: provider.descriptor.id, model: out.model, costUsd: out.costUsd, ...(out.tokens ? { tokens: out.tokens } : {}), durationMs: Date.now() - started } };
+      } catch (err) {
+        lastErr = err;
+        if (err instanceof ModuleError) throw err;
+      }
+    }
+    throw new ModuleError("reviewer", "upstream_error", `AI không trả JSON hợp lệ: ${String(lastErr).slice(0, 300)}`, lastErr);
+  }
+
   return {
     classify: classifyMr,
     sanitizeBlock(raw, knownPaths) {
@@ -64,7 +87,7 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
       const provider = providers[req.provider];
       if (!provider) throw new ModuleError("reviewer", "invalid_input", `Provider không hỗ trợ: ${req.provider}`);
       const started = Date.now();
-      const system = buildSystemPrompt(req.rubric, provider.descriptor.capabilities.repoAccess);
+      const system = buildSystemPrompt(req.rubric, provider.descriptor.capabilities.repoAccess, req.focus ? "area" : undefined);
       const user = buildUserPrompt(req, provider.descriptor.capabilities.repoAccess);
       deps.logger?.info("gọi provider AI", { provider: provider.descriptor.id, promptChars: system.length + user.length });
 
@@ -80,8 +103,8 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
             onActivity: req.onActivity,
           });
           const review = normalizeReview(parseReviewText(out.text), req.rubric);
-          const resolved = req.mrKind ? resolveKind({ kind: req.mrKind, reasons: req.mrKindReasons ?? [], locked: req.mrKindLocked ?? true }, review.mrKind) : null;
-          const blocks = req.mrKind && resolved ? buildBlocks(review.blocks, viewFor(resolved.kind, req.rubric.overview?.views), [...(req.changedFiles ?? []), ...req.harness.tree.split("\n").map((l) => l.trim())]) : [];
+          const resolved = req.mrKind && !req.focus ? resolveKind({ kind: req.mrKind, reasons: req.mrKindReasons ?? [], locked: req.mrKindLocked ?? true }, review.mrKind) : null;
+          const blocks = req.mrKind && resolved && !req.focus ? buildBlocks(review.blocks, viewFor(resolved.kind, req.rubric.overview?.views), [...(req.changedFiles ?? []), ...req.harness.tree.split("\n").map((l) => l.trim())]) : [];
           return { review, blocks, blocksRaw: review.blocks.length, ...(resolved ? { mrKind: resolved.kind, mrKindChanged: resolved.changed, mrKindReason: review.mrKindReason?.slice(0, 200) } : {}), usage: { provider: provider.descriptor.id, model: out.model, costUsd: out.costUsd, ...(out.tokens ? { tokens: out.tokens } : {}), durationMs: Date.now() - started } };
         } catch (err) {
           lastErr = err;
@@ -90,6 +113,17 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
         }
       }
       throw new ModuleError("reviewer", "upstream_error", `AI không trả JSON hợp lệ: ${String(lastErr).slice(0, 300)}`, lastErr);
+    },
+
+    async understand(req) {
+      const r = await structured(req, buildUnderstandPrompt(req), UNDERSTAND_JSON_SCHEMA, (t) => parseUnderstandText(t).text.slice(0, 4000));
+      return { text: r.value, usage: r.usage };
+    },
+    async assessDesign(req) {
+      const r = await structured(req, buildDesignPrompt(req), DESIGN_JSON_SCHEMA, parseDesignText);
+      const known = new Set(req.areas.map((a) => a.label));
+      const d = r.value;
+      return { design: { verdict: d.verdict, summary: d.summary, concerns: d.concerns.map((c) => ({ ...c, area: c.area && known.has(c.area) ? c.area : null })).slice(0, 20), focus: d.focus.filter((f) => known.has(f)), splitSuggestion: d.splitSuggestion }, usage: r.usage };
     },
 
     async ask(req) {

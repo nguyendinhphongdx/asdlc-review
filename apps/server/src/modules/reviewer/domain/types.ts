@@ -1,4 +1,4 @@
-import type { Finding, MrKind, OverviewBlock, ProviderInfoDto, RawReview, Rubric } from "@mrd/contracts";
+import type { ChangeAreaDto, DesignReviewDto, Finding, MrKind, OverviewBlock, ProviderInfoDto, RawReview, Rubric } from "@mrd/contracts";
 
 /** Ảnh dán vào chat (base64, không kèm tiền tố data:). */
 /** Cho agent chat công cụ: đọc repo (Read/Grep/Glob trong workdir) và các tool MCP do app cung cấp. */
@@ -52,6 +52,16 @@ export interface ReviewRequest {
   previousRound?: { round: number; findings: { title: string; file: string | null; line: number | null; severity: string; status: "fixed" | "dismissed" | "open" }[] };
   /** Nhận hoạt động của AI theo thời gian thực (đọc file nào, đang suy luận…). */
   onActivity?: (a: ActivityEvent) => void;
+  /**
+   * Lượt T4: chỉ review MỘT khu vực của MR lớn. `diff` là phần diff của khu vực; không trả overview/sơ đồ/checklist
+   * (lượt tổng hợp cuối lo). `designMap` là mô tả thiết kế hiện tại (T2), `designFocus` là trọng tâm do T3 giao.
+   */
+  focus?: { label: string; files: string[]; others: { label: string; files: number }[]; designMap?: string; designFocus?: string; chunk?: { index: number; total: number } };
+  /**
+   * Lượt tổng hợp của MR đã review theo khu vực: `diff` chỉ là bản tóm lược (file, số dòng, hunk), finding các khu vực
+   * đã nằm trong `staticFindings`. Thêm bản đồ khu vực, thiết kế hiện tại (T2) và đánh giá thiết kế (T3).
+   */
+  synthesis?: { areas: ChangeAreaDto[]; designMaps: { area: string; text: string }[]; design?: DesignReviewDto | null };
 }
 
 export interface ActivityEvent { kind: "tool" | "ai"; message: string }
@@ -80,10 +90,30 @@ export interface ReviewResponse {
   usage: ReviewUsage;
 }
 
+/** T2: yêu cầu mô tả thiết kế hiện tại của một khu vực. */
+export interface UnderstandRequest {
+  provider: ProviderId; model?: string; workdir: string; maxBudgetUsd?: number; language: string;
+  mr: { title: string; description: string };
+  area: { label: string; files: string[] };
+  diff: string;
+  harnessText?: string;
+  onActivity?: (a: ActivityEvent) => void;
+}
+/** T3: yêu cầu đánh giá thiết kế toàn MR. */
+export interface DesignRequest {
+  provider: ProviderId; model?: string; workdir: string; maxBudgetUsd?: number; language: string;
+  mr: { title: string; description: string };
+  areas: ChangeAreaDto[];
+  designMaps: { area: string; text: string }[];
+  digest: string;
+  harnessText?: string;
+  onActivity?: (a: ActivityEvent) => void;
+}
+
 /** Hợp đồng cho từng provider: nhận prompt đã dựng, trả văn bản JSON thô. */
 export interface Provider {
   readonly descriptor: ProviderDescriptor;
   /** Hỏi đáp tự do, không công cụ (tuỳ chọn). */
   ask?(input: { model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
-  run(input: { model?: string; system: string; user: string; workdir: string; maxBudgetUsd?: number; onActivity?: (a: ActivityEvent) => void }): Promise<{ text: string; model: string; costUsd: number | null; tokens?: TokenUsage }>;
+  run(input: { model?: string; system: string; user: string; workdir: string; maxBudgetUsd?: number; onActivity?: (a: ActivityEvent) => void; /** JSON schema của đầu ra; mặc định là schema review. */ schema?: object }): Promise<{ text: string; model: string; costUsd: number | null; tokens?: TokenUsage }>;
 }

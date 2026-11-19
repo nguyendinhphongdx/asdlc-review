@@ -80,6 +80,16 @@ export class ReviewRepository {
     return { mrId: r.mergeRequestId, waitedMs: cur ? Math.max(0, now.getTime() - cur.createdAt.getTime()) : 0 };
   }
 
+  async getDesignMap(repoId: string, baseSha: string, areaId: string): Promise<string | null> {
+    return (await this.db.designMapCache.findUnique({ where: { repoId_baseSha_areaId: { repoId, baseSha, areaId } } }))?.text ?? null;
+  }
+
+  async saveDesignMap(repoId: string, baseSha: string, areaId: string, text: string): Promise<void> {
+    await this.db.designMapCache.upsert({ where: { repoId_baseSha_areaId: { repoId, baseSha, areaId } }, create: { repoId, baseSha, areaId, text }, update: { text, createdAt: new Date() } });
+    // Giữ cache gọn: xoá bản cũ hơn 60 ngày.
+    await this.db.designMapCache.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 60 * 86_400_000) } } });
+  }
+
   async setProvider(runId: string, provider: string): Promise<void> {
     await this.db.reviewRun.update({ where: { id: runId }, data: { provider } });
   }
@@ -97,7 +107,7 @@ export class ReviewRepository {
           status: "succeeded", stage: "done", score: res.score, rawScore: res.rawScore, grade: res.grade, verdict: res.verdict, gates: JSON.stringify(res.gates),
           summary: res.summary, intent: res.intent, strengths: JSON.stringify(res.strengths), harnessFiles: JSON.stringify(res.harnessFiles),
           filesChanged: res.filesChanged, additions: res.additions, deletions: res.deletions, durationMs: res.durationMs, costUsd: res.costUsd ?? null, inputTokens: res.tokens?.inputTokens ?? null, outputTokens: res.tokens?.outputTokens ?? null, cacheReadTokens: res.tokens?.cacheReadTokens ?? null, cacheWriteTokens: res.tokens?.cacheWriteTokens ?? null,
-          model: res.model ?? undefined, commentUrl: res.commentUrl ?? null, commentDraft: res.commentDraft ?? null, stageTimings: JSON.stringify(res.stageTimings ?? {}), omittedFiles: JSON.stringify(res.omittedFiles ?? []), ruleChecks: JSON.stringify(res.ruleChecks ?? []), activity: JSON.stringify(res.activity ?? []), harnessLoad: res.harnessLoad ? JSON.stringify(res.harnessLoad) : null, overview: JSON.stringify(res.overview ?? []), blocks: JSON.stringify(res.blocks ?? []), mrKind: res.mrKind ?? null, mrContext: res.mrDescription ? JSON.stringify(res.mrDescription) : null, aiContext: res.aiContext ? JSON.stringify(res.aiContext) : null, fileList: JSON.stringify(res.files ?? []), harnessReport: res.harnessReport ? JSON.stringify(res.harnessReport) : null, ...(res.frameworkId ? { frameworkId: res.frameworkId, frameworkVersion: res.frameworkVersion ?? null } : {}), finishedAt: now,
+          model: res.model ?? undefined, commentUrl: res.commentUrl ?? null, commentDraft: res.commentDraft ?? null, areaReport: res.areaReport ? JSON.stringify(res.areaReport) : null, stageTimings: JSON.stringify(res.stageTimings ?? {}), omittedFiles: JSON.stringify(res.omittedFiles ?? []), ruleChecks: JSON.stringify(res.ruleChecks ?? []), activity: JSON.stringify(res.activity ?? []), harnessLoad: res.harnessLoad ? JSON.stringify(res.harnessLoad) : null, overview: JSON.stringify(res.overview ?? []), blocks: JSON.stringify(res.blocks ?? []), mrKind: res.mrKind ?? null, mrContext: res.mrDescription ? JSON.stringify(res.mrDescription) : null, aiContext: res.aiContext ? JSON.stringify(res.aiContext) : null, fileList: JSON.stringify(res.files ?? []), harnessReport: res.harnessReport ? JSON.stringify(res.harnessReport) : null, ...(res.frameworkId ? { frameworkId: res.frameworkId, frameworkVersion: res.frameworkVersion ?? null } : {}), finishedAt: now,
         },
       });
       await tx.reviewFinding.createMany({
@@ -164,7 +174,7 @@ export class ReviewRepository {
       mr: toMrDto(r.mergeRequest),
       frameworkId: r.frameworkId, frameworkVersion: r.frameworkVersion, baseSha: r.baseSha, rawScore: r.rawScore,
       gates: parse(r.gates, []), summary: r.summary, intent: r.intent, strengths: parse(r.strengths, []), harnessFiles: parse(r.harnessFiles, []),
-      commits: r.commits, commentUrl: r.commentUrl, commentDraft: r.commentDraft ?? null, stageTimings: parse(r.stageTimings, {}), omittedFiles: parse(r.omittedFiles, []), harnessReport: parse(r.harnessReport, null), harnessLoad: parse(r.harnessLoad, null), overview: parse(r.overview, []), blocks: parse(r.blocks, []), mrKind: (r.mrKind as MrKind | null) ?? null, mrDescription: parse(r.mrContext, null), aiContext: parse(r.aiContext, null), activity: parse(r.activity, []), ruleChecks: parse(r.ruleChecks, []), files: parse(r.fileList, []),
+      commits: r.commits, commentUrl: r.commentUrl, commentDraft: r.commentDraft ?? null, areaReport: parse(r.areaReport, null), stageTimings: parse(r.stageTimings, {}), omittedFiles: parse(r.omittedFiles, []), harnessReport: parse(r.harnessReport, null), harnessLoad: parse(r.harnessLoad, null), overview: parse(r.overview, []), blocks: parse(r.blocks, []), mrKind: (r.mrKind as MrKind | null) ?? null, mrDescription: parse(r.mrContext, null), aiContext: parse(r.aiContext, null), activity: parse(r.activity, []), ruleChecks: parse(r.ruleChecks, []), files: parse(r.fileList, []),
       findings: r.findings.map((f): FindingDto => ({ ...f, source: f.source as FindingDto["source"] })),
       categoryScores: r.categoryScores.map((c) => ({ category: c.category, name: c.name, weight: c.weight, score: c.score, deduction: c.deduction, findings: c.findings })),
     };

@@ -22,6 +22,7 @@ import { useReviewRequest } from "./use-review-request.js";
 import { LogTab } from "./log-tab.js";
 import { ResizeHandle, usePersistedNumber } from "../../kernel/resize.js";
 import { Tip } from "../../kernel/tip.js";
+import { AreaReport } from "./overview/areas.js";
 import { OverviewBlocks, sectionsToBlocks } from "./overview/blocks.js";
 import { DEMO_BLOCKS } from "./overview/fixtures.js";
 import { PanelStatus, ProgressTab } from "./progress-tab.js";
@@ -172,6 +173,7 @@ function OverviewTab({ r, frameworkName, askResult, onAsk, onOpenFile, onSelectN
     <>
       <MrDescription d={r.mrDescription} />
       <OverviewCard settled={askResult} runId={r.id} sections={r.overview ?? []} blocks={r.blocks ?? []} onAsk={onAsk} onOpenFile={onOpenFile} onSelectNode={onSelectNode} />
+      <AreaReport report={r.areaReport} onOpenFile={onOpenFile} />
       {r.omittedFiles.length > 0 && (
         <section role="status" className="flex gap-3 rounded-xl border border-warning bg-warning-bg px-5 py-4 text-warning-fg">
           <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />

@@ -58,6 +58,8 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
     const reviewer: ReviewerApi = {
       providers: async () => [], describe: () => null, capabilities: () => null, classify: () => ({ kind: "flow-change", reasons: ["test"], locked: false }), sanitizeBlock: () => ({ error: "test" }),
       ask: async () => ({ text: "ok", costUsd: null }),
+      understand: async () => ({ text: "thiết kế hiện tại", usage: { provider: "claude-cli", model: "fake", costUsd: 0.01, durationMs: 1 } }),
+      assessDesign: async () => ({ design: { verdict: "accept", summary: "ổn", concerns: [], focus: [], splitSuggestion: "" }, usage: { provider: "claude-cli", model: "fake", costUsd: 0.01, durationMs: 1 } }),
       review: async () => ({
         blocks: [],
         review: { blocks: [], summary: "Thêm hàm thanh toán", intent: "Thêm pay()", strengths: [], overview: [], harnessUsed: ["CLAUDE.md"], checks: [{ ruleId: "ARC-01", status: "pass", note: "Đã đối chiếu cấu trúc thư mục" }], findings: [{ category: "conventions", ruleId: "CON-03", severity: "major", kind: "issue", title: "Dùng console.log thay vì logger", file: "src/pay.ts", lineStart: 3, lineEnd: null, why: "CLAUDE.md cấm console.log", evidence: null, suggestion: "Dùng logger", question: "Vì sao không dùng logger?", confidence: 0.9 }] },

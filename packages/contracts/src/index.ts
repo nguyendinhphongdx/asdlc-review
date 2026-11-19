@@ -10,3 +10,4 @@ export * from "./agent.js";
 export * from "./inbox.js";
 export * from "./usage.js";
 export * from "./overview.js";
+export * from "./areas.js";

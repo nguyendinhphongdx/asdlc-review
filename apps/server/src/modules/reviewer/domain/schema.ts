@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { RawReviewSchema, SEVERITIES, type RawReview, type Rubric } from "@mrd/contracts";
 
 const nullable = (t: string) => ({ type: [t, "null"] });
@@ -99,3 +100,39 @@ export function normalizeReview(review: RawReview, rubric: Rubric): RawReview {
     }),
   };
 }
+
+/** T2: mô tả thiết kế hiện tại của một khu vực. */
+export const UNDERSTAND_JSON_SCHEMA = { type: "object", additionalProperties: false, required: ["text"], properties: { text: { type: "string" } } } as const;
+/** T3: đánh giá thiết kế của MR. */
+export const DESIGN_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["verdict", "summary", "concerns", "focus", "splitSuggestion"],
+  properties: {
+    verdict: { type: "string", enum: ["accept", "conditional", "rework"] },
+    summary: { type: "string" },
+    concerns: { type: "array", items: { type: "object", additionalProperties: false, required: ["area", "severity", "text"], properties: { area: nullable("string"), severity: { type: "string", enum: ["info", "minor", "major"] }, text: { type: "string" } } } },
+    focus: { type: "array", items: { type: "string" } },
+    splitSuggestion: { type: "string" },
+  },
+} as const;
+
+const objectFromText = (text: string): unknown => {
+  let t = text.trim();
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence?.[1]) t = fence[1].trim();
+  const start = t.indexOf("{");
+  const end = t.lastIndexOf("}");
+  if (start < 0 || end <= start) throw new Error("Không tìm thấy JSON trong phản hồi của AI");
+  return JSON.parse(t.slice(start, end + 1));
+};
+export const UnderstandSchema = z.object({ text: z.string().min(1) });
+export const DesignSchema = z.object({
+  verdict: z.enum(["accept", "conditional", "rework"]).catch("conditional"),
+  summary: z.string().default(""),
+  concerns: z.array(z.object({ area: z.string().nullish().transform((a) => a ?? null), severity: z.enum(["info", "minor", "major"]).catch("minor"), text: z.string() })).default([]),
+  focus: z.array(z.string()).default([]),
+  splitSuggestion: z.string().default(""),
+});
+export const parseUnderstandText = (t: string) => UnderstandSchema.parse(objectFromText(t));
+export const parseDesignText = (t: string) => DesignSchema.parse(objectFromText(t));

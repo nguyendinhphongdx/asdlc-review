@@ -5,6 +5,9 @@ Phát hiện tất định các vấn đề có thể nhận biết bằng luậ
 
 ## API
 - `analyze({ diff, files, mrDescription?, ignore? })` → `{ findings, changedLines, ignoredFiles }`.
+- `areas({ files, diff?, maxAreas? })` → `ChangeAreaDto[]` (T0): gom file theo module/thư mục (test đi cùng code nguồn, file sinh tự động bị bỏ), tính rủi ro (đường dẫn nhạy cảm, cỡ, đổi code không đổi test) và phụ thuộc giữa các khu vực (từ dòng import thêm vào trong diff). Sắp xếp rủi ro giảm dần; quá `maxAreas` (8) thì gộp khu vực nhỏ nhất vào `other`.
+- `shouldSplit({ files, lines, areas, omitted })` → có review theo khu vực không (diff vượt ngân sách, hoặc >15 file/>1200 dòng với ≥2 khu vực).
+- `splitDiff(diff)` / `packDiff(paths, byFile, budget)` / `digest(areas, byFile)`: tách diff theo file, gói diff một khu vực thành các phần vừa ngân sách (file quá lớn trả trong `omitted`), tóm lược diff (file + tiêu đề hunk) cho tầng thiết kế.
 
 ## Sự kiện
 Không phát, không nhận.

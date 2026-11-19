@@ -59,13 +59,13 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
       if (out.is_error === true || typeof out.result !== "string") throw new ModuleError("reviewer", "upstream_error", `claude CLI lỗi (exit ${res.code}): ${String(out.result ?? (res.stderr || res.stdout)).slice(0, 300)}`);
       return { text: out.result, costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null, steps };
     },
-    async run({ model, system, user, workdir, maxBudgetUsd, onActivity }) {
+    async run({ model, system, user, workdir, maxBudgetUsd, onActivity, schema }) {
       const mdl = model || o.model;
       // Trần theo lần gọi (lấy từ Cài đặt) ưu tiên hơn giá trị khởi tạo; 0 = không giới hạn.
       const budget = maxBudgetUsd ?? o.maxBudgetUsd;
       const args = [
         "-p", "--output-format", "stream-json", "--verbose",
-        "--json-schema", JSON.stringify(REVIEW_JSON_SCHEMA),
+        "--json-schema", JSON.stringify(schema ?? REVIEW_JSON_SCHEMA),
         "--tools", "Read,Grep,Glob",
         "--permission-mode", "dontAsk",
         "--setting-sources", "project",

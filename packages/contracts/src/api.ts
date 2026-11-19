@@ -88,6 +88,8 @@ export interface RunDetailDto extends RunSummaryDto {
   commentUrl: string | null;
   /** Comment tổng hợp dựng sẵn (Markdown) để người dùng sửa và đăng tay. */
   commentDraft: string | null;
+  /** Khu vực thay đổi + (MR lớn) thiết kế hiện tại, đánh giá thiết kế và lượt review từng khu vực. Null với review cũ. */
+  areaReport: import("./areas.js").AreaReportDto | null;
   stageTimings: Record<string, number>;
   /** File bị bỏ qua vì diff vượt ngân sách (review một phần nếu khác rỗng). */
   omittedFiles: string[];

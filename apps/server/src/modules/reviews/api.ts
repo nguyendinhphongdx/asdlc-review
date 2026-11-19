@@ -26,6 +26,9 @@ export interface ReviewsApi {
   beginRun(runId: string, provider?: string | null): Promise<{ waitedMs: number }>;
   /** Ghi provider thực tế dùng cho run (biết sau khi nạp cấu hình repo, tức sau khi nhận việc). */
   setProvider(runId: string, provider: string): Promise<void>;
+  /** Cache T2: mô tả thiết kế hiện tại của khu vực tại một base commit. */
+  getDesignMap(repoId: string, baseSha: string, areaId: string): Promise<string | null>;
+  saveDesignMap(repoId: string, baseSha: string, areaId: string, text: string): Promise<void>;
   setStage(runId: string, stage: string, timings?: Record<string, number>): Promise<void>;
   completeRun(runId: string, result: RunResult): Promise<void>;
   failRun(runId: string, error: string, activity?: unknown[]): Promise<void>;
@@ -84,6 +87,8 @@ export function createReviewsModule(deps: ReviewsDeps): ReviewsApi {
       return { waitedMs };
     },
     setProvider: (id, provider) => repo.setProvider(id, provider),
+    getDesignMap: (repoId, baseSha, areaId) => repo.getDesignMap(repoId, baseSha, areaId),
+    saveDesignMap: (repoId, baseSha, areaId, text) => repo.saveDesignMap(repoId, baseSha, areaId, text),
     async setStage(id, stage, t) {
       const { mrId } = await repo.setStage(id, stage, t);
       deps.events.publish("reviews.run.status", { runId: id, mrId, status: "running", stage });

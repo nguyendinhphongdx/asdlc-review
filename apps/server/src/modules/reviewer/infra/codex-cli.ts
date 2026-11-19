@@ -23,13 +23,13 @@ export const codexCliDescriptor: ProviderDescriptor = {
 export function codexCliProvider(o: CodexCliOptions): Provider {
   return {
     descriptor: codexCliDescriptor,
-    async run({ model, system, user, workdir, onActivity }) {
+    async run({ model, system, user, workdir, onActivity, schema }) {
       const mdl = model || o.model;
       const tmp = await mkdtemp(path.join(tmpdir(), "mrd-codex-"));
       try {
         const schemaFile = path.join(tmp, "schema.json");
         const outFile = path.join(tmp, "out.json");
-        await writeFile(schemaFile, JSON.stringify(REVIEW_JSON_SCHEMA));
+        await writeFile(schemaFile, JSON.stringify(schema ?? REVIEW_JSON_SCHEMA));
         const args = ["exec", "-s", "read-only", "-C", workdir, "--skip-git-repo-check", "--ephemeral", "--output-schema", schemaFile, "-o", outFile, ...(mdl ? ["-m", mdl] : []), "-"];
         const res = await run(o.bin, args, { cwd: workdir, input: `${system}\n\n${user}`, timeoutMs: o.timeoutMs, allowFailure: true, onStdoutLine: (l) => onActivity?.({ kind: "ai", message: l.replace(/\s+/g, " ").slice(0, 240) }) });
         const text = await readFile(outFile, "utf8").catch(() => "");

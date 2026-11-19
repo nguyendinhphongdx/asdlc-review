@@ -1,4 +1,4 @@
-import type { MrKind, OverviewBlock, RunActivityEntry, FileReviewDto, HarnessLoadDto, HarnessReportDto, AiContextDto, MrDescriptionDto, OverviewSectionDto, RuleCheckDto } from "@mrd/contracts";
+import type { AreaReportDto, MrKind, OverviewBlock, RunActivityEntry, FileReviewDto, HarnessLoadDto, HarnessReportDto, AiContextDto, MrDescriptionDto, OverviewSectionDto, RuleCheckDto } from "@mrd/contracts";
 import type { Grade, RunStatus, ReviewTrigger, Verdict } from "@mrd/contracts";
 
 export interface MrSnapshot {
@@ -93,6 +93,7 @@ export interface RunResult {
   model?: string | null;
   commentUrl?: string | null;
   commentDraft?: string | null;
+  areaReport?: AreaReportDto | null;
   stageTimings?: Record<string, number>;
   omittedFiles?: string[];
   frameworkId?: string | null;
@@ -154,6 +155,7 @@ export interface RunDetail extends RunSummary {
   commits: number;
   commentUrl: string | null;
   commentDraft: string | null;
+  areaReport: AreaReportDto | null;
   stageTimings: Record<string, number>;
   omittedFiles: string[];
   harnessReport: HarnessReportDto | null;

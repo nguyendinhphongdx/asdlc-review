@@ -13,6 +13,12 @@ Dựng prompt từ rubric + harness + diff, chạy provider AI (Claude CLI, Code
 
 `classify(files, title)` (T0, không gọi AI) chỉ **gợi ý** loại MR (`MrKind`); loại suy ra từ file (docs/test/deps/config) là `locked`, còn lại AI chốt cuối qua `mrKind` + `mrKindReason` (`resolveKind` kiểm giá trị, `review()` trả `mrKind`/`mrKindChanged`). Với loại cần sơ đồ (đổi luồng, tính năng mới, refactor, đổi API), prompt yêu cầu AI trả `blocks` (flow/architecture/sequence); `review()` trả thêm `blocks` đã làm sạch: bỏ bằng chứng trỏ tới file không có trong diff/cây repo, nút trùng, cạnh trỏ vào nút lạ, khối không được yêu cầu cho loại MR đó. Bảng "loại MR → khối" là `DEFAULT_VIEWS` (framework ghi đè ở bước O6).
 
+### Review MR lớn theo khu vực (T2/T3/T4)
+- `understand(req)` (T2): đọc code và mô tả thiết kế hiện tại của một khu vực (≤400 từ); app cache kết quả theo base + khu vực.
+- `assessDesign(req)` (T3): đánh giá thiết kế toàn MR trên bản đồ khu vực + thiết kế hiện tại + digest diff → `DesignReviewDto` (verdict, mối quan tâm theo khu vực, khu vực cần soi kỹ, gợi ý tách MR). Dùng schema JSON riêng (`provider.run({ schema })`).
+- `review({ focus })` (T4): chỉ review một khu vực (diff của khu vực, `designMap`, trọng tâm từ T3); không trả overview/sơ đồ/checklist. `review({ synthesis })`: lượt tổng hợp cuối, `diff` chỉ là digest, finding các khu vực nằm trong `staticFindings`; lượt này trả overview, sơ đồ, checklist và finding liên khu vực.
+- Điều phối (thứ tự, song song, cache, gộp finding) nằm ở `app/workflows/review-areas.ts`, không ở module này.
+
 ## Sự kiện
 Không phát, không nhận.
 

@@ -74,6 +74,7 @@ model ReviewRun {
   overview         String          @default("[]") // JSON OverviewSectionDto[]: "Đánh giá tổng quan" theo khung của framework
   blocks           String          @default("[]") // JSON OverviewBlock[]: sơ đồ tổng quan (luồng/kiến trúc/trình tự)
   mrKind           String? // loại MR do T0 gắn nhãn
+  areaReport       String? // JSON AreaReportDto: khu vực thay đổi (T0), thiết kế (T2/T3), lượt review từng khu vực (T4)
   aiContext        String? // JSON AiContextDto: bộ nhớ, ghi chú MR, vòng trước đã nạp cho AI
   mrContext        String? // JSON MrDescriptionDto: tiêu đề/mô tả MR và kết quả kiểm tra tài liệu theo chuẩn
   createdAt        DateTime        @default(now())
@@ -125,4 +126,17 @@ model ReviewCategoryScore {
   findings  Int
 
   @@index([runId])
+}
+
+/** Cache T2: mô tả thiết kế hiện tại của một khu vực tại một base commit (dùng lại ở các vòng/MR sau). */
+model DesignMapCache {
+  id        String   @id @default(cuid())
+  repoId    String
+  baseSha   String
+  areaId    String
+  text      String
+  createdAt DateTime @default(now())
+
+  @@unique([repoId, baseSha, areaId])
+  @@index([createdAt])
 }

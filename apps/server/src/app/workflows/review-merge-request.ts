@@ -1,5 +1,6 @@
 import { checkMrDescription, descriptionFindings } from "./mr-description.js";
-import { viewFor, type Finding, type ReviewJobData, type ReviewReport } from "@mrd/contracts";
+import { designFindings, reviewByAreas, type AreaFlowResult } from "./review-areas.js";
+import { viewFor, type AreaReportDto, type Finding, type ReviewJobData, type ReviewReport } from "@mrd/contracts";
 import { ModuleError } from "../../kernel/errors.js";
 import type { ProgressHub } from "../progress.js";
 import type { Logger } from "../../kernel/logger.js";
@@ -126,16 +127,38 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
           { id: "previous", label: "Vòng trước", chars: previousRound ? previousRound.findings.reduce((s, f) => s + f.title.length + 30, 0) : 0 },
         ],
       };
-      const ai = await stage("review", () =>
-        m.reviewer.review({
-          provider, model, workdir: dir, maxBudgetUsd: settings.maxBudgetUsd,
-          onActivity: (a) => emit("review", a.kind, a.message),
-          mr: { iid: mr.iid, title: mr.title, description: mr.description, author: mr.authorUsername, sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, webUrl: mr.webUrl },
-          rubric: fw.rubric,
-          harness: { files: harness.files, tree: harness.tree, discovered: harness.discovered.map((d) => d.path) },
-          diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, stats, mrKind: hintKind, mrKindLocked: kindLocked, mrKindReasons: kindReasons, changedFiles: ws!.numstat.map((n) => n.file), staticFindings: analysis.findings, notebook, notes, ...(previousRound?.findings.length ? { previousRound } : {}),
-        }),
-      );
+      // T0: bản đồ khu vực (tất định). MR lớn/vượt ngân sách thì review theo khu vực (T2 → T3 → T4) rồi tổng hợp.
+      const byFile = m.analysis.splitDiff(ws.diff);
+      const areas = m.analysis.areas({ files, diff: ws.diff });
+      const decision = m.analysis.shouldSplit({ files: files.length, lines: stats.additions + stats.deletions, areas: areas.length, omitted: ws.omittedFiles.length });
+      emit("analysis", "info", `Khu vực thay đổi: ${areas.length}${areas.length ? ` (${areas.slice(0, 4).map((a) => a.label).join(", ")}${areas.length > 4 ? "…" : ""})` : ""} · ${decision.split ? `review theo khu vực: ${decision.reason}` : `một lượt: ${decision.reason}`}`);
+      const baseReq = {
+        provider, model, workdir: dir, maxBudgetUsd: settings.maxBudgetUsd,
+        mr: { iid: mr.iid, title: mr.title, description: mr.description, author: mr.authorUsername, sourceBranch: mr.sourceBranch, targetBranch: mr.targetBranch, webUrl: mr.webUrl },
+        rubric: fw.rubric,
+        harness: { files: harness.files, tree: harness.tree, discovered: harness.discovered.map((d) => d.path) },
+        stats, mrKind: hintKind, mrKindLocked: kindLocked, mrKindReasons: kindReasons, changedFiles: ws.numstat.map((n) => n.file), notebook, notes, ...(previousRound?.findings.length ? { previousRound } : {}),
+        onActivity: (a: { kind: "tool" | "ai"; message: string }) => emit("review", a.kind, a.message),
+      };
+      const { ai, flow: f } = await stage("review", async (): Promise<{ ai: Awaited<ReturnType<Modules["reviewer"]["review"]>>; flow: AreaFlowResult | null }> => {
+        if (!decision.split) return { ai: await m.reviewer.review({ ...baseReq, diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, staticFindings: analysis.findings }), flow: null };
+        const { onActivity: _unused, ...shared } = baseReq;
+        void _unused;
+        const flow = await reviewByAreas({
+          m, emit: (level, msg) => emit("review", level, msg), provider, model, workdir: dir, maxBudgetUsd: settings.maxBudgetUsd, repoId: repo.id, baseSha: ws!.baseSha, rubric: fw.rubric,
+          mr: { title: mr.title, description: mr.description }, areas, byFile, diffBudget: cfg.diffBudgetChars, base: shared, staticFindings: analysis.findings,
+          harnessText: harness.files.filter((f) => f.kind === "asdlc" || f.kind === "instructions").map((f) => `## ${f.path}\n${f.content}`).join("\n\n").slice(0, 24_000),
+        });
+        emit("review", "info", `Tổng hợp: ghép ${flow.findings.length} finding của ${areas.length} khu vực, vẽ tổng quan và checklist`);
+        const ai = await m.reviewer.review({
+          ...baseReq, diff: m.analysis.digest(areas, byFile), omittedFiles: flow.omitted, staticFindings: [...analysis.findings, ...flow.findings],
+          synthesis: { areas, designMaps: flow.maps.map((x) => ({ area: x.area, text: x.text })), design: flow.design },
+        });
+        return { ai, flow };
+      });
+      if (f) { ai.usage = { ...ai.usage, costUsd: (ai.usage.costUsd ?? 0) + f.costUsd, ...(f.tokens || ai.usage.tokens ? { tokens: { inputTokens: (ai.usage.tokens?.inputTokens ?? 0) + (f.tokens?.inputTokens ?? 0), outputTokens: (ai.usage.tokens?.outputTokens ?? 0) + (f.tokens?.outputTokens ?? 0), cacheReadTokens: (ai.usage.tokens?.cacheReadTokens ?? 0) + (f.tokens?.cacheReadTokens ?? 0), cacheWriteTokens: (ai.usage.tokens?.cacheWriteTokens ?? 0) + (f.tokens?.cacheWriteTokens ?? 0) } } : {}) }; ai.review.harnessUsed = [...new Set([...ai.review.harnessUsed, ...f.harnessUsed])]; }
+      const areaReport: AreaReportDto = { split: decision.split, reason: decision.reason, areas, passes: f?.passes ?? [], design: f?.design ?? null, maps: f?.maps ?? [] };
+      const notReviewed = f ? f.omitted : ws.omittedFiles;
 
       const mrDescription = checkMrDescription({ title: mr.title, description: mr.description }, fw.rubric.mrDescription);
       if (mrDescription.docs.length) emit("review", mrDescription.missingRequired ? "warn" : "info", mrDescription.missingRequired ? `Mô tả MR thiếu ${mrDescription.missingRequired} tài liệu bắt buộc: ${mrDescription.docs.filter((d) => d.required && !d.found).map((d) => d.kind).join(", ")}` : "Mô tả MR đủ tài liệu bắt buộc theo chuẩn của framework");
@@ -143,7 +166,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         const r = ai.review.overview.find((o) => o.id === s.id);
         return r ? [{ id: s.id, title: s.title, kind: s.kind, text: r.text, bullets: r.bullets, verdict: s.kind === "verdict" ? (r.verdict ?? null) : null }] : [];
       });
-      const findings: Finding[] = [...analysis.findings, ...descriptionFindings(mrDescription, fw.rubric.mrDescription, fw.rubric.categories[0]?.id ?? "scope"), ...ai.review.findings.map((f): Finding => ({ ...f, source: "ai" }))];
+      const findings: Finding[] = [...analysis.findings, ...descriptionFindings(mrDescription, fw.rubric.mrDescription, fw.rubric.categories[0]?.id ?? "scope"), ...(f ? [...f.findings, ...designFindings(f.design, fw.rubric)] : []), ...ai.review.findings.map((x): Finding => ({ ...x, source: "ai" }))];
       const score = await stage("score", () => m.scoring.score({ rubric: fw.rubric, findings, changedLines: analysis.changedLines }));
       const scored = findings.map((f, i) => ({ ...f, deduction: score.deductions[i] ?? 0 }));
 
@@ -162,7 +185,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       }
       emit("review", "info", `AI trả ${ai.review.findings.length} finding, ${ai.review.checks.length} mục checklist${ai.usage.costUsd != null ? `, chi phí $${ai.usage.costUsd.toFixed(2)}` : ""}`);
       const ruleChecks = m.scoring.checklist(fw.rubric, ai.review.checks, findings);
-      const omitted = new Set(ws.omittedFiles);
+      const omitted = new Set(notReviewed);
       const fileList = ws.numstat.map((n) => ({ path: n.file, additions: n.additions, deletions: n.deletions, binary: n.binary, reviewed: !omitted.has(n.file) }));
 
       const summary = fw.repoConfigError ? `${ai.review.summary}\n\n⚠️ ${fw.repoConfigError}` : ai.review.summary;
@@ -172,7 +195,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         stats: { ...stats, durationSec: Math.round((Date.now() - started) / 1000) },
         harnessFiles: ai.review.harnessUsed.length ? ai.review.harnessUsed : harness.files.map((f) => f.path),
         frameworkLabel: `${fw.rubric.name} v${fw.rubric.version}`, provider, dashboardUrl: `${cfg.publicUrl}/reviews/${runId}`, language: fw.rubric.language,
-        omittedFiles: ws.omittedFiles,
+        omittedFiles: notReviewed,
       };
 
       emit("score", "info", `Điểm ${score.total} · hạng ${score.grade} · ${score.verdict}${score.gates.length ? ` · cổng: ${score.gates.map((g) => g.id).join(", ")}` : ""}`);
@@ -204,7 +227,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         activity: hub?.backlog(runId),
         score: score.total, rawScore: score.rawTotal, grade: score.grade, verdict: score.verdict, gates: score.gates,
         summary, intent: ai.review.intent, strengths: ai.review.strengths, harnessFiles: report.harnessFiles, ...stats,
-        blocks: ai.blocks, mrKind, durationMs: Date.now() - started, costUsd: ai.usage.costUsd, tokens: ai.usage.tokens ?? null, model: ai.usage.model, commentUrl, commentDraft: m.publisher.renderSummary(report).replace(m.publisher.summaryMarker, "").trim(), stageTimings: timings, omittedFiles: ws.omittedFiles, ruleChecks, harnessLoad, overview, mrDescription, aiContext, files: fileList, harnessReport, frameworkId: fw.rubric.id, frameworkVersion: fw.rubric.version,
+        blocks: ai.blocks, mrKind, areaReport, durationMs: Date.now() - started, costUsd: ai.usage.costUsd, tokens: ai.usage.tokens ?? null, model: ai.usage.model, commentUrl, commentDraft: m.publisher.renderSummary(report).replace(m.publisher.summaryMarker, "").trim(), stageTimings: timings, omittedFiles: ws.omittedFiles, ruleChecks, harnessLoad, overview, mrDescription, aiContext, files: fileList, harnessReport, frameworkId: fw.rubric.id, frameworkVersion: fw.rubric.version,
         findings: scored.map((f) => ({ ...f })),
         categoryScores: score.categories,
       });

@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkLatest, installUpdate } from "./updater.mjs";
-import { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, safeStorage, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, Notification, Tray, nativeImage, safeStorage, shell } from "electron";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -104,6 +104,47 @@ async function waitReady(tries = 60) {
   return false;
 }
 
+/**
+ * Thông báo hệ điều hành khi review xong/lỗi lúc cửa sổ không đang được xem (đã ẩn, thu nhỏ hoặc không focus).
+ * Main process tự nghe SSE của server nên vẫn chạy khi cửa sổ đóng xuống khay.
+ */
+function notify(title, body, route) {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title, body, silent: false });
+  n.on("click", () => { win?.show(); win?.focus(); if (route) void win?.loadURL(`${url}${route}`); });
+  n.show();
+}
+const watching = () => !!win && win.isVisible() && !win.isMinimized() && win.isFocused();
+async function onRunDone(kind, runId) {
+  if (watching()) return;
+  let r = null;
+  try { r = await (await fetch(`${url}/api/reviews/${encodeURIComponent(runId)}`)).json(); } catch { /* vẫn báo, chỉ thiếu chi tiết */ }
+  const mr = r?.mr ? `!${r.mr.iid} ${r.mr.title}` : "Một merge request";
+  if (kind === "completed") notify("Review xong", `${mr}${r?.score != null ? ` — ${r.score} điểm${r.grade ? ` (${r.grade})` : ""}` : ""}`, `/reviews/${runId}`);
+  else notify("Review thất bại", mr, `/reviews/${runId}`);
+}
+async function listenEvents() {
+  for (;;) {
+    try {
+      const res = await fetch(`${url}/api/events`);
+      const dec = new TextDecoder();
+      let buf = "";
+      for await (const chunk of res.body) {
+        buf += dec.decode(chunk, { stream: true });
+        let i;
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          const block = buf.slice(0, i); buf = buf.slice(i + 2);
+          const ev = /^event: (.+)$/m.exec(block)?.[1];
+          const data = /^data: (.+)$/m.exec(block)?.[1];
+          if ((ev === "completed" || ev === "failed") && data) { try { void onRunDone(ev, JSON.parse(data).runId); } catch { /* bỏ qua gói hỏng */ } }
+        }
+      }
+    } catch { /* server chưa lên/đã rớt: thử nối lại */ }
+    if (quitting) return;
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+}
+
 async function createWindow() {
   win = new BrowserWindow({ width: 1280, height: 820, title: "ASDLC Review", webPreferences: { contextIsolation: true, sandbox: true, preload: path.join(path.dirname(fileURLToPath(import.meta.url)), "preload.cjs") } });
   win.webContents.setWindowOpenHandler(({ url: u }) => { void shell.openExternal(u); return { action: "deny" }; });
@@ -126,6 +167,7 @@ app.whenReady().then(async () => {
   tray.setTitle("MR");
   tray.setContextMenu(Menu.buildFromTemplate([{ label: "Mở", click: () => win.show() }, { label: `Phiên bản v${app.getVersion()}…`, click: () => { win.show(); void win.loadURL(`${url}/settings?tab=version`); } }, { label: "Thoát", click: () => app.quit() }]));
   tray.on("click", () => win.show());
+  void listenEvents();
   setTimeout(() => void backgroundCheck(), 15_000);
   setInterval(() => void backgroundCheck(), 6 * 3600_000);
 });
