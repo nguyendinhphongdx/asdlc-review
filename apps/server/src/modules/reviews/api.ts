@@ -47,6 +47,8 @@ export interface ReviewsApi {
   appendBlock(mrId: string, block: OverviewBlock): Promise<{ runId: string; total: number } | null>;
   /** Ghi link comment tổng hợp sau khi người dùng đăng tay. */
   setCommentUrl(runId: string, url: string | null): Promise<void>;
+  /** Ghi đè bản nháp comment tổng hợp (người dùng gõ tay hoặc agent chat soạn lại). */
+  setCommentDraft(runId: string, text: string): Promise<void>;
   listRuns(filter: RunFilter): Promise<{ items: RunListItem[]; total: number }>;
   setFindingFeedback(findingId: string, feedback: "agree" | "disagree" | "fixed" | null): Promise<void>;
 
@@ -118,6 +120,7 @@ export function createReviewsModule(deps: ReviewsDeps): ReviewsApi {
       return { runId: run.id, total: all.length };
     },
     setCommentUrl: (id, url) => repo.setCommentUrl(id, url),
+    setCommentDraft: (id, text) => repo.setCommentDraft(id, text),
     listRuns: (f) => repo.listRuns(f),
     setFindingFeedback: (id, fb) => repo.setFeedback(id, fb),
     usageRows: (r) => repo.usageRows(r.from, r.to),

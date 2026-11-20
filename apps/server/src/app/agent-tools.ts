@@ -54,7 +54,7 @@ export async function mcpRpc<C>(tools: ToolDef<C>[], ctx: C, msg: RpcMsg) {
  * Tool nội bộ cho agent chat, phơi qua MCP (HTTP) trên chính server này, mỗi lượt chat một token dùng một lần.
  * Đọc thì tự do; thao tác ghi (comment, chạy lại) chỉ tạo ĐỀ XUẤT chờ người duyệt.
  */
-export function createAgentTools(m: Modules) {
+export function createAgentTools(m: Modules, deps: { postSummary: (runId: string, body: string) => Promise<{ url: string | null }> }) {
   const sessions = new Map<string, AgentToolContext>();
 
   const tools: ToolDef[] = [
@@ -126,6 +126,42 @@ export function createAgentTools(m: Modules) {
         const saved = await m.reviews.appendBlock(ctx.mrId, { ...res.block, id: `${res.block.kind}-${Date.now().toString(36)}` });
         if (!saved) return "Lỗi: MR này chưa có review hoàn tất nên chưa có tổng quan để thêm view.";
         return `Đã thêm view "${res.block.title}" vào tab Tổng quan (hiện ${saved.total} view). Hãy nói ngắn gọn với người dùng view đó cho thấy gì.`;
+      },
+    },
+    {
+      name: "edit_summary_comment",
+      description: "SOẠN/SỬA bản nháp comment tổng hợp nằm ở ô soạn trong tab Tiến trình (bước Đăng comment): thay toàn bộ nội dung bằng `body` (Markdown) và người dùng thấy ngay trong ô soạn. Dùng khi người dùng nhờ soạn lại, rút gọn, đổi giọng, thêm/bớt ý cho comment tổng hợp. Hãy gọi `get_summary_comment` trước để lấy bản hiện tại (có thể người dùng đã sửa tay) rồi chỉnh trên đó, đừng viết lại từ đầu nếu không được yêu cầu. Không đăng lên nền tảng.",
+      inputSchema: obj({ body: { type: "string", description: "Toàn bộ nội dung Markdown mới của comment" } }, ["body"]),
+      async run(ctx, a) {
+        const body = str(a.body, 60_000).trim();
+        if (body.length < 5) return "Lỗi: nội dung comment quá ngắn.";
+        const run = await m.reviews.latestSucceeded(ctx.mrId);
+        if (!run) return "Lỗi: MR này chưa có review hoàn tất nên chưa có bản nháp comment.";
+        await m.reviews.setCommentDraft(run.id, body);
+        return "Đã cập nhật bản nháp trong ô soạn (tab Tiến trình, bước Đăng comment). Nói ngắn gọn bạn đã đổi gì; chưa đăng lên MR. Chỉ gọi post_summary_comment khi người dùng yêu cầu đăng.";
+      },
+    },
+    {
+      name: "get_summary_comment",
+      description: "Đọc bản nháp comment tổng hợp hiện đang ở ô soạn (gồm cả chỗ người dùng đã sửa tay) và cho biết đã đăng lên MR chưa.",
+      inputSchema: obj({}),
+      async run(ctx) {
+        const run = await m.reviews.latestSucceeded(ctx.mrId);
+        if (!run) return "MR này chưa có review hoàn tất.";
+        return JSON.stringify({ posted: !!run.commentUrl, url: run.commentUrl, draft: run.commentDraft ?? "" });
+      },
+    },
+    {
+      name: "post_summary_comment",
+      description: "ĐĂNG lên MR (GitLab/GitHub) đúng nội dung đang ở ô soạn comment tổng hợp (hoặc cập nhật comment đã đăng). Đây là hành động hiển thị với cả nhóm: chỉ gọi khi người dùng nói rõ muốn đăng trong tin nhắn hiện tại; nếu chỉ nhờ soạn thì dùng edit_summary_comment và để họ tự bấm Đăng.",
+      inputSchema: obj({}),
+      async run(ctx) {
+        const run = await m.reviews.latestSucceeded(ctx.mrId);
+        if (!run) return "Lỗi: MR này chưa có review hoàn tất.";
+        const draft = (run.commentDraft ?? "").trim();
+        if (draft.length < 5) return "Lỗi: ô soạn đang trống.";
+        const { url } = await deps.postSummary(run.id, draft);
+        return `Đã đăng comment tổng hợp${url ? `: ${url}` : ""}.`;
       },
     },
     {

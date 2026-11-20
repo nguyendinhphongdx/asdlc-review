@@ -19,7 +19,7 @@ import { Suggestion } from "@/components/ai-elements/suggestion";
 import { readAttachmentText, approveAction, dismissAction, getChat, sendChat } from "./api.js";
 
 const SUGGEST = ["Giải thích finding nghiêm trọng nhất", "Finding nào có thể là báo nhầm?", "Đọc code liên quan và kiểm tra lại", "Soạn comment cho finding quan trọng nhất", "nhớ: ", "review lại"];
-const TOOL_LABEL: Record<string, string> = { Read: "Đọc file", Grep: "Tìm trong code", Glob: "Liệt kê file", get_review: "Xem kết quả review", get_diff: "Xem diff MR", get_framework: "Xem framework", get_harness: "Xem harness", propose_comment: "Soạn comment", propose_rerun: "Đề xuất chạy lại" };
+const TOOL_LABEL: Record<string, string> = { Read: "Đọc file", Grep: "Tìm trong code", Glob: "Liệt kê file", get_review: "Xem kết quả review", get_diff: "Xem diff MR", get_framework: "Xem framework", get_harness: "Xem harness", propose_comment: "Soạn comment", get_summary_comment: "Đọc bản nháp comment", edit_summary_comment: "Sửa bản nháp comment", post_summary_comment: "Đăng comment tổng hợp", propose_rerun: "Đề xuất chạy lại" };
 const TEXT_EXT = /\.(txt|md|log|json|diff|patch|ya?ml|toml|csv|tsx?|jsx?|py|go|rs|java|kt|rb|php|sh|sql|html|css|xml)$/i;
 const MAX_TEXT = 24_000;
 

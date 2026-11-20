@@ -99,7 +99,8 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   const progress = createProgressHub(events);
   const requestReview = createRequestReview(modules, log.child("request"), progress);
   const inbox = createInbox(modules, requestReview, log.child("poll"));
-  const agentTools = createAgentTools(modules);
+  const reviewActions = createReviewActions(modules, log.child("review"));
+  const agentTools = createAgentTools(modules, { postSummary: reviewActions.postComment });
   const frameworkTools = createFrameworkTools(modules);
   const chatLive = new Map<string, ChatStep[]>();
   const workflows = {
@@ -109,7 +110,7 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
     chatCommand: createChatCommand(modules, requestReview, { publicUrl: config.PUBLIC_URL }),
     registerRepo: createRegisterRepo(modules),
     agentChat: createAgentChat(modules, requestReview, log.child("agent"), agentTools, `http://127.0.0.1:${config.PORT}`, chatLive),
-    reviewActions: createReviewActions(modules, log.child("review")),
+    reviewActions,
     agentActions: createAgentActions(modules, requestReview, log.child("agent")),
     frameworkChat: createFrameworkChat(modules, log.child("fw-chat"), frameworkTools, `http://127.0.0.1:${config.PORT}`, chatLive),
   };

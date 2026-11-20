@@ -162,6 +162,7 @@ export async function buildServer(c: Container, opts: ServerOptions): Promise<Fa
   app.post<{ Params: { id: string } }>("/api/mrs/:id/chat", { bodyLimit: 24 * 1024 * 1024 }, async (req) => { const b = ChatBody.parse(req.body); return w.agentChat(req.params.id, b.text || "Xem ảnh đính kèm.", undefined, b.images, b.viewing, b.refs); });
   // Hành động của người dùng trên trang review: đăng comment tổng hợp đã sửa, merge MR.
   app.post<{ Params: { id: string } }>("/api/reviews/:id/comment", async (req) => w.reviewActions.postComment(req.params.id, z.object({ body: z.string().max(60_000) }).parse(req.body).body));
+  app.put<{ Params: { id: string } }>("/api/reviews/:id/draft", async (req) => { await m.reviews.setCommentDraft(req.params.id, z.object({ body: z.string().max(60_000) }).parse(req.body).body); return { ok: true }; });
   app.post<{ Params: { id: string } }>("/api/mrs/:id/merge", async (req) => w.reviewActions.merge(req.params.id));
   app.post<{ Params: { id: string } }>("/api/actions/:id/approve", async (req) => w.agentActions.approve(req.params.id));
   app.post<{ Params: { id: string } }>("/api/actions/:id/dismiss", async (req) => w.agentActions.dismiss(req.params.id));

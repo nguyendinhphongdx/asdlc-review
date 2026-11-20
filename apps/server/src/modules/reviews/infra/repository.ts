@@ -136,6 +136,10 @@ export class ReviewRepository {
     return next;
   }
 
+  async setCommentDraft(runId: string, text: string): Promise<void> {
+    await this.db.reviewRun.update({ where: { id: runId }, data: { commentDraft: text } });
+  }
+
   async setCommentUrl(runId: string, url: string | null): Promise<void> {
     await this.db.reviewRun.update({ where: { id: runId }, data: { commentUrl: url } });
   }
