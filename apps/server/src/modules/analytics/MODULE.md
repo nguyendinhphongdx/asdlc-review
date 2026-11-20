@@ -21,3 +21,6 @@ Không có bảng riêng; tính trực tiếp từ dữ kiện nhận qua port. 
 - Số vi phạm đếm trên lần review ĐẦU của mỗi MR trong kỳ (đo chất lượng khi nộp); điểm "cuối" lấy lần review gần nhất.
 - Xếp hạng bằng Bayesian average của điểm lần đầu (C = 5) để người ít MR không vượt người nhiều MR ổn định.
 - Hàm tính là thuần (`domain/metrics.ts`), test không cần DB.
+
+## Usage theo việc
+`UsageSource.tasks(range)` trả từng lần gọi AI (adapter gọi `reviews.usageTasks`); `computeByTask` gộp theo loại việc, lọc repo/provider/model/framework như phần còn lại. Số này gồm cả chat nên có thể khác tổng theo run.

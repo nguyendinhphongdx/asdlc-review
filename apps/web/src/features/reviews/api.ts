@@ -1,8 +1,10 @@
-import type { MrFileDiffDto, InboxDto, ChatImageDto, ChatReplyDto, ChatStateDto, LessonDto, NoteDto, DiscoverMrDto, DiscoverProjectDto, FrameworkInfoDto, Paged, RequestReviewResultDto, RunDetailDto, RunListItemDto, ChatViewingDto, ChatRefDto } from "@mrd/contracts";
+import type { UsageEntryDto, MrFileDiffDto, InboxDto, ChatImageDto, ChatReplyDto, ChatStateDto, LessonDto, NoteDto, DiscoverMrDto, DiscoverProjectDto, FrameworkInfoDto, Paged, RequestReviewResultDto, RunDetailDto, RunListItemDto, ChatViewingDto, ChatRefDto } from "@mrd/contracts";
 import { qs, request } from "../../kernel/http.js";
 export const listRuns = (p: { limit?: number; offset?: number; minScore?: number; maxScore?: number; status?: string }) =>
   request<Paged<RunListItemDto>>(`/api/reviews${qs(p)}`);
 export const getRun = (id: string) => request<RunDetailDto>(`/api/reviews/${id}`);
+/** Chi phí/token theo từng lần gọi AI của một run (review, T2/T3/T4, chat). */
+export const getRunUsage = (runId: string) => request<UsageEntryDto[]>(`/api/reviews/${runId}/usage`);
 export const requestReview = (url: string) => request<RequestReviewResultDto>("/api/reviews", { method: "POST", json: { url } });
 export const rerun = (mrId: string) => request<RequestReviewResultDto>(`/api/mrs/${mrId}/rerun`, { method: "POST", json: {} });
 export const setFeedback = (findingId: string, feedback: "agree" | "disagree" | "fixed" | null) =>

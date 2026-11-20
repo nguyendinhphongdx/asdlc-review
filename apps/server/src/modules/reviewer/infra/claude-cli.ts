@@ -57,7 +57,10 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
       let out: Record<string, unknown> = {};
       try { out = JSON.parse(res.stdout.trim().split("\n").filter(Boolean).pop() ?? "{}"); } catch { /* xử lý bên dưới */ }
       if (out.is_error === true || typeof out.result !== "string") throw new ModuleError("reviewer", "upstream_error", `claude CLI lỗi (exit ${res.code}): ${String(out.result ?? (res.stderr || res.stdout)).slice(0, 300)}`);
-      return { text: out.result, costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null, steps };
+      const u = (out.usage ?? {}) as Record<string, unknown>;
+      const n = (k: string) => (typeof u[k] === "number" ? (u[k] as number) : 0);
+      const tokens = out.usage ? { inputTokens: n("input_tokens"), outputTokens: n("output_tokens"), cacheReadTokens: n("cache_read_input_tokens"), cacheWriteTokens: n("cache_creation_input_tokens") } : undefined;
+      return { text: out.result, costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null, steps, ...(tokens ? { tokens } : {}) };
     },
     async run({ model, system, user, workdir, maxBudgetUsd, onActivity, schema }) {
       const mdl = model || o.model;

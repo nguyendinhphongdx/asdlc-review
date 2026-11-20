@@ -114,6 +114,6 @@ export interface DesignRequest {
 export interface Provider {
   readonly descriptor: ProviderDescriptor;
   /** Hỏi đáp tự do, không công cụ (tuỳ chọn). */
-  ask?(input: { model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
+  ask?(input: { model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[]; tokens?: TokenUsage }>;
   run(input: { model?: string; system: string; user: string; workdir: string; maxBudgetUsd?: number; onActivity?: (a: ActivityEvent) => void; /** JSON schema của đầu ra; mặc định là schema review. */ schema?: object }): Promise<{ text: string; model: string; costUsd: number | null; tokens?: TokenUsage }>;
 }

@@ -14,7 +14,11 @@ export async function pool<T, R>(items: T[], limit: number, fn: (item: T, i: num
   return out;
 }
 
+/** Ghi chi phí/token của một lần gọi AI theo loại việc (không ném lỗi). */
+export type UsageRecorder = (kind: "design_map" | "design" | "area", label: string, usage: { tokens?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number } | undefined; provider: string; model: string; costUsd: number | null; durationMs: number }) => void;
+
 export interface AreaFlowInput {
+  record?: UsageRecorder;
   m: Modules;
   emit: Emit;
   provider: string;
@@ -79,6 +83,7 @@ export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
       if (hit) { maps.push({ area: a.label, text: hit, cached: true }); emit("info", `T2 · ${a.label}: dùng bản đã lưu (cùng base ${i.baseSha.slice(0, 8)})`); return; }
       const r = await m.reviewer.understand({ ...common, mr: i.mr, area: { label: a.label, files: a.files.map((f) => f.path) }, diff: areaDiff(a, i.byFile, 20_000), harnessText: i.harnessText, onActivity: (e) => emit(e.kind, `[${a.label}] ${e.message}`) });
       addUsage(r.usage);
+      i.record?.("design_map", a.label, r.usage);
       maps.push({ area: a.label, text: r.text, cached: false });
       await m.reviews.saveDesignMap(i.repoId, i.baseSha, a.id, r.text).catch(() => undefined);
       emit("info", `T2 · ${a.label}: đã mô tả thiết kế hiện tại (${r.text.length} ký tự)`);
@@ -94,6 +99,7 @@ export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
     emit("info", "T3 · Đánh giá thiết kế toàn MR (bản đồ khu vực + thiết kế hiện tại)");
     const r = await m.reviewer.assessDesign({ ...common, mr: i.mr, areas: i.areas, designMaps: maps.map((x) => ({ area: x.area, text: x.text })), digest: m.analysis.digest(i.areas, i.byFile), harnessText: i.harnessText, onActivity: (e) => emit(e.kind, `[thiết kế] ${e.message}`) });
     addUsage(r.usage);
+    i.record?.("design", "Toàn MR", r.usage);
     design = r.design;
     emit("info", `T3 · Thiết kế: ${design.verdict}${design.concerns.length ? `, ${design.concerns.length} mối quan tâm` : ""}${design.focus.length ? `, trọng tâm: ${design.focus.join(", ")}` : ""}`);
   } catch (err) {
@@ -129,6 +135,7 @@ export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
         onActivity: (e) => emit(e.kind, `[${tag}] ${e.message}`),
       });
       addUsage(r.usage);
+      i.record?.("area", tag, r.usage);
       // Chỉ nhận finding thuộc file của lượt này (hoặc không gắn file); AI có thể lạc sang khu vực khác.
       const mine = r.review.findings.filter((f) => !f.file || job.files.includes(f.file)).map((f): Finding => ({ ...f, source: "ai" }));
       findings.push(...mine);

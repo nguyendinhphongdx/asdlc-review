@@ -21,4 +21,5 @@ export const usageAdapter = (reviews: ReviewsApi, repos: ReposApi): UsageSource 
     const names = new Map(list.map((r) => [r.id, r.fullPath]));
     return rows.map((r) => ({ ...r, repoName: names.get(r.repositoryId) ?? r.repositoryId }));
   },
+  tasks: (range) => reviews.usageTasks(range),
 });

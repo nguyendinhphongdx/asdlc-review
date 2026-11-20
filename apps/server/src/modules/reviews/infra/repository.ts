@@ -1,11 +1,34 @@
-import type { MrKind, OverviewBlock } from "@mrd/contracts";
+import type { MrKind, OverviewBlock, UsageEntryDto, UsageTaskKind } from "@mrd/contracts";
 import type { Db } from "../../../kernel/db.js";
 import { fingerprint } from "../domain/fingerprint.js";
-import type { FindingDto, MrDto, MrFact, MrSnapshot, RunDetail, RunFilter, RunListItem, RunResult, RunSummary, StartRunInput, RuleStat, RuleStats, UsageRunRow } from "../domain/types.js";
+import type { FindingDto, MrDto, MrFact, MrSnapshot, RunDetail, RunFilter, RunListItem, RunResult, RunSummary, StartRunInput, RuleStat, RuleStats, UsageRunRow, UsageEntryInput, UsageTaskRow } from "../domain/types.js";
 import { parse, toMrDto, toRunSummary } from "./mappers.js";
 
 export class ReviewRepository {
   constructor(private db: Db) {}
+
+  async addUsage(e: UsageEntryInput): Promise<void> {
+    const t = e.tokens;
+    await this.db.runUsage.create({ data: { runId: e.runId, mrId: e.mrId, kind: e.kind, label: (e.label ?? "").slice(0, 200), provider: e.provider ?? null, model: e.model ?? null, inputTokens: t?.inputTokens ?? 0, outputTokens: t?.outputTokens ?? 0, cacheReadTokens: t?.cacheReadTokens ?? 0, cacheWriteTokens: t?.cacheWriteTokens ?? 0, costUsd: e.costUsd, durationMs: e.durationMs ?? null } });
+  }
+
+  async usageOfRun(runId: string): Promise<UsageEntryDto[]> {
+    const rows = await this.db.runUsage.findMany({ where: { runId }, orderBy: { createdAt: "asc" } });
+    return rows.map((r) => ({ id: r.id, kind: r.kind as UsageTaskKind, label: r.label, provider: r.provider, model: r.model, inputTokens: r.inputTokens, outputTokens: r.outputTokens, cacheReadTokens: r.cacheReadTokens, cacheWriteTokens: r.cacheWriteTokens, costUsd: r.costUsd, durationMs: r.durationMs, at: r.createdAt.toISOString() }));
+  }
+
+  /** Mọi lần gọi AI trong khoảng, kèm repo/framework của run (chat gắn vào run mới nhất của MR). */
+  async usageTasks(from: Date, to: Date): Promise<UsageTaskRow[]> {
+    const rows = await this.db.runUsage.findMany({ where: { createdAt: { gte: from, lte: to } }, orderBy: { createdAt: "asc" } });
+    if (!rows.length) return [];
+    const runs = await this.db.reviewRun.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.runId))] } }, select: { id: true, frameworkId: true, mergeRequest: { select: { repositoryId: true } } } });
+    const by = new Map(runs.map((x) => [x.id, x]));
+    return rows.flatMap((r): UsageTaskRow[] => {
+      const run = by.get(r.runId);
+      if (!run) return [];
+      return [{ runId: r.runId, mrId: r.mrId, repositoryId: run.mergeRequest.repositoryId, frameworkId: run.frameworkId, kind: r.kind as UsageTaskKind, createdAt: r.createdAt, provider: r.provider, model: r.model, costUsd: r.costUsd, inputTokens: r.inputTokens, outputTokens: r.outputTokens, cacheReadTokens: r.cacheReadTokens, cacheWriteTokens: r.cacheWriteTokens }];
+    });
+  }
 
   async usageRows(from: Date, to: Date): Promise<UsageRunRow[]> {
     const rows = await this.db.reviewRun.findMany({

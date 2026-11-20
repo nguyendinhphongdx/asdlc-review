@@ -1,3 +1,4 @@
+import type { UsageTaskKind } from "@mrd/contracts";
 /** Dữ kiện thô một MR trong khoảng thời gian (analytics tự định nghĩa thứ nó cần; adapter ở app/ lo phần nối). */
 export interface RunFact {
   id: string;
@@ -49,6 +50,13 @@ export interface UsageRow {
   provider: string | null; model: string | null; frameworkId: string | null; costUsd: number | null; durationMs: number | null; score: number | null;
   inputTokens: number | null; outputTokens: number | null; cacheReadTokens: number | null; cacheWriteTokens: number | null;
 }
+/** Một lần gọi AI (review/T2/T3/khu vực/chat) để biết token đi vào việc nào. */
+export interface UsageTask {
+  runId: string; mrId: string; repositoryId: string; frameworkId: string | null; kind: UsageTaskKind; createdAt: Date;
+  provider: string | null; model: string | null; costUsd: number | null;
+  inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number;
+}
 export interface UsageSource {
   rows(range: { from: Date; to: Date }): Promise<UsageRow[]>;
+  tasks(range: { from: Date; to: Date }): Promise<UsageTask[]>;
 }

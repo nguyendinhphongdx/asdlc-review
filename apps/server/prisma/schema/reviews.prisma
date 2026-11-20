@@ -140,3 +140,24 @@ model DesignMapCache {
   @@unique([repoId, baseSha, areaId])
   @@index([createdAt])
 }
+
+/** Chi phí/token của TỪNG lần gọi AI (review, T2, T3, từng lượt khu vực, chat) để biết token đi vào việc nào. */
+model RunUsage {
+  id               String   @id @default(cuid())
+  runId            String
+  mrId             String
+  kind             String // review | synthesis | design_map | design | area | chat
+  label            String   @default("")
+  provider         String?
+  model            String?
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  cacheReadTokens  Int      @default(0)
+  cacheWriteTokens Int      @default(0)
+  costUsd          Float?
+  durationMs       Int?
+  createdAt        DateTime @default(now())
+
+  @@index([runId])
+  @@index([createdAt])
+}

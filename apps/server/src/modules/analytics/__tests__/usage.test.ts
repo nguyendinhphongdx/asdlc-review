@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { applyFilter, computeUsage } from "../domain/usage.js";
-import type { UsageRow } from "../ports.js";
+import type { UsageRow, UsageTask } from "../ports.js";
 
 const at = (d: string, h = 10) => new Date(2026, 10, Number(d), h, 0, 0);
 const row = (o: Partial<UsageRow> & { day: string }): UsageRow => ({
@@ -44,5 +44,30 @@ describe("analytics: usage", () => {
     assert.equal(applyFilter(rows, { status: "failed" }).length, 1);
     assert.equal(applyFilter(rows, { repoIds: ["khác"] }).length, 0);
     assert.equal(computeUsage(applyFilter(rows, { status: "succeeded" }), range, {}, opts).totals.failedRuns, 0);
+  });
+});
+
+describe("analytics: usage theo việc", () => {
+  const task = (kind: UsageTask["kind"], day: string, costUsd: number | null, o: Partial<UsageTask> = {}): UsageTask => ({
+    runId: "r1", mrId: "m1", repositoryId: "repoA", frameworkId: "fw", kind, createdAt: at(day), provider: "claude-cli", model: "opus", costUsd,
+    inputTokens: 10, outputTokens: 20, cacheReadTokens: 30, cacheWriteTokens: 40, ...o,
+  });
+  const tasks = [task("area", "11", 0.5), task("area", "11", 0.25), task("design", "11", 0.1), task("chat", "12", null), task("review", "05", 9)];
+
+  it("gộp theo loại việc, đúng thứ tự, bỏ lần gọi ngoài khoảng", () => {
+    const r = computeUsage([], range, {}, opts, tasks).byTask;
+    assert.deepEqual(r.map((x) => x.kind), ["design", "area", "chat"]);
+    const area = r.find((x) => x.kind === "area")!;
+    assert.equal(area.calls, 2);
+    assert.equal(area.costUsd, 0.75);
+    assert.equal(area.tokens, 200);
+    assert.equal(area.cache, 140);
+  });
+
+  it("lọc theo repo/model như phần còn lại, chat không có cost vẫn được đếm", () => {
+    const other = [...tasks, task("area", "11", 5, { repositoryId: "repoB", model: "haiku" })];
+    assert.equal(computeUsage([], range, { repoIds: ["repoA"] }, opts, other).byTask.find((x) => x.kind === "area")!.calls, 2);
+    assert.equal(computeUsage([], range, { models: ["haiku"] }, opts, other).byTask.length, 1);
+    assert.equal(computeUsage([], range, {}, opts, tasks).byTask.find((x) => x.kind === "chat")!.calls, 1);
   });
 });

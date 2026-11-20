@@ -47,14 +47,14 @@ export function createAnalyticsModule(deps: AnalyticsDeps): AnalyticsApi {
     report,
     async usage(range, filter = {}) {
       const span = range.to.getTime() - range.from.getTime();
-      const rows = await deps.usage.rows({ from: new Date(range.from.getTime() - span), to: range.to });
+      const [rows, tasks] = await Promise.all([deps.usage.rows({ from: new Date(range.from.getTime() - span), to: range.to }), deps.usage.tasks(range)]);
       const inRange = rows.filter((r) => r.createdAt >= range.from);
       const uniq = (f: (r: (typeof rows)[number]) => string | null) => [...new Set(inRange.map(f).filter((v): v is string => !!v))].sort();
       const options = {
         repos: [...new Map(inRange.map((r) => [r.repositoryId, r.repoName])).entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name)),
         providers: uniq((r) => r.provider), models: uniq((r) => r.model), frameworks: uniq((r) => r.frameworkId),
       };
-      return computeUsage(applyFilter(rows, filter), range, filter, options);
+      return computeUsage(applyFilter(rows, filter), range, filter, options, tasks);
     },
     exportMarkdown: async (range, names) => reportMarkdown(await report(range), names),
     exportCsv: async (range) => leaderboardCsv((await report(range)).leaderboard),

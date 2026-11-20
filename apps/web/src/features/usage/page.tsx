@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { fmtDur } from "../../kernel/format.js";
+import { TASK_LABEL } from "../../kernel/usage-task.js";
 import { ErrorBox, Loading, PageHeader } from "../../kernel/page.js";
 import { getUsage, usageCsvUrl, type UsageQuery } from "./api.js";
 import { colorOf, DayChart, Donut, fmtNum, fmtUsd, Heatmap, HBars, Histogram, Legend, Sparkline, type Metric } from "./charts.js";
@@ -142,6 +143,28 @@ export function UsagePage() {
             <Card><CardHeader><CardTitle>Giờ chạy review</CardTitle><CardDescription>Số run theo thứ × giờ (giờ máy chủ)</CardDescription></CardHeader><CardContent><Heatmap heat={r.heat} /></CardContent></Card>
             <Card><CardHeader><CardTitle>Phân bố chi phí mỗi run</CardTitle><CardDescription>Số run theo mức chi phí</CardDescription></CardHeader><CardContent><Histogram data={r.costBuckets} /></CardContent></Card>
           </section>
+
+          <Card>
+            <CardHeader><CardTitle>Token đi vào việc nào</CardTitle><CardDescription>Chi phí theo loại việc AI, gồm cả chat · chỉ tính các lần gọi từ khi có số liệu theo việc, nên có thể nhỏ hơn tổng ở trên</CardDescription></CardHeader>
+            <CardContent>
+              {r.byTask.length === 0 ? <p className="text-[13px] text-muted-foreground">Chưa có số liệu theo việc trong khoảng này. Chạy một review mới là sẽ có.</p> : (
+                <ul className="flex flex-col gap-2.5">
+                  {r.byTask.map((x) => {
+                    const maxCost = Math.max(0, ...r.byTask.map((y) => y.costUsd));
+                    const maxTok = Math.max(1, ...r.byTask.map((y) => y.tokens));
+                    const sumCost = r.byTask.reduce((a, y) => a + y.costUsd, 0);
+                    return (
+                      <li key={x.kind} className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,2fr)_auto] items-center gap-3 text-[13px]">
+                        <span className="min-w-0 truncate font-medium" title={TASK_LABEL[x.kind].hint}>{TASK_LABEL[x.kind].label}<span className="ml-1.5 font-normal text-muted-foreground">{x.calls} lần</span></span>
+                        <span className="h-2 overflow-hidden rounded-full bg-muted" aria-hidden="true"><span className="block h-full rounded-full bg-chart-1" style={{ width: `${Math.max(2, Math.round((maxCost > 0 ? x.costUsd / maxCost : x.tokens / maxTok) * 100))}%` }} /></span>
+                        <span className="text-right tabular-nums">{maxCost > 0 ? <>{fmtUsd(x.costUsd)}<span className="ml-1.5 text-xs text-muted-foreground">{sumCost > 0 ? `${Math.round((x.costUsd / sumCost) * 100)}% · ` : ""}{fmtNum(x.tokens)} token</span></> : <>{fmtNum(x.tokens)} token</>}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
 
           <Card className="overflow-hidden">
             <CardHeader><CardTitle>Review tốn nhất</CardTitle><CardDescription>10 lượt có chi phí cao nhất trong bộ lọc</CardDescription></CardHeader>

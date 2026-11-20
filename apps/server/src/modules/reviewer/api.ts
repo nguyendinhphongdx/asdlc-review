@@ -35,7 +35,7 @@ export interface ReviewerApi {
   /** Bước T0: gắn nhãn loại MR từ file đổi và tiêu đề (tất định, không gọi AI). */
   classify(files: ChangedFile[], title?: string): MrKindResult;
   /** Hỏi đáp tự do với agent (không công cụ, không đọc repo). */
-  ask(req: { provider: ProviderId; model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[] }>;
+  ask(req: { provider: ProviderId; model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[]; tokens?: import("./domain/types.js").TokenUsage }>;
   /** Làm sạch một khối sơ đồ do agent chat tạo theo yêu cầu (cùng luật bằng chứng/cỡ như khối của review). Trả lỗi dạng chữ để agent sửa lại. */
   sanitizeBlock(raw: unknown, knownPaths: Iterable<string>): { block: OverviewBlock } | { error: string };
   /** Danh sách provider kèm khả năng, cách xác thực, model gợi ý và trạng thái sẵn sàng. */

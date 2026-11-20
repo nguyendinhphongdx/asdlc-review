@@ -120,6 +120,7 @@ export function createAgentChat(m: Modules, requestReview: RequestReview, log: L
         }
       }
       live.set(mrId, []);
+      const chatStarted = Date.now();
       const refText = refs.length ? await refsBlock(ws?.dir, refs) : "";
       const res = await m.reviewer.ask({
         provider, model, system: SYSTEM, user: `<context>\n${ctx}\n</context>\n\n${refText ? `${refText}\n\n` : ""}User: ${cleaned}`, workdir, images,
@@ -128,6 +129,8 @@ export function createAgentChat(m: Modules, requestReview: RequestReview, log: L
       });
       raw = res.text;
       steps = res.steps ?? [];
+      // Chat tính vào run review mới nhất của MR (nếu có) để biết cả chi phí hỏi đáp.
+      if (run) void m.reviews.recordUsage({ runId: run.id, mrId, kind: "chat", label: cleaned.slice(0, 80), provider, model: model ?? null, tokens: res.tokens, costUsd: res.costUsd, durationMs: Date.now() - chatStarted });
     } catch (e) {
       log.warn("agent chat lỗi", { err: String(e).slice(0, 200) });
       return { ...(await answer(`Không trả lời được: ${(e as Error).message}`)), failed: true };

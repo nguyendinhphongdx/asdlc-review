@@ -7,6 +7,26 @@ export interface UsageFilterDto {
   status?: "all" | "succeeded" | "failed";
 }
 
+/** Loại việc AI đã làm trong một review (hoặc chat về MR). */
+export type UsageTaskKind = "review" | "synthesis" | "design_map" | "design" | "area" | "chat";
+
+/** Một lần gọi AI của một run: chi phí và token của đúng việc đó. */
+export interface UsageEntryDto {
+  id: string;
+  kind: UsageTaskKind;
+  /** Khu vực/lượt cụ thể (vd "apps/api · 2/3"); rỗng nếu không có. */
+  label: string;
+  provider: string | null;
+  model: string | null;
+  inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number;
+  costUsd: number | null;
+  durationMs: number | null;
+  at: string;
+}
+
+/** Gộp theo loại việc cho trang Usage. */
+export interface UsageTaskSliceDto { kind: UsageTaskKind; costUsd: number; calls: number; tokens: number; input: number; output: number; cache: number }
+
 export interface UsageTokensDto { input: number; output: number; cacheRead: number; cacheWrite: number }
 
 export interface UsageTotalsDto {
@@ -54,5 +74,7 @@ export interface UsageReportDto {
   /** Phân bố chi phí mỗi run. */
   costBuckets: UsageBucketDto[];
   topRuns: UsageRunDto[];
+  /** Chi phí/token theo loại việc (gồm cả chat); chỉ có từ các lần review sau khi tính năng này ra đời. */
+  byTask: UsageTaskSliceDto[];
   options: UsageOptionsDto;
 }

@@ -1,10 +1,10 @@
-import type { OverviewBlock } from "@mrd/contracts";
+import type { OverviewBlock, UsageEntryDto } from "@mrd/contracts";
 import type { Clock } from "../../kernel/clock.js";
 import { systemClock } from "../../kernel/clock.js";
 import type { Db } from "../../kernel/db.js";
 import { ModuleError } from "../../kernel/errors.js";
 import type { EventBus } from "../../kernel/event-bus.js";
-import type { MrDto, MrFact, MrSnapshot, RunDetail, RunFilter, RunListItem, RunResult, RunSummary, StartRunInput, RuleStats, UsageRunRow } from "./domain/types.js";
+import type { MrDto, MrFact, MrSnapshot, RunDetail, RunFilter, RunListItem, RunResult, RunSummary, StartRunInput, RuleStats, UsageRunRow, UsageEntryInput, UsageTaskRow } from "./domain/types.js";
 import { ReviewRepository } from "./infra/repository.js";
 
 export interface ReviewsDeps {
@@ -54,6 +54,12 @@ export interface ReviewsApi {
 
   /** Mọi run đã kết thúc (thành công/lỗi) trong khoảng, kèm chi phí/token — cho thống kê usage. */
   usageRows(range: { from: Date; to: Date }): Promise<UsageRunRow[]>;
+  /** Ghi chi phí/token của một lần gọi AI (không ném lỗi: ghi thống kê không được làm hỏng review). */
+  recordUsage(entry: UsageEntryInput): Promise<void>;
+  /** Các lần gọi AI của một run, theo thứ tự thời gian. */
+  usageOfRun(runId: string): Promise<UsageEntryDto[]>;
+  /** Mọi lần gọi AI trong khoảng (cho trang Usage). */
+  usageTasks(range: { from: Date; to: Date }): Promise<UsageTaskRow[]>;
   /** Số finding theo rule + phản hồi của người dùng trên các run thành công gần nhất dùng framework này. */
   ruleStats(frameworkId: string, limitRuns?: number): Promise<RuleStats>;
 
@@ -124,6 +130,9 @@ export function createReviewsModule(deps: ReviewsDeps): ReviewsApi {
     listRuns: (f) => repo.listRuns(f),
     setFindingFeedback: (id, fb) => repo.setFeedback(id, fb),
     usageRows: (r) => repo.usageRows(r.from, r.to),
+    recordUsage: (e) => repo.addUsage(e).catch(() => undefined),
+    usageOfRun: (id) => repo.usageOfRun(id),
+    usageTasks: (r) => repo.usageTasks(r.from, r.to),
     ruleStats: (id, n = 50) => repo.ruleStats(id, n),
     facts: (range) => repo.facts(range.from, range.to),
   };

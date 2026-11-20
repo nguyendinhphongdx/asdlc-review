@@ -1,4 +1,5 @@
 import type { RunActivityEntry, RunDetailDto } from "@mrd/contracts";
+import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, Loader2, X } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -6,11 +7,58 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { fmtMs } from "../../kernel/format.js";
 import { STAGES } from "../../kernel/stages.js";
+import { TASK_LABEL } from "../../kernel/usage-task.js";
+import { getRunUsage } from "./api.js";
 import { CommentEditor } from "./comment-editor.js";
 import { StageLog } from "./live-log.js";
 import { clock, since, stageState, useTick } from "./strip.js";
 
 const COLORS = ["bg-muted-foreground/60", "bg-chart-2", "bg-chart-5", "bg-chart-1", "bg-chart-3", "bg-chart-4", "bg-primary", "bg-chart-2"];
+
+const usd = (n: number) => (n >= 10 ? `$${n.toFixed(1)}` : `$${n.toFixed(2)}`);
+const num = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
+
+/** Chi phí/token theo từng lần gọi AI của run (gồm cả chat), gộp theo loại việc; bấm mở xem từng lần. */
+function UsageByTask({ runId, live }: { runId: string; live: boolean }) {
+  const q = useQuery({ queryKey: ["run-usage", runId], queryFn: () => getRunUsage(runId), refetchInterval: live ? 4000 : false });
+  const rows = q.data ?? [];
+  if (!rows.length) return <Card className="gap-1 p-5"><h2 className="text-[15px] font-semibold">Chi phí theo việc</h2><p className="text-[13px] text-muted-foreground">{q.isLoading ? "Đang tải…" : "Lần review này chưa có số liệu theo việc (chỉ có từ các review chạy sau khi tính năng này ra đời)."}</p></Card>;
+  const by = new Map<string, { cost: number; calls: number; tok: number; items: typeof rows }>();
+  for (const e of rows) {
+    const s = by.get(e.kind) ?? { cost: 0, calls: 0, tok: 0, items: [] };
+    s.cost += e.costUsd ?? 0; s.calls++; s.tok += e.inputTokens + e.outputTokens + e.cacheReadTokens + e.cacheWriteTokens; s.items.push(e);
+    by.set(e.kind, s);
+  }
+  const total = rows.reduce((a, e) => a + (e.costUsd ?? 0), 0);
+  const totalTok = [...by.values()].reduce((a, s) => a + s.tok, 0);
+  return (
+    <Card className="gap-3 p-5">
+      <div className="flex items-baseline justify-between"><h2 className="text-[15px] font-semibold">Chi phí theo việc</h2><span className="text-[13px] tabular-nums text-muted-foreground">{rows.length} lần gọi AI · {usd(total)} · {num(totalTok)} token</span></div>
+      <div className="overflow-x-auto"><div className="min-w-[560px]">
+        {[...by.entries()].map(([kind, s]) => {
+          const meta = TASK_LABEL[kind as keyof typeof TASK_LABEL];
+          const share = total > 0 ? s.cost / total : s.tok / Math.max(1, totalTok);
+          return (
+            <details key={kind} className="group border-t first:border-0">
+              <summary className="grid cursor-pointer list-none grid-cols-[1.6fr_0.5fr_0.7fr_0.9fr_1fr] items-center gap-3 py-2 text-[13.5px]" title={meta?.hint}>
+                <span className="flex items-center gap-1.5 font-medium"><ChevronDown className="size-3.5 -rotate-90 text-muted-foreground transition-transform group-open:rotate-0" aria-hidden="true" />{meta?.label ?? kind}</span>
+                <span className="tabular-nums text-muted-foreground">{s.calls} lần</span>
+                <span className="tabular-nums">{total > 0 ? usd(s.cost) : "–"}</span>
+                <span className="tabular-nums text-muted-foreground">{num(s.tok)} token</span>
+                <span className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true"><span className="block h-full rounded-full bg-primary" style={{ width: `${Math.max(2, Math.round(share * 100))}%` }} /></span>
+              </summary>
+              <ul className="mb-2 ml-5 flex flex-col gap-1 border-l pl-3 text-xs text-muted-foreground">
+                {s.items.map((e) => (
+                  <li key={e.id} className="flex flex-wrap gap-x-3 tabular-nums"><span className="min-w-0 flex-1 truncate" title={e.label}>{e.label || "—"}</span><span>vào {num(e.inputTokens)}</span><span>ra {num(e.outputTokens)}</span><span>cache {num(e.cacheReadTokens + e.cacheWriteTokens)}</span><span className="w-14 text-right">{e.costUsd != null ? usd(e.costUsd) : "–"}</span></li>
+                ))}
+              </ul>
+            </details>
+          );
+        })}
+      </div></div>
+    </Card>
+  );
+}
 
 /** Tab "Nhật ký": thời gian theo bước + log chi tiết từng bước (bước đang chạy cập nhật trực tiếp). */
 export function LogTab({ r, entries, open, onOpen }: { r: RunDetailDto; entries: RunActivityEntry[]; open: string; onOpen: (id: string) => void }) {
@@ -44,6 +92,8 @@ export function LogTab({ r, entries, open, onOpen }: { r: RunDetailDto; entries:
           ))}
         </div></div>
       </Card>
+
+      <UsageByTask runId={r.id} live={live} />
 
       <Card className="gap-0 overflow-hidden py-0">
         <div className="flex flex-wrap items-center justify-between gap-2.5 px-5 py-3.5">

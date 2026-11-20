@@ -26,3 +26,6 @@ Không cần port ngoài (thời gian qua `Clock` mặc định hệ thống).
 
 ## Khu vực & thiết kế (review MR lớn)
 Run lưu `areaReport` (JSON `AreaReportDto`: khu vực T0, đánh giá thiết kế T3, lượt review từng khu vực T4, mô tả thiết kế T2). Bảng `DesignMapCache` (repoId + baseSha + areaId → text) cache T2 qua `getDesignMap`/`saveDesignMap`; bản cũ hơn 60 ngày bị xoá khi ghi.
+
+## Chi phí theo việc
+Bảng `RunUsage`: mỗi dòng là một lần gọi AI (`kind` = review | synthesis | design_map | design | area | chat, `label` = khu vực/lượt hoặc câu hỏi chat) với 4 loại token, chi phí, thời lượng. Ghi bằng `recordUsage` (nuốt lỗi: thống kê không được làm hỏng review); chat gắn vào run thành công mới nhất của MR. `usageOfRun(runId)` cho tab Nhật ký, `usageTasks(range)` cho trang Usage. Tổng của run (`ReviewRun.costUsd/…Tokens`) vẫn giữ nguyên; review cũ không có dòng nào.

@@ -1,4 +1,5 @@
 import type { AreaReportDto, MrKind, OverviewBlock, RunActivityEntry, FileReviewDto, HarnessLoadDto, HarnessReportDto, AiContextDto, MrDescriptionDto, OverviewSectionDto, RuleCheckDto } from "@mrd/contracts";
+import type { UsageTaskKind } from "@mrd/contracts";
 import type { Grade, RunStatus, ReviewTrigger, Verdict } from "@mrd/contracts";
 
 export interface MrSnapshot {
@@ -210,6 +211,20 @@ export interface MrFact {
     costUsd: number | null;
     findings: { category: string; ruleId: string | null; severity: string; kind: string; title: string }[];
   }[];
+}
+
+/** Một lần gọi AI cần ghi lại. */
+export interface UsageEntryInput {
+  runId: string; mrId: string; kind: UsageTaskKind; label?: string;
+  provider?: string | null; model?: string | null;
+  tokens?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number } | undefined;
+  costUsd: number | null; durationMs?: number | null;
+}
+/** Một lần gọi AI kèm MR/repo/framework của run (cho thống kê usage). */
+export interface UsageTaskRow {
+  runId: string; mrId: string; repositoryId: string; frameworkId: string | null; kind: UsageTaskKind; createdAt: Date;
+  provider: string | null; model: string | null; costUsd: number | null;
+  inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number;
 }
 
 /** Một run (mọi trạng thái) cho thống kê usage. */

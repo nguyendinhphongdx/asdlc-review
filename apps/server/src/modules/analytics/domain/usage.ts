@@ -1,5 +1,5 @@
-import type { UsageDayDto, UsageFilterDto, UsageReportDto, UsageRunDto, UsageSliceDto } from "@mrd/contracts";
-import type { UsageRow } from "../ports.js";
+import type { UsageDayDto, UsageFilterDto, UsageReportDto, UsageRunDto, UsageSliceDto, UsageTaskKind, UsageTaskSliceDto } from "@mrd/contracts";
+import type { UsageRow, UsageTask } from "../ports.js";
 
 const tok = (r: UsageRow) => (r.inputTokens ?? 0) + (r.outputTokens ?? 0) + (r.cacheReadTokens ?? 0) + (r.cacheWriteTokens ?? 0);
 const cost = (r: UsageRow) => r.costUsd ?? 0;
@@ -25,10 +25,31 @@ function slices(rows: UsageRow[], keyOf: (r: UsageRow) => string, labelOf: (r: U
   return [...all.slice(0, top - 1), rest];
 }
 
+const TASK_ORDER: UsageTaskKind[] = ["review", "synthesis", "design_map", "design", "area", "chat"];
+
+export function applyTaskFilter(rows: UsageTask[], f: UsageFilterDto): UsageTask[] {
+  const has = (a: string[] | undefined, v: string | null) => !a?.length || (v !== null && a.includes(v));
+  return rows.filter((r) => has(f.repoIds, r.repositoryId) && has(f.providers, r.provider) && has(f.models, r.model) && has(f.frameworks, r.frameworkId));
+}
+
+/** Gộp các lần gọi AI theo loại việc (chỉ trong khoảng đang xem), loại không phát sinh thì bỏ. */
+export function computeByTask(tasks: UsageTask[], range: { from: Date; to: Date }): UsageTaskSliceDto[] {
+  const m = new Map<UsageTaskKind, UsageTaskSliceDto>();
+  for (const t of tasks) {
+    if (t.createdAt < range.from || t.createdAt > range.to) continue;
+    const s = m.get(t.kind) ?? { kind: t.kind, costUsd: 0, calls: 0, tokens: 0, input: 0, output: 0, cache: 0 };
+    s.costUsd += t.costUsd ?? 0; s.calls++;
+    s.input += t.inputTokens; s.output += t.outputTokens; s.cache += t.cacheReadTokens + t.cacheWriteTokens;
+    s.tokens += t.inputTokens + t.outputTokens + t.cacheReadTokens + t.cacheWriteTokens;
+    m.set(t.kind, s);
+  }
+  return TASK_ORDER.flatMap((k) => (m.has(k) ? [m.get(k)!] : []));
+}
+
 const BUCKETS: [string, number][] = [["< $0.05", 0.05], ["$0.05–0.20", 0.2], ["$0.20–0.50", 0.5], ["$0.50–1", 1], ["$1–3", 3], ["> $3", Infinity]];
 
 /** `all` = mọi run trong [from - span, to] (đã lọc), phần trước `from` chỉ dùng để so sánh kỳ trước. */
-export function computeUsage(all: UsageRow[], range: { from: Date; to: Date }, filter: UsageFilterDto, options: UsageReportDto["options"]): UsageReportDto {
+export function computeUsage(all: UsageRow[], range: { from: Date; to: Date }, filter: UsageFilterDto, options: UsageReportDto["options"], tasks: UsageTask[] = []): UsageReportDto {
   const rows = all.filter((r) => r.createdAt >= range.from && r.createdAt <= range.to);
   const prev = all.filter((r) => r.createdAt < range.from);
   const days = Math.max(1, (range.to.getTime() - range.from.getTime()) / 86_400_000);
@@ -75,6 +96,6 @@ export function computeUsage(all: UsageRow[], range: { from: Date; to: Date }, f
     byModel: slices(rows, (r) => r.model ?? "?", (r) => r.model ?? "Không rõ"),
     byProvider: slices(rows, (r) => r.provider ?? "?", (r) => r.provider ?? "Không rõ"),
     byFramework: slices(rows, (r) => r.frameworkId ?? "?", (r) => r.frameworkId ?? "Không rõ"),
-    heat, costBuckets, topRuns, options,
+    heat, costBuckets, topRuns, byTask: computeByTask(applyTaskFilter(tasks, filter), range), options,
   };
 }

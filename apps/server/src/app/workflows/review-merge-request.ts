@@ -140,12 +140,18 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         stats, mrKind: hintKind, mrKindLocked: kindLocked, mrKindReasons: kindReasons, changedFiles: ws.numstat.map((n) => n.file), notebook, notes, ...(previousRound?.findings.length ? { previousRound } : {}),
         onActivity: (a: { kind: "tool" | "ai"; message: string }) => emit("review", a.kind, a.message),
       };
+      const record = (kind: "review" | "synthesis" | "design_map" | "design" | "area", label: string, u: { tokens?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number } | undefined; provider: string; model: string; costUsd: number | null; durationMs: number }) =>
+        void m.reviews.recordUsage({ runId, mrId: rec.id, kind, label, provider: u.provider, model: u.model, tokens: u.tokens, costUsd: u.costUsd, durationMs: u.durationMs });
       const { ai, flow: f } = await stage("review", async (): Promise<{ ai: Awaited<ReturnType<Modules["reviewer"]["review"]>>; flow: AreaFlowResult | null }> => {
-        if (!decision.split) return { ai: await m.reviewer.review({ ...baseReq, diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, staticFindings: analysis.findings }), flow: null };
+        if (!decision.split) {
+          const single = await m.reviewer.review({ ...baseReq, diff: ws!.diffForPrompt, omittedFiles: ws!.omittedFiles, staticFindings: analysis.findings });
+          record("review", "", single.usage);
+          return { ai: single, flow: null };
+        }
         const { onActivity: _unused, ...shared } = baseReq;
         void _unused;
         const flow = await reviewByAreas({
-          m, emit: (level, msg) => emit("review", level, msg), provider, model, workdir: dir, maxBudgetUsd: settings.maxBudgetUsd, repoId: repo.id, baseSha: ws!.baseSha, rubric: fw.rubric,
+          m, record, emit: (level, msg) => emit("review", level, msg), provider, model, workdir: dir, maxBudgetUsd: settings.maxBudgetUsd, repoId: repo.id, baseSha: ws!.baseSha, rubric: fw.rubric,
           mr: { title: mr.title, description: mr.description }, areas, byFile, diffBudget: cfg.diffBudgetChars, base: shared, staticFindings: analysis.findings,
           harnessText: harness.files.filter((f) => f.kind === "asdlc" || f.kind === "instructions").map((f) => `## ${f.path}\n${f.content}`).join("\n\n").slice(0, 24_000),
         });
@@ -154,6 +160,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
           ...baseReq, diff: m.analysis.digest(areas, byFile), omittedFiles: flow.omitted, staticFindings: [...analysis.findings, ...flow.findings],
           synthesis: { areas, designMaps: flow.maps.map((x) => ({ area: x.area, text: x.text })), design: flow.design },
         });
+        record("synthesis", "", ai.usage);
         return { ai, flow };
       });
       if (f) { ai.usage = { ...ai.usage, costUsd: (ai.usage.costUsd ?? 0) + f.costUsd, ...(f.tokens || ai.usage.tokens ? { tokens: { inputTokens: (ai.usage.tokens?.inputTokens ?? 0) + (f.tokens?.inputTokens ?? 0), outputTokens: (ai.usage.tokens?.outputTokens ?? 0) + (f.tokens?.outputTokens ?? 0), cacheReadTokens: (ai.usage.tokens?.cacheReadTokens ?? 0) + (f.tokens?.cacheReadTokens ?? 0), cacheWriteTokens: (ai.usage.tokens?.cacheWriteTokens ?? 0) + (f.tokens?.cacheWriteTokens ?? 0) } } : {}) }; ai.review.harnessUsed = [...new Set([...ai.review.harnessUsed, ...f.harnessUsed])]; }
