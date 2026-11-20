@@ -2,7 +2,7 @@ import type { ChatSelectionDto, FileReviewDto, FindingDto, MrFileDiffDto } from 
 import { ResizeHandle, usePersistedNumber } from "../../kernel/resize.js";
 import { Tip } from "../../kernel/tip.js";
 import { useQuery } from "@tanstack/react-query";
-import { Bot, ChevronDown, ChevronRight, FileCode2, Folder, Search, TriangleAlert } from "lucide-react";
+import { Bot, Check, ChevronDown, ChevronRight, Copy, FileCode2, Folder, Search, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge, SeverityBadge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -111,7 +111,7 @@ function DiffBody({ file, findings, onSelect }: { file: MrFileDiffDto; findings:
   }, [rows, findings]);
   if (file.truncated || !file.diff) return <p className="px-4 py-3 text-xs text-muted-foreground">Nền tảng không trả nội dung diff cho file này (quá lớn hoặc nhị phân).</p>;
   return (
-    <div ref={wrap} onMouseUp={pick} onKeyUp={pick} className="overflow-x-auto border-t font-mono text-xs leading-5">
+    <div ref={wrap} onMouseUp={pick} onKeyUp={pick} className="overflow-x-auto rounded-b-xl font-mono text-xs leading-5">
       {byLine.orphans.map((f) => <FindingBubble key={f.id} f={f} />)}
       <table className="w-full border-collapse">
         <tbody>
@@ -137,12 +137,33 @@ function DiffBody({ file, findings, onSelect }: { file: MrFileDiffDto; findings:
   );
 }
 
+/** Nút chép đường dẫn file; đứng ngoài nút đóng/mở nên không đổi trạng thái collapse hay "Đã xem". */
+function CopyPath({ path }: { path: string }) {
+  const [done, setDone] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(path); } catch { return; }
+    setDone(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setDone(false), 1500);
+  };
+  return (
+    <Tip text={done ? "Đã chép" : "Copy đường dẫn"}>
+      <button type="button" onClick={() => void copy()} aria-label={`Copy đường dẫn ${path}`} className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+        {done ? <Check className="size-3.5 text-success-fg" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}
+      </button>
+    </Tip>
+  );
+}
+
 function FileCard({ item, findings, open, onToggle, id, viewed, onViewed, onSelect }: { onSelect?: ((s: ChatSelectionDto) => void) | undefined; item: Item; findings: FindingDto[]; open: boolean; onToggle: () => void; id: string; viewed: boolean; onViewed: () => void }) {
   const dir = item.path.includes("/") ? item.path.slice(0, item.path.lastIndexOf("/") + 1) : "";
   const name = item.path.slice(dir.length);
   return (
-    <Card id={id} className="scroll-mt-20 gap-0 overflow-hidden py-0">
-      <div className="flex items-center gap-2 px-3 hover:bg-muted/40">
+    <Card id={id} className="gap-0 py-0">
+      {/* Không dùng overflow-hidden trên Card (sẽ chặn sticky); header dính đầu vùng cuộn của tab, nền đặc để code không chạy xuyên qua. */}
+      <div className={cn("sticky top-0 z-10 flex items-center gap-2 bg-card px-3 hover:bg-muted", open ? "rounded-t-xl border-b" : "rounded-xl")}>
       <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"><input type="checkbox" checked={viewed} onChange={onViewed} aria-label={`Đã xem ${item.path}`} className="size-4 accent-[var(--primary)]" />Đã xem</label>
       <button type="button" aria-expanded={open} onClick={onToggle} className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
         <ChevronDown className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")} aria-hidden="true" />
@@ -152,8 +173,9 @@ function FileCard({ item, findings, open, onToggle, id, viewed, onViewed, onSele
         {findings.length > 0 && <span className="inline-flex items-center gap-1">{[...findings].sort((a, b) => (SEV_RANK[a.severity] ?? 9) - (SEV_RANK[b.severity] ?? 9)).slice(0, 4).map((f) => <SeverityBadge key={f.id} severity={f.severity} />)}{findings.length > 4 && <span className="text-xs text-muted-foreground">+{findings.length - 4}</span>}</span>}
         {item.binary ? <span className="text-xs text-muted-foreground">binary</span> : <span className="font-mono text-xs tabular-nums"><span className="text-success-fg">+{item.additions}</span> <span className="text-danger-fg">−{item.deletions}</span></span>}
       </button>
+      <CopyPath path={item.path} />
       </div>
-      {open && (item.diff ? <DiffBody file={item.diff} findings={findings} onSelect={onSelect} /> : <p className="border-t px-4 py-3 text-xs text-muted-foreground">Chưa tải được nội dung diff.</p>)}
+      {open && (item.diff ? <DiffBody file={item.diff} findings={findings} onSelect={onSelect} /> : <p className="px-4 py-3 text-xs text-muted-foreground">Chưa tải được nội dung diff.</p>)}
     </Card>
   );
 }
