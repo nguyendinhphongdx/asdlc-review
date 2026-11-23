@@ -4,7 +4,7 @@ export interface RunStreamHandlers {
   onProgress?: (runId: string, entry: RunActivityEntry) => void;
   /** Run đổi trạng thái/giai đoạn (chờ → chạy → từng bước): cập nhật UI ngay. */
   onRunStatus?: (s: { runId: string; mrId: string; status: "queued" | "running"; stage: string }) => void;
-  onDone?: (kind: "completed" | "failed", runId: string) => void;
+  onDone?: (kind: "completed" | "failed" | "cancelled", runId: string) => void;
   onStatus?: (connected: boolean) => void;
 }
 
@@ -19,5 +19,6 @@ export function openRunStream(h: RunStreamHandlers, runId?: string): () => void 
   es.addEventListener("status", (e) => { const d = parse<{ runId: string; mrId: string; status: "queued" | "running"; stage: string }>(e as MessageEvent); if (d) h.onRunStatus?.(d); });
   es.addEventListener("completed", (e) => { const d = parse<{ runId: string }>(e as MessageEvent); if (d) h.onDone?.("completed", d.runId); });
   es.addEventListener("failed", (e) => { const d = parse<{ runId: string }>(e as MessageEvent); if (d) h.onDone?.("failed", d.runId); });
+  es.addEventListener("cancelled", (e) => { const d = parse<{ runId: string }>(e as MessageEvent); if (d) h.onDone?.("cancelled", d.runId); });
   return () => es.close();
 }

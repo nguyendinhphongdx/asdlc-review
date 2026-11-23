@@ -49,7 +49,7 @@ export function ProgressStrip({ r, entries, onPickStage, onRetry, retrying, retr
   const last = entries[entries.length - 1];
   const known = STAGES.some((x) => x.id === r.stage);
   const startedAt = (id: string) => (id === "queue" ? r.createdAt : [...entries].reverse().find((e) => e.stage === id && e.message.startsWith("Bắt đầu"))?.at);
-  const title = r.status === "failed" ? `Lỗi${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "running" ? `Đang chạy${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "succeeded" ? "Hoàn tất" : r.status === "skipped" ? "Bỏ qua" : "Đang chờ · hàng đợi";
+  const title = r.status === "failed" ? `Lỗi${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "running" ? `Đang chạy${known ? ` · ${stageLabel(r.stage)}` : ""}` : r.status === "succeeded" ? "Hoàn tất" : r.status === "skipped" ? "Bỏ qua" : r.status === "cancelled" ? "Đã dừng" : "Đang chờ · hàng đợi";
   const sub = r.status === "succeeded" ? `Tổng ${fmtDur(r.durationMs)}` : live ? (last ? `${last.message.slice(0, 60)}${last.message.length > 60 ? "…" : ""}` : "Chưa có tín hiệu từ worker") : (r.error ?? "").slice(0, 80);
   const doneCount = STAGES.filter((s) => stageState(r, s.id) === "done").length;
   const pct = r.status === "succeeded" ? 100 : Math.round((doneCount / STAGES.length) * 100);

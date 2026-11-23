@@ -3,6 +3,7 @@ import { designFindings, reviewByAreas, type AreaFlowResult } from "./review-are
 import { viewFor, type AreaReportDto, type Finding, type ReviewJobData, type ReviewReport } from "@mrd/contracts";
 import { ModuleError } from "../../kernel/errors.js";
 import type { ProgressHub } from "../progress.js";
+import type { RunControl } from "./run-control.js";
 import type { Logger } from "../../kernel/logger.js";
 import type { Modules, AppSettings } from "../modules.js";
 import { resolveAi, toSnapshot } from "./mappers.js";
@@ -13,7 +14,7 @@ const RETRYABLE = new Set(["upstream_error", "timeout", "internal"]);
  * Pipeline review một MR: clone → harness → phân tích → AI → chấm điểm → publish → lưu.
  * Mỗi bước chỉ gọi API công khai của một module; không chứa quy tắc nghiệp vụ.
  */
-export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logger, hub?: ProgressHub) {
+export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logger, hub?: ProgressHub, control?: RunControl) {
   return async (job: ReviewJobData): Promise<void> => {
     const started = Date.now();
     // Run đã được tạo sẵn (status queued) lúc xếp hàng: nhận lại đúng run đó và báo "đang chạy" ngay,
@@ -21,7 +22,9 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
     const pre = job.runId && job.mrId ? { runId: job.runId, mrId: job.mrId } : null;
     let waitedMs = 0;
     if (pre) {
-      waitedMs = (await m.reviews.beginRun(pre.runId)).waitedMs;
+      const began = await m.reviews.beginRun(pre.runId);
+      if (began.cancelled) { log.info("bỏ qua: run đã bị người dùng dừng khi còn xếp hàng", { runId: pre.runId }); return; }
+      waitedMs = began.waitedMs;
       hub?.emit(pre.runId, pre.mrId, "queue", "info", `Worker đã nhận việc${waitedMs >= 1000 ? ` sau ${(waitedMs / 1000).toFixed(0)}s chờ` : ""}, đang lấy thông tin MR`);
     }
     const failEarly = async (reason: string) => {
@@ -53,6 +56,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       : (await m.reviews.startRun({ mrId: rec.id, trigger: job.trigger, triggeredBy: job.triggeredBy, headSha: mr.headSha, baseSha: mr.baseSha, provider, commits: mr.commits })).runId;
     if (pre) await m.reviews.setProvider(runId, provider).catch(() => undefined);
     const rlog = log.child(`run:${runId.slice(-6)}`);
+    const signal = control?.register(runId);
 
     const timings: Record<string, number> = {};
     if (pre) timings.queue = waitedMs;
@@ -64,6 +68,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
     };
     const STAGE_LABEL: Record<string, string> = { clone: "Clone repository", framework: "Nạp framework", harness: "Nạp harness", analysis: "Phân tích tĩnh", review: "Review bằng AI", score: "Chấm điểm", publish: "Đăng comment" };
     const stage = async <T>(name: string, fn: () => Promise<T> | T): Promise<T> => {
+      signal?.throwIfAborted(); // người dùng đã bấm Dừng: không bắt đầu bước mới
       await m.reviews.setStage(runId, name, timings);
       emit(name, "info", `Bắt đầu: ${STAGE_LABEL[name] ?? name}`);
       const t = Date.now();
@@ -72,6 +77,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         emit(name, "done", `Xong: ${STAGE_LABEL[name] ?? name} (${((Date.now() - t) / 1000).toFixed(1)}s)`);
         return out;
       } catch (err) {
+        if (signal?.aborted) throw err; // dừng chủ động: workflow sẽ ghi nhận, không phải lỗi
         emit(name, "warn", `Lỗi ở bước ${STAGE_LABEL[name] ?? name}: ${String((err as Error)?.message ?? err).slice(0, 200)}`);
         throw err;
       } finally {
@@ -139,6 +145,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         harness: { files: harness.files, tree: harness.tree, discovered: harness.discovered.map((d) => d.path) },
         stats, mrKind: hintKind, mrKindLocked: kindLocked, mrKindReasons: kindReasons, changedFiles: ws.numstat.map((n) => n.file), notebook, notes, ...(previousRound?.findings.length ? { previousRound } : {}),
         onActivity: (a: { kind: "tool" | "ai"; message: string }) => emit("review", a.kind, a.message),
+        ...(signal ? { signal } : {}),
       };
       const record = (kind: "review" | "synthesis" | "design_map" | "design" | "area", label: string, u: { tokens?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number } | undefined; provider: string; model: string; costUsd: number | null; durationMs: number }) =>
         void m.reviews.recordUsage({ runId, mrId: rec.id, kind, label, provider: u.provider, model: u.model, tokens: u.tokens, costUsd: u.costUsd, durationMs: u.durationMs });
@@ -151,7 +158,7 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
         const { onActivity: _unused, ...shared } = baseReq;
         void _unused;
         const flow = await reviewByAreas({
-          m, record, emit: (level, msg) => emit("review", level, msg), provider, model, workdir: dir, maxBudgetUsd: settings.maxBudgetUsd, repoId: repo.id, baseSha: ws!.baseSha, rubric: fw.rubric,
+          m, record, ...(signal ? { signal } : {}), emit: (level, msg) => emit("review", level, msg), provider, model, workdir: dir, maxBudgetUsd: settings.maxBudgetUsd, repoId: repo.id, baseSha: ws!.baseSha, rubric: fw.rubric,
           mr: { title: mr.title, description: mr.description }, areas, byFile, diffBudget: cfg.diffBudgetChars, base: shared, staticFindings: analysis.findings,
           harnessText: harness.files.filter((f) => f.kind === "asdlc" || f.kind === "instructions").map((f) => `## ${f.path}\n${f.content}`).join("\n\n").slice(0, 24_000),
         });
@@ -240,12 +247,19 @@ export function createReviewMergeRequest(m: Modules, cfg: AppSettings, log: Logg
       });
       rlog.info("hoàn tất review", { iid: mr.iid, score: score.total, grade: score.grade, findings: findings.length, ms: Date.now() - started });
     } catch (err) {
+      if (signal?.aborted) {
+        emit("review", "warn", "Đã dừng theo yêu cầu của người dùng");
+        rlog.info("review bị người dùng dừng", { iid: mr.iid, ms: Date.now() - started });
+        await m.reviews.cancelRun(runId, "Đã dừng bởi người dùng", hub?.backlog(runId));
+        return;
+      }
       const e = err instanceof ModuleError ? err : new ModuleError("app", "internal", String((err as Error)?.message ?? err), err);
       rlog.error("review thất bại", { err: e.message.slice(0, 400) });
       emit("clone", "warn", `Review thất bại: ${e.message.slice(0, 200)}`);
       await m.reviews.failRun(runId, e.message, hub?.backlog(runId));
       if (RETRYABLE.has(e.code)) throw e;
     } finally {
+      control?.release(runId);
       await ws?.dispose().catch((err) => rlog.warn("dọn workspace lỗi", { err: String(err) }));
     }
   };

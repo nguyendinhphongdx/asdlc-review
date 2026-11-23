@@ -62,7 +62,7 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
       const tokens = out.usage ? { inputTokens: n("input_tokens"), outputTokens: n("output_tokens"), cacheReadTokens: n("cache_read_input_tokens"), cacheWriteTokens: n("cache_creation_input_tokens") } : undefined;
       return { text: out.result, costUsd: typeof out.total_cost_usd === "number" ? out.total_cost_usd : null, steps, ...(tokens ? { tokens } : {}) };
     },
-    async run({ model, system, user, workdir, maxBudgetUsd, onActivity, schema }) {
+    async run({ model, system, user, workdir, maxBudgetUsd, onActivity, schema, signal }) {
       const mdl = model || o.model;
       // Trần theo lần gọi (lấy từ Cài đặt) ưu tiên hơn giá trị khởi tạo; 0 = không giới hạn.
       const budget = maxBudgetUsd ?? o.maxBudgetUsd;
@@ -101,7 +101,7 @@ export function claudeCliProvider(o: ClaudeCliOptions): Provider {
           }
         }
       };
-      const res = await run(o.bin, args, { cwd: workdir, input: user, timeoutMs: o.timeoutMs, allowFailure: true, onStdoutLine: onLine });
+      const res = await run(o.bin, args, { cwd: workdir, input: user, timeoutMs: o.timeoutMs, allowFailure: true, onStdoutLine: onLine, ...(signal ? { signal } : {}) });
       if (!final) throw new ModuleError("reviewer", "upstream_error", `claude CLI không trả kết quả (exit ${res.code}): ${(res.stderr || res.stdout).slice(-500)}`);
       const out: Record<string, unknown> = final;
       if (out.is_error === true || (res.code !== 0 && !out.result && !out.structured_output)) {

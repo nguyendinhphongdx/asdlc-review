@@ -57,18 +57,18 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
   const providers: Record<ProviderId, Provider> = Object.fromEntries(registry.map((r) => [r.provider.descriptor.id, r.provider]));
 
   /** Gọi provider với một schema riêng, thử lại một lần khi JSON sai; lỗi hạ tầng không thử lại. */
-  async function structured<T>(req: { provider: ProviderId; model?: string | undefined; workdir: string; maxBudgetUsd?: number | undefined; onActivity?: ReviewRequest["onActivity"] }, prompt: { system: string; user: string }, schema: object, parse: (text: string) => T): Promise<{ value: T; usage: ReviewUsage }> {
+  async function structured<T>(req: { provider: ProviderId; model?: string | undefined; workdir: string; maxBudgetUsd?: number | undefined; onActivity?: ReviewRequest["onActivity"]; signal?: AbortSignal | undefined }, prompt: { system: string; user: string }, schema: object, parse: (text: string) => T): Promise<{ value: T; usage: ReviewUsage }> {
     const provider = providers[req.provider];
     if (!provider) throw new ModuleError("reviewer", "invalid_input", `Provider không hỗ trợ: ${req.provider}`);
     const started = Date.now();
     let lastErr: unknown;
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        const out = await provider.run({ model: req.model, system: prompt.system, user: attempt === 1 ? prompt.user : `${prompt.user}\n\nPREVIOUS OUTPUT WAS NOT VALID JSON FOR THE SCHEMA. Return ONLY the JSON object.`, workdir: req.workdir, maxBudgetUsd: req.maxBudgetUsd, onActivity: req.onActivity, schema });
+        const out = await provider.run({ model: req.model, system: prompt.system, user: attempt === 1 ? prompt.user : `${prompt.user}\n\nPREVIOUS OUTPUT WAS NOT VALID JSON FOR THE SCHEMA. Return ONLY the JSON object.`, workdir: req.workdir, maxBudgetUsd: req.maxBudgetUsd, onActivity: req.onActivity, ...(req.signal ? { signal: req.signal } : {}), schema });
         return { value: parse(out.text), usage: { provider: provider.descriptor.id, model: out.model, costUsd: out.costUsd, ...(out.tokens ? { tokens: out.tokens } : {}), durationMs: Date.now() - started } };
       } catch (err) {
         lastErr = err;
-        if (err instanceof ModuleError) throw err;
+        if (err instanceof ModuleError || req.signal?.aborted) throw err;
       }
     }
     throw new ModuleError("reviewer", "upstream_error", `AI không trả JSON hợp lệ: ${String(lastErr).slice(0, 300)}`, lastErr);
@@ -101,6 +101,7 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
             workdir: req.workdir,
             maxBudgetUsd: req.maxBudgetUsd,
             onActivity: req.onActivity,
+            ...(req.signal ? { signal: req.signal } : {}),
           });
           const review = normalizeReview(parseReviewText(out.text), req.rubric);
           const resolved = req.mrKind && !req.focus ? resolveKind({ kind: req.mrKind, reasons: req.mrKindReasons ?? [], locked: req.mrKindLocked ?? true }, review.mrKind) : null;
@@ -108,7 +109,7 @@ export function createReviewerModule(deps: ReviewerDeps): ReviewerApi {
           return { review, blocks, blocksRaw: review.blocks.length, ...(resolved ? { mrKind: resolved.kind, mrKindChanged: resolved.changed, mrKindReason: review.mrKindReason?.slice(0, 200) } : {}), usage: { provider: provider.descriptor.id, model: out.model, costUsd: out.costUsd, ...(out.tokens ? { tokens: out.tokens } : {}), durationMs: Date.now() - started } };
         } catch (err) {
           lastErr = err;
-          if (err instanceof ModuleError) throw err; // lỗi hạ tầng không thử lại ở đây
+          if (err instanceof ModuleError || req.signal?.aborted) throw err; // lỗi hạ tầng / người dùng dừng: không thử lại ở đây
           deps.logger?.warn("phản hồi AI không hợp lệ, thử lại", { attempt, err: String(err).slice(0, 300) });
         }
       }

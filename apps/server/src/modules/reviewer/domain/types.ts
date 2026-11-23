@@ -52,6 +52,8 @@ export interface ReviewRequest {
   previousRound?: { round: number; findings: { title: string; file: string | null; line: number | null; severity: string; status: "fixed" | "dismissed" | "open" }[] };
   /** Nhận hoạt động của AI theo thời gian thực (đọc file nào, đang suy luận…). */
   onActivity?: (a: ActivityEvent) => void;
+  /** Huỷ lượt review (người dùng bấm Dừng): kill tiến trình AI đang chạy. */
+  signal?: AbortSignal;
   /**
    * Lượt T4: chỉ review MỘT khu vực của MR lớn. `diff` là phần diff của khu vực; không trả overview/sơ đồ/checklist
    * (lượt tổng hợp cuối lo). `designMap` là mô tả thiết kế hiện tại (T2), `designFocus` là trọng tâm do T3 giao.
@@ -98,6 +100,7 @@ export interface UnderstandRequest {
   diff: string;
   harnessText?: string;
   onActivity?: (a: ActivityEvent) => void;
+  signal?: AbortSignal;
 }
 /** T3: yêu cầu đánh giá thiết kế toàn MR. */
 export interface DesignRequest {
@@ -108,6 +111,7 @@ export interface DesignRequest {
   digest: string;
   harnessText?: string;
   onActivity?: (a: ActivityEvent) => void;
+  signal?: AbortSignal;
 }
 
 /** Hợp đồng cho từng provider: nhận prompt đã dựng, trả văn bản JSON thô. */
@@ -115,5 +119,5 @@ export interface Provider {
   readonly descriptor: ProviderDescriptor;
   /** Hỏi đáp tự do, không công cụ (tuỳ chọn). */
   ask?(input: { model?: string; system: string; user: string; workdir: string; images?: ChatImage[]; tools?: ChatTools; onStep?: (steps: ChatStep[]) => void }): Promise<{ text: string; costUsd: number | null; steps?: ChatStep[]; tokens?: TokenUsage }>;
-  run(input: { model?: string; system: string; user: string; workdir: string; maxBudgetUsd?: number; onActivity?: (a: ActivityEvent) => void; /** JSON schema của đầu ra; mặc định là schema review. */ schema?: object }): Promise<{ text: string; model: string; costUsd: number | null; tokens?: TokenUsage }>;
+  run(input: { model?: string; system: string; user: string; workdir: string; maxBudgetUsd?: number; onActivity?: (a: ActivityEvent) => void; /** Huỷ lượt gọi (kill tiến trình CLI). */ signal?: AbortSignal; /** JSON schema của đầu ra; mặc định là schema review. */ schema?: object }): Promise<{ text: string; model: string; costUsd: number | null; tokens?: TokenUsage }>;
 }

@@ -19,6 +19,8 @@ export type UsageRecorder = (kind: "design_map" | "design" | "area", label: stri
 
 export interface AreaFlowInput {
   record?: UsageRecorder;
+  /** Người dùng bấm Dừng: không chạy thêm lượt nào và kill lượt đang chạy. */
+  signal?: AbortSignal;
   m: Modules;
   emit: Emit;
   provider: string;
@@ -68,7 +70,7 @@ const sumTokens = (a: AreaFlowResult["tokens"], b: { inputTokens: number; output
 export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
   const { m, emit } = i;
   const conc = i.concurrency ?? 3;
-  const common = { provider: i.provider, model: i.model, workdir: i.workdir, maxBudgetUsd: i.maxBudgetUsd, language: i.rubric.language };
+  const common = { provider: i.provider, model: i.model, workdir: i.workdir, maxBudgetUsd: i.maxBudgetUsd, language: i.rubric.language, ...(i.signal ? { signal: i.signal } : {}) };
   let costUsd = 0;
   let tokens: AreaFlowResult["tokens"] = null;
   const addUsage = (u: { costUsd: number | null; tokens?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number } | undefined }) => { costUsd += u.costUsd ?? 0; tokens = sumTokens(tokens, u.tokens); };
@@ -78,6 +80,7 @@ export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
   const toMap = i.areas.filter(needsMap).slice(0, 6);
   if (toMap.length) emit("info", `T2 · Đọc thiết kế hiện tại của ${toMap.length}/${i.areas.length} khu vực (khu vực nhỏ, rủi ro thấp bỏ qua)`);
   await pool(toMap, conc, async (a) => {
+    i.signal?.throwIfAborted();
     try {
       const hit = await m.reviews.getDesignMap(i.repoId, i.baseSha, a.id);
       if (hit) { maps.push({ area: a.label, text: hit, cached: true }); emit("info", `T2 · ${a.label}: dùng bản đã lưu (cùng base ${i.baseSha.slice(0, 8)})`); return; }
@@ -88,6 +91,7 @@ export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
       await m.reviews.saveDesignMap(i.repoId, i.baseSha, a.id, r.text).catch(() => undefined);
       emit("info", `T2 · ${a.label}: đã mô tả thiết kế hiện tại (${r.text.length} ký tự)`);
     } catch (err) {
+      if (i.signal?.aborted) throw err;
       emit("warn", `T2 · ${a.label}: bỏ qua (${String((err as Error)?.message ?? err).slice(0, 140)})`);
     }
   });
@@ -95,6 +99,7 @@ export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
 
   // ── T3: đánh giá thiết kế toàn MR.
   let design: DesignReviewDto | null = null;
+  i.signal?.throwIfAborted();
   try {
     emit("info", "T3 · Đánh giá thiết kế toàn MR (bản đồ khu vực + thiết kế hiện tại)");
     const r = await m.reviewer.assessDesign({ ...common, mr: i.mr, areas: i.areas, designMaps: maps.map((x) => ({ area: x.area, text: x.text })), digest: m.analysis.digest(i.areas, i.byFile), harnessText: i.harnessText, onActivity: (e) => emit(e.kind, `[thiết kế] ${e.message}`) });
@@ -103,6 +108,7 @@ export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
     design = r.design;
     emit("info", `T3 · Thiết kế: ${design.verdict}${design.concerns.length ? `, ${design.concerns.length} mối quan tâm` : ""}${design.focus.length ? `, trọng tâm: ${design.focus.join(", ")}` : ""}`);
   } catch (err) {
+    if (i.signal?.aborted) throw err;
     emit("warn", `T3 · Bỏ qua đánh giá thiết kế (${String((err as Error)?.message ?? err).slice(0, 140)})`);
   }
 
@@ -123,13 +129,14 @@ export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
   const perArea = new Map<string, { files: number; findings: number; cost: number }>();
   let failed = 0;
   await pool(jobs, conc, async (job) => {
+    i.signal?.throwIfAborted();
     const tag = `${job.area.label}${job.total > 1 ? ` ${job.index}/${job.total}` : ""}`;
     try {
       emit("info", `T4 · Bắt đầu ${tag} (${job.files.length} file)`);
       const concerns = design?.concerns.filter((c) => c.area === job.area.label).map((c) => c.text) ?? [];
       const focusNote = [design?.focus.includes(job.area.label) ? "design review flagged this area for a deep look" : "", ...concerns].filter(Boolean).join("; ");
       const r = await m.reviewer.review({
-        ...i.base, staticFindings: i.staticFindings.filter((f) => !f.file || job.files.includes(f.file)),
+        ...i.base, ...(i.signal ? { signal: i.signal } : {}), staticFindings: i.staticFindings.filter((f) => !f.file || job.files.includes(f.file)),
         diff: job.diff, omittedFiles: omittedBy.get(job.area.label) ?? [],
         focus: { label: job.area.label, files: job.files, others: i.areas.filter((a) => a.id !== job.area.id).map((a) => ({ label: a.label, files: a.files.length })), ...(mapOf.get(job.area.label) ? { designMap: mapOf.get(job.area.label)! } : {}), ...(focusNote ? { designFocus: focusNote } : {}), chunk: { index: job.index, total: job.total } },
         onActivity: (e) => emit(e.kind, `[${tag}] ${e.message}`),
@@ -144,6 +151,7 @@ export async function reviewByAreas(i: AreaFlowInput): Promise<AreaFlowResult> {
       perArea.set(job.area.label, { files: s.files + job.files.length, findings: s.findings + mine.length, cost: s.cost + (r.usage.costUsd ?? 0) });
       emit("info", `T4 · Xong ${tag}: ${mine.length} finding${r.usage.costUsd != null ? `, $${r.usage.costUsd.toFixed(2)}` : ""}`);
     } catch (err) {
+      if (i.signal?.aborted) throw err;
       failed++;
       emit("warn", `T4 · ${tag} lỗi: ${String((err as Error)?.message ?? err).slice(0, 160)}`);
       omitted.push(...job.files);

@@ -23,7 +23,9 @@ export interface ReviewsApi {
   /** Tạo run ở trạng thái `queued` ngay lúc xếp hàng, để UI thấy được trước khi worker nhận việc. */
   queueRun(input: StartRunInput): Promise<{ runId: string; round: number }>;
   /** Worker bắt đầu chạy run đã xếp hàng (cũng dùng khi thử lại run lỗi). Trả thời gian đã chờ trong hàng đợi. */
-  beginRun(runId: string, provider?: string | null): Promise<{ waitedMs: number }>;
+  beginRun(runId: string, provider?: string | null): Promise<{ waitedMs: number; cancelled: boolean }>;
+  /** Người dùng dừng một run còn xếp hàng/đang chạy. Trả false nếu run đã kết thúc. */
+  cancelRun(runId: string, reason: string, activity?: unknown[]): Promise<boolean>;
   /** Ghi provider thực tế dùng cho run (biết sau khi nạp cấu hình repo, tức sau khi nhận việc). */
   setProvider(runId: string, provider: string): Promise<void>;
   /** Cache T2: mô tả thiết kế hiện tại của khu vực tại một base commit. */
@@ -90,9 +92,15 @@ export function createReviewsModule(deps: ReviewsDeps): ReviewsApi {
       return r;
     },
     async beginRun(runId, provider) {
-      const { mrId, waitedMs } = await repo.beginRun(runId, provider ?? null, clock.now());
-      deps.events.publish("reviews.run.status", { runId, mrId, status: "running", stage: "start" });
-      return { waitedMs };
+      const { mrId, waitedMs, cancelled } = await repo.beginRun(runId, provider ?? null, clock.now());
+      if (!cancelled) deps.events.publish("reviews.run.status", { runId, mrId, status: "running", stage: "start" });
+      return { waitedMs, cancelled };
+    },
+    async cancelRun(runId, reason, activity) {
+      const done = await repo.cancelRun(runId, reason, clock.now(), activity);
+      if (!done) return false;
+      deps.events.publish("reviews.run.cancelled", { runId, mrId: done.mrId });
+      return true;
     },
     setProvider: (id, provider) => repo.setProvider(id, provider),
     getDesignMap: (repoId, baseSha, areaId) => repo.getDesignMap(repoId, baseSha, areaId),

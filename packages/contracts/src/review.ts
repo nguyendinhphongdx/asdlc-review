@@ -80,7 +80,7 @@ export interface FileReviewDto {
 
 export type Platform = "gitlab" | "github";
 export type ReviewTrigger = "webhook" | "comment" | "manual" | "chat" | "poll";
-export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "skipped";
+export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "skipped" | "cancelled";
 
 export interface ReviewJobData {
   platform: Platform;

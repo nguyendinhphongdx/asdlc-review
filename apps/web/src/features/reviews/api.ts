@@ -3,6 +3,8 @@ import { qs, request } from "../../kernel/http.js";
 export const listRuns = (p: { limit?: number; offset?: number; minScore?: number; maxScore?: number; status?: string }) =>
   request<Paged<RunListItemDto>>(`/api/reviews${qs(p)}`);
 export const getRun = (id: string) => request<RunDetailDto>(`/api/reviews/${id}`);
+/** Dừng một lần review đang chờ/đang chạy. */
+export const cancelRun = (runId: string) => request<{ status: "cancelling" | "cancelled" }>(`/api/reviews/${runId}/cancel`, { method: "POST", json: {} });
 /** Chi phí/token theo từng lần gọi AI của một run (review, T2/T3/T4, chat). */
 export const getRunUsage = (runId: string) => request<UsageEntryDto[]>(`/api/reviews/${runId}/usage`);
 export const requestReview = (url: string) => request<RequestReviewResultDto>("/api/reviews", { method: "POST", json: { url } });

@@ -16,6 +16,8 @@ export interface ExecOptions {
   /** Chuỗi cần che khi in lỗi (token…). */
   redact?: string[];
   allowFailure?: boolean;
+  /** Huỷ tiến trình: gửi SIGTERM (rồi SIGKILL) và từ chối với lỗi AbortError, kể cả khi `allowFailure`. */
+  signal?: AbortSignal;
   /** Gọi cho từng dòng stdout ngay khi có (dùng để stream tiến trình). */
   onStdoutLine?: (line: string) => void;
 }
@@ -67,7 +69,16 @@ export function run(cmd: string, args: string[], opts: ExecOptions = {}): Promis
       const r = resolveWindowsCommand(cmd, env[pathKey] ?? "");
       if (r) { exe = r.cmd; argv = [...r.args, ...args]; if (r.args.length) env.ELECTRON_RUN_AS_NODE = "1"; }
     }
+    const abortError = () => Object.assign(new Error(`${cmd} đã bị dừng`), { name: "AbortError" });
+    if (opts.signal?.aborted) return reject(abortError());
     const child = spawn(exe, argv, { cwd: opts.cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+    let aborted = false;
+    const onAbort = () => {
+      aborted = true;
+      child.kill("SIGTERM");
+      setTimeout(() => child.kill("SIGKILL"), 3000).unref();
+    };
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -93,10 +104,13 @@ export function run(cmd: string, args: string[], opts: ExecOptions = {}): Promis
     child.stderr.on("data", (d) => (stderr += d));
     child.on("error", (err) => {
       if (timer) clearTimeout(timer);
+      opts.signal?.removeEventListener("abort", onAbort);
       reject(new Error(`Không chạy được "${cmd}": ${err.message}`));
     });
     child.on("close", (code) => {
       if (timer) clearTimeout(timer);
+      opts.signal?.removeEventListener("abort", onAbort);
+      if (aborted) return reject(abortError());
       const result = { code: code ?? -1, stdout, stderr };
       if (timedOut) return reject(new ExecError(`${cmd} quá thời gian ${opts.timeoutMs}ms`, result, true));
       if (result.code !== 0 && !opts.allowFailure) {

@@ -13,6 +13,8 @@ export interface DomainEvents {
   "reviews.run.status": { runId: string; mrId: string; status: "queued" | "running"; stage: string };
   "reviews.run.completed": { runId: string; mrId: string; score: number | null; grade: string | null };
   "reviews.run.failed": { runId: string; mrId: string; error: string };
+  /** Người dùng đã dừng run. */
+  "reviews.run.cancelled": { runId: string; mrId: string };
   "identity.member.changed": { memberId: string };
   "repos.repo.changed": { repoId: string };
   "settings.changed": { keys: string[] };

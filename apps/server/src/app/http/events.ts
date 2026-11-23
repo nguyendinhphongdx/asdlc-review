@@ -27,6 +27,7 @@ export function registerEventRoutes(app: FastifyInstance, c: Container) {
       c.events.subscribe("reviews.run.status", (p) => { if (!run || p.runId === run) send("status", p); }),
       c.events.subscribe("reviews.run.completed", (p) => { if (!run || p.runId === run) send("completed", p); }),
       c.events.subscribe("reviews.run.failed", (p) => { if (!run || p.runId === run) send("failed", p); }),
+      c.events.subscribe("reviews.run.cancelled", (p) => { if (!run || p.runId === run) send("cancelled", p); }),
     ];
     const ping = setInterval(() => res.write(": ping\n\n"), 15_000);
     req.raw.on("close", () => { clearInterval(ping); off.forEach((f) => f()); });

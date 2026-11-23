@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { fmtDur, fmtMs } from "../../kernel/format.js";
 import { STAGES, stageLabel } from "../../kernel/stages.js";
 import { Tip } from "../../kernel/tip.js";
+import { StopButton } from "./stop-button.js";
 import { clock, since, stageState, useTick } from "./strip.js";
 
 /** Dải trạng thái luôn hiện ở đầu panel: đang làm gì, ở bước mấy, bao lâu, tốn bao nhiêu; lỗi thì có nút thử lại. */
@@ -20,7 +21,7 @@ export function PanelStatus({ r, entries, onRetry, retrying, retried, wide, onTo
   const last = entries[entries.length - 1];
   const elapsed = live ? since(r.createdAt) : null;
   const variant = r.status === "failed" ? "danger" : r.status === "succeeded" ? "success" : r.status === "running" ? "info" : "secondary";
-  const label = r.status === "failed" ? "Lỗi" : r.status === "running" ? `Đang chạy · bước ${idx + 1}/${STAGES.length}` : r.status === "succeeded" ? "Hoàn tất" : r.status === "skipped" ? "Bỏ qua" : "Đang chờ";
+  const label = r.status === "failed" ? "Lỗi" : r.status === "running" ? `Đang chạy · bước ${idx + 1}/${STAGES.length}` : r.status === "succeeded" ? "Hoàn tất" : r.status === "skipped" ? "Bỏ qua" : r.status === "cancelled" ? "Đã dừng" : "Đang chờ";
   return (
     <div className="border-b bg-card px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -28,6 +29,7 @@ export function PanelStatus({ r, entries, onRetry, retrying, retried, wide, onTo
         <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground tabular-nums" title="Thời gian · chi phí · model của lần review này">
           {r.status === "succeeded" ? `${fmtDur(r.durationMs)}${r.costUsd != null ? ` · $${r.costUsd.toFixed(2)}` : ""}${r.model ? ` · ${r.model}` : ""}` : live ? `${stageLabel(r.stage)} · ${clock(elapsed ?? 0)}${last ? ` · ${last.message.slice(0, 48)}` : ""}` : (r.error ?? "").slice(0, 80)}
         </span>
+        {live && <StopButton runId={r.id} />}
         <Tip text="Mở rộng hoặc thu nhỏ khung kết quả. Cũng có thể kéo thanh ở mép trái khung để chỉnh tuỳ ý."><Button size="sm" variant="ghost" onClick={onToggleWide} aria-pressed={wide} aria-label={wide ? "Thu nhỏ panel" : "Mở rộng panel"}>{wide ? "Thu nhỏ" : "Mở rộng"}</Button></Tip>
       </div>
       <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden="true"><div className={cn("h-full transition-all", r.status === "failed" ? "bg-danger" : r.status === "succeeded" ? "bg-success" : "bg-primary")} style={{ width: `${pct}%` }} /></div>

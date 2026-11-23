@@ -5,7 +5,7 @@ export interface RunSummaryDto {
   id: string;
   mergeRequestId: string;
   round: number;
-  status: "queued" | "running" | "succeeded" | "failed" | "skipped";
+  status: "queued" | "running" | "succeeded" | "failed" | "skipped" | "cancelled";
   stage: string | null;
   trigger: string;
   triggeredBy: string | null;

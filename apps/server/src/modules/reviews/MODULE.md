@@ -11,7 +11,7 @@ Lưu và truy vấn lịch sử review: MR, từng lần chạy (run), finding v
 Mỗi run lưu thêm `frameworkId`/`frameworkVersion` (chấm bằng bản nào), `omittedFiles`, `harnessReport` (JSON độ phủ harness lúc review), `overview` ("Đánh giá tổng quan" theo khung framework), `mrContext` (tiêu đề/mô tả MR + kết quả kiểm tra tài liệu theo chuẩn → `mrDescription` ở DTO) và `aiContext` (bộ nhớ repo, ghi chú MR, kết quả vòng trước đã nạp cho AI + kích thước từng nguồn → để tab "Ngữ cảnh AI" giải thích AI "biết gì").
 
 ## Sự kiện
-Phát `reviews.run.status` (queued → running → từng stage), `reviews.run.completed`, `reviews.run.failed`. Không nhận.
+Phát `reviews.run.status` (queued → running → từng stage), `reviews.run.completed`, `reviews.run.failed`, `reviews.run.cancelled` (người dùng dừng; `cancelRun` chỉ áp dụng cho run còn queued/running). Không nhận.
 
 ## Dữ liệu
 `MergeRequest`, `ReviewRun`, `ReviewFinding`, `ReviewCategoryScore`, `DesignMapCache` (prisma/schema/reviews.prisma). `repositoryId` và `memberId` chỉ là ID chuỗi, không relation sang module khác.

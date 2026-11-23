@@ -32,7 +32,7 @@ export class ReviewRepository {
 
   async usageRows(from: Date, to: Date): Promise<UsageRunRow[]> {
     const rows = await this.db.reviewRun.findMany({
-      where: { createdAt: { gte: from, lte: to }, status: { in: ["succeeded", "failed"] } },
+      where: { createdAt: { gte: from, lte: to }, status: { in: ["succeeded", "failed", "cancelled"] } },
       orderBy: { createdAt: "asc" },
       select: { id: true, createdAt: true, status: true, provider: true, model: true, frameworkId: true, costUsd: true, durationMs: true, score: true, inputTokens: true, outputTokens: true, cacheReadTokens: true, cacheWriteTokens: true, mergeRequest: { select: { id: true, iid: true, title: true, repositoryId: true } } },
     });
@@ -97,10 +97,12 @@ export class ReviewRepository {
   }
 
   /** Worker nhận run đã xếp hàng (hoặc thử lại run lỗi): chuyển sang `running`, trả thời gian đã chờ. */
-  async beginRun(runId: string, provider: string | null, now: Date): Promise<{ mrId: string; waitedMs: number }> {
-    const cur = await this.db.reviewRun.findUnique({ where: { id: runId }, select: { createdAt: true } });
+  async beginRun(runId: string, provider: string | null, now: Date): Promise<{ mrId: string; waitedMs: number; cancelled: boolean }> {
+    const cur = await this.db.reviewRun.findUnique({ where: { id: runId }, select: { createdAt: true, status: true, mergeRequestId: true } });
+    // Người dùng đã dừng khi run còn xếp hàng: không bật lại thành "đang chạy".
+    if (cur?.status === "cancelled") return { mrId: cur.mergeRequestId, waitedMs: 0, cancelled: true };
     const r = await this.db.reviewRun.update({ where: { id: runId }, data: { status: "running", stage: "start", error: null, finishedAt: null, startedAt: now, ...(provider ? { provider } : {}) } });
-    return { mrId: r.mergeRequestId, waitedMs: cur ? Math.max(0, now.getTime() - cur.createdAt.getTime()) : 0 };
+    return { mrId: r.mergeRequestId, waitedMs: cur ? Math.max(0, now.getTime() - cur.createdAt.getTime()) : 0, cancelled: false };
   }
 
   async getDesignMap(repoId: string, baseSha: string, areaId: string): Promise<string | null> {
@@ -165,6 +167,14 @@ export class ReviewRepository {
 
   async setCommentUrl(runId: string, url: string | null): Promise<void> {
     await this.db.reviewRun.update({ where: { id: runId }, data: { commentUrl: url } });
+  }
+
+  /** Đánh dấu run bị người dùng dừng (chỉ khi còn queued/running). Trả false nếu run đã kết thúc. */
+  async cancelRun(runId: string, reason: string, now: Date, activity: unknown[] = []): Promise<{ mrId: string } | null> {
+    const cur = await this.db.reviewRun.findUnique({ where: { id: runId }, select: { status: true, mergeRequestId: true, createdAt: true, startedAt: true } });
+    if (!cur || (cur.status !== "queued" && cur.status !== "running")) return null;
+    await this.db.reviewRun.update({ where: { id: runId }, data: { status: "cancelled", error: reason.slice(0, 500), durationMs: Math.max(0, now.getTime() - (cur.startedAt ?? cur.createdAt).getTime()), ...(activity.length ? { activity: JSON.stringify(activity) } : {}), finishedAt: now } });
+    return { mrId: cur.mergeRequestId };
   }
 
   async failRun(runId: string, error: string, now: Date, activity: unknown[] = []): Promise<{ mrId: string }> {

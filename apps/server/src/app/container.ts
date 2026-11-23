@@ -26,6 +26,7 @@ import { memberDirectoryAdapter, paramsAdapter, runFactsAdapter, usageAdapter } 
 import type { AppSettings, Modules } from "./modules.js";
 import { createAgentChat } from "./workflows/agent-chat.js";
 import { createReviewActions } from "./workflows/review-actions.js";
+import { createRunControl } from "./workflows/run-control.js";
 import { createAgentActions } from "./workflows/agent-actions.js";
 import { createAgentTools } from "./agent-tools.js";
 import { createFrameworkTools } from "./framework-tools.js";
@@ -99,13 +100,14 @@ export function buildContainer(config: Config, log: Logger, overrides: Partial<M
   const progress = createProgressHub(events);
   const requestReview = createRequestReview(modules, log.child("request"), progress);
   const inbox = createInbox(modules, requestReview, log.child("poll"));
-  const reviewActions = createReviewActions(modules, log.child("review"));
+  const runControl = createRunControl();
+  const reviewActions = createReviewActions(modules, log.child("review"), runControl, progress);
   const agentTools = createAgentTools(modules, { postSummary: reviewActions.postComment });
   const frameworkTools = createFrameworkTools(modules);
   const chatLive = new Map<string, ChatStep[]>();
   const workflows = {
     requestReview,
-    reviewMergeRequest: createReviewMergeRequest(modules, app, log.child("review"), progress),
+    reviewMergeRequest: createReviewMergeRequest(modules, app, log.child("review"), progress, runControl),
     handleScmEvent: createHandleScmEvent(modules, requestReview, log.child("event")),
     chatCommand: createChatCommand(modules, requestReview, { publicUrl: config.PUBLIC_URL }),
     registerRepo: createRegisterRepo(modules),

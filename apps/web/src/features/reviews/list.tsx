@@ -23,6 +23,7 @@ function Status({ status, stage, error }: { status: string; stage: string | null
   if (status === "running") return <Badge variant="info"><span className="size-1.5 animate-pulse rounded-full bg-primary" />Đang review{stage && stage !== "start" ? ` · ${stageLabel(stage)}` : ""}</Badge>;
   if (status === "queued") return <Badge variant="warning"><span className="size-1.5 animate-pulse rounded-full bg-current" />Đang chờ · hàng đợi</Badge>;
   if (status === "skipped") return <Badge title={error ?? ""}>Bỏ qua</Badge>;
+  if (status === "cancelled") return <Badge title={error ?? ""}>Đã dừng</Badge>;
   return <Badge>{status === "queued" ? "Đang chờ" : status}</Badge>;
 }
 

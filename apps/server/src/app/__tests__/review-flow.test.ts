@@ -25,6 +25,7 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
   let baseSha = "";
   const notes: string[] = [];
   const inline: { file: string; line: number }[] = [];
+  const hold = { on: false };
 
   before(async () => {
     tmp = mkdtempSync(path.join(tmpdir(), "mrd-it-"));
@@ -60,11 +61,15 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
       ask: async () => ({ text: "ok", costUsd: null }),
       understand: async () => ({ text: "thiết kế hiện tại", usage: { provider: "claude-cli", model: "fake", costUsd: 0.01, durationMs: 1 } }),
       assessDesign: async () => ({ design: { verdict: "accept", summary: "ổn", concerns: [], focus: [], splitSuggestion: "" }, usage: { provider: "claude-cli", model: "fake", costUsd: 0.01, durationMs: 1 } }),
-      review: async () => ({
+      review: async (req) => {
+        // Test dừng: giữ lượt AI đến khi bị huỷ, giống tiến trình CLI bị kill.
+        if (hold.on) await new Promise<never>((_, reject) => { req.signal?.addEventListener("abort", () => reject(Object.assign(new Error("đã dừng"), { name: "AbortError" }))); });
+        return {
         blocks: [],
         review: { blocks: [], summary: "Thêm hàm thanh toán", intent: "Thêm pay()", strengths: [], overview: [], harnessUsed: ["CLAUDE.md"], checks: [{ ruleId: "ARC-01", status: "pass", note: "Đã đối chiếu cấu trúc thư mục" }], findings: [{ category: "conventions", ruleId: "CON-03", severity: "major", kind: "issue", title: "Dùng console.log thay vì logger", file: "src/pay.ts", lineStart: 3, lineEnd: null, why: "CLAUDE.md cấm console.log", evidence: null, suggestion: "Dùng logger", question: "Vì sao không dùng logger?", confidence: 0.9 }] },
         usage: { provider: "claude-cli", model: "fake", costUsd: 0.12, durationMs: 5 },
-      }),
+        };
+      },
     };
     // Mặc định framework KHÔNG đăng comment; bản sao dùng cho test bật lên để kiểm tra đường đăng.
     const fwDir = path.join(tmp, "frameworks");
@@ -153,6 +158,31 @@ describe("workflow review end-to-end (git thật, DB thật, AI giả)", () => {
     assert.equal(done.status, "succeeded", done.error ?? "");
     assert.ok(seen.includes("running:start") && seen.includes("running:clone") && seen.includes("running:publish"), seen.join(","));
     assert.ok(typeof done.stageTimings.queue === "number");
+  });
+
+  it("dừng review đang chạy: tiến trình AI bị huỷ, run thành \"đã dừng\" và không đăng comment", async () => {
+    const notesBefore = notes.length;
+    hold.on = true;
+    try {
+      const res = await c.workflows.requestReview({ ...input, force: true });
+      assert.equal(res.status, "queued");
+      assert.ok("runId" in res && res.runId);
+      for (let i = 0; i < 150 && (await c.modules.reviews.getRun(res.runId)).stage !== "review"; i++) await wait(100);
+      assert.equal((await c.modules.reviews.getRun(res.runId)).stage, "review", "phải tới bước AI");
+      const seen: string[] = [];
+      const off = c.events.subscribe("reviews.run.cancelled", (p) => { seen.push(p.runId); });
+      assert.deepEqual(await c.workflows.reviewActions.cancel(res.runId), { status: "cancelling" });
+      for (let i = 0; i < 100 && (await c.modules.reviews.getRun(res.runId)).status === "running"; i++) await wait(100);
+      off();
+      const done = await c.modules.reviews.getRun(res.runId);
+      assert.equal(done.status, "cancelled");
+      assert.match(done.error ?? "", /dừng/);
+      assert.deepEqual(seen, [res.runId]);
+      assert.equal(notes.length, notesBefore, "run đã dừng không được đăng comment");
+      await assert.rejects(c.workflows.reviewActions.cancel(res.runId), /đã kết thúc/);
+    } finally {
+      hold.on = false;
+    }
   });
 
   it("tác giả được tạo thành viên và lên leaderboard", async () => {

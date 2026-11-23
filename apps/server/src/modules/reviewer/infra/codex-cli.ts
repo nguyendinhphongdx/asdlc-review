@@ -23,7 +23,7 @@ export const codexCliDescriptor: ProviderDescriptor = {
 export function codexCliProvider(o: CodexCliOptions): Provider {
   return {
     descriptor: codexCliDescriptor,
-    async run({ model, system, user, workdir, onActivity, schema }) {
+    async run({ model, system, user, workdir, onActivity, schema, signal }) {
       const mdl = model || o.model;
       const tmp = await mkdtemp(path.join(tmpdir(), "mrd-codex-"));
       try {
@@ -31,7 +31,7 @@ export function codexCliProvider(o: CodexCliOptions): Provider {
         const outFile = path.join(tmp, "out.json");
         await writeFile(schemaFile, JSON.stringify(schema ?? REVIEW_JSON_SCHEMA));
         const args = ["exec", "-s", "read-only", "-C", workdir, "--skip-git-repo-check", "--ephemeral", "--output-schema", schemaFile, "-o", outFile, ...(mdl ? ["-m", mdl] : []), "-"];
-        const res = await run(o.bin, args, { cwd: workdir, input: `${system}\n\n${user}`, timeoutMs: o.timeoutMs, allowFailure: true, onStdoutLine: (l) => onActivity?.({ kind: "ai", message: l.replace(/\s+/g, " ").slice(0, 240) }) });
+        const res = await run(o.bin, args, { cwd: workdir, input: `${system}\n\n${user}`, timeoutMs: o.timeoutMs, allowFailure: true, onStdoutLine: (l) => onActivity?.({ kind: "ai", message: l.replace(/\s+/g, " ").slice(0, 240) }), ...(signal ? { signal } : {}) });
         const text = await readFile(outFile, "utf8").catch(() => "");
         if (!text.trim()) throw new ModuleError("reviewer", "upstream_error", `codex CLI không trả kết quả (exit ${res.code}): ${(res.stderr || res.stdout).slice(-500)}`);
         return { text, model: mdl || "codex", costUsd: null };
